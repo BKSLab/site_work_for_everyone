@@ -66,6 +66,8 @@ async function proxyRequest(request: NextRequest, path: string) {
             path: `/api/v1/${path}`,
             method: request.method,
             durationMs: Date.now() - startTime,
+            error: error instanceof Error ? error.message : String(error),
+            targetUrl: url.toString(),
         });
         return NextResponse.json(
             { detail: "Ошибка соединения с сервером." },

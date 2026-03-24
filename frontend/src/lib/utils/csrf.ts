@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/utils/logger";
 
 /**
  * Проверяет Origin header входящего запроса.
@@ -34,6 +35,7 @@ export function validateOrigin(request: NextRequest): NextResponse | null {
         } catch {
             // Невалидный Origin — блокируем
         }
+        logger.warn("CSRF blocked: invalid origin", { origin, requestHost, method });
         return NextResponse.json(
             { detail: "Forbidden: invalid origin" },
             { status: 403 }
@@ -50,6 +52,7 @@ export function validateOrigin(request: NextRequest): NextResponse | null {
         } catch {
             // Невалидный Referer — блокируем
         }
+        logger.warn("CSRF blocked: invalid referer", { referer, requestHost, method });
         return NextResponse.json(
             { detail: "Forbidden: invalid referer" },
             { status: 403 }
@@ -58,6 +61,7 @@ export function validateOrigin(request: NextRequest): NextResponse | null {
 
     // Нет ни Origin, ни Referer — блокируем
     // (Легитимные браузерные fetch всегда отправляют Origin)
+    logger.warn("CSRF blocked: missing origin", { requestHost, method });
     return NextResponse.json(
         { detail: "Forbidden: missing origin" },
         { status: 403 }
