@@ -9,7 +9,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "5434:5432"
     networks:
       - wfe_network
     healthcheck:
@@ -51,7 +51,7 @@ services:
     image: nginx:alpine
     container_name: frontend_nginx
     ports:
-      - "80:80"
+      - "92:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
