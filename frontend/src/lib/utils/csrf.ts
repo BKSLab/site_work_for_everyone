@@ -26,10 +26,13 @@ export function validateOrigin(request: NextRequest): NextResponse | null {
     // Определяем хост запроса
     const requestHost = request.headers.get("host") ?? request.nextUrl.host;
 
+    // requestHost может быть с портом или без — нормализуем к hostname
+    const requestHostname = requestHost.split(":")[0];
+
     if (origin) {
         try {
             const originUrl = new URL(origin);
-            if (originUrl.host === requestHost) {
+            if (originUrl.hostname === requestHostname) {
                 return null; // Origin совпадает — OK
             }
         } catch {
@@ -46,7 +49,7 @@ export function validateOrigin(request: NextRequest): NextResponse | null {
     if (referer) {
         try {
             const refererUrl = new URL(referer);
-            if (refererUrl.host === requestHost) {
+            if (refererUrl.hostname === requestHostname) {
                 return null; // Referer совпадает — OK
             }
         } catch {
