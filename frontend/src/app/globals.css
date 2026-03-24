@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0A0A0A;
+  --foreground: #F0F0F0;
+  --accent: #F5B800;
+  --accent-hover: #E0A800;
+  --accent-foreground: #0A0A0A;
+  --surface: #1A1A1A;
+  --surface-hover: #252525;
+  --border: #2D2D2D;
+  --muted: #999999;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@keyframes braille-dot {
+  0%, 100% {
+    transform: scale(0.35);
+    background-color: var(--border);
+    box-shadow: none;
+  }
+  50% {
+    transform: scale(1);
+    background-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent), 0 0 16px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+}
