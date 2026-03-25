@@ -90,10 +90,10 @@ export function RegionCombobox({
 
     return (
         <div className="flex flex-col gap-1 md:gap-0" ref={containerRef}> {/* Outer container for field + error */}
-            <div className="flex items-center gap-2"> {/* For label and input/combobox */}
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2"> {/* For label and input/combobox */}
                 <label
                     htmlFor={id}
-                    className="flex-none text-sm font-medium text-foreground whitespace-nowrap"
+                    className="flex-none text-sm font-medium text-foreground"
                 >
                     Регион
                     <span aria-hidden="true" className="ml-1 text-accent">

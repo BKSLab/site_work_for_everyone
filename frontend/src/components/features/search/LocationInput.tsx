@@ -14,10 +14,10 @@ export function LocationInput({ value, onChange, error }: LocationInputProps) {
 
     return (
         <div className="flex flex-col gap-1 md:gap-0"> {/* Outer container for field + error */}
-            <div className="flex items-center gap-2"> {/* For label and input */}
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2"> {/* For label and input */}
                 <label
                     htmlFor={inputId}
-                    className="flex-none text-sm font-medium text-foreground whitespace-nowrap"
+                    className="flex-none text-sm font-medium text-foreground"
                 >
                     Населённый пункт
                     <span aria-hidden="true" className="ml-1 text-accent">
