@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -110,37 +111,54 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
     return (
         <nav aria-label="Шаги мастера">
             <ol className="flex items-center justify-center">
+
+                {/* Аватар Веры */}
+                <li className="flex items-center" aria-hidden="true">
+                    <div className="flex flex-col items-center gap-2">
+                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-accent/40 shadow-[0_0_20px_rgba(245,184,0,0.25)]">
+                            <Image
+                                src="/logo_ai_assistant.png"
+                                alt=""
+                                width={56}
+                                height={56}
+                                className="rounded-full"
+                            />
+                        </span>
+                        <span className="hidden text-xs font-semibold uppercase tracking-wider text-accent sm:block">
+                            Вера
+                        </span>
+                    </div>
+                    {/* Линия от аватара к первому шагу */}
+                    <div className="mx-3 mb-6 h-px w-10 bg-accent/40 sm:w-16" />
+                </li>
+
                 {steps.map((step, i) => {
                     const isCompleted = i < currentIdx;
-                    const isCurrent = i === currentIdx;
+                    const isCurrent   = i === currentIdx;
                     return (
                         <li key={step} className="flex items-center">
-                            <div className="flex flex-col items-center gap-1.5">
+                            <div className="flex flex-col items-center gap-2">
                                 <span
                                     aria-current={isCurrent ? "step" : undefined}
                                     className={[
-                                        "flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all",
+                                        "flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold transition-all",
                                         isCompleted
                                             ? "bg-accent text-background"
                                             : isCurrent
-                                              ? "border-2 border-accent text-accent shadow-[0_0_12px_rgba(245,184,0,0.25)]"
+                                              ? "border-2 border-accent text-accent shadow-[0_0_16px_rgba(245,184,0,0.3)]"
                                               : "border border-white/20 text-muted",
                                     ].join(" ")}
                                 >
                                     {isCompleted ? (
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                             <polyline points="20 6 9 17 4 12" />
                                         </svg>
-                                    ) : (
-                                        i + 1
-                                    )}
+                                    ) : i + 1}
                                 </span>
-                                <span
-                                    className={[
-                                        "hidden text-[10px] font-medium uppercase tracking-wider sm:block",
-                                        isCurrent ? "text-accent" : isCompleted ? "text-foreground" : "text-muted",
-                                    ].join(" ")}
-                                >
+                                <span className={[
+                                    "hidden text-xs font-medium uppercase tracking-wider sm:block",
+                                    isCurrent ? "text-accent" : isCompleted ? "text-foreground" : "text-muted",
+                                ].join(" ")}>
                                     {LABEL[step]}
                                 </span>
                             </div>
@@ -148,7 +166,7 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
                                 <div
                                     aria-hidden="true"
                                     className={[
-                                        "mx-2 mb-5 h-px w-8 transition-colors sm:w-14",
+                                        "mx-3 mb-6 h-px w-10 transition-colors sm:w-16",
                                         isCompleted ? "bg-accent/40" : "bg-white/15",
                                     ].join(" ")}
                                 />
@@ -158,6 +176,22 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
                 })}
             </ol>
         </nav>
+    );
+}
+
+// ─── Карточка выбранной вакансии ─────────────────────────────────────────────
+
+function SelectedVacancyBar({ vacancy }: { vacancy: Vacancy }) {
+    return (
+        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur-sm">
+            <SourceBadge source={vacancy.vacancy_source} />
+            <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{vacancy.vacancy_name}</p>
+                {vacancy.employer_name && (
+                    <p className="truncate text-xs text-muted">{vacancy.employer_name}</p>
+                )}
+            </div>
+        </div>
     );
 }
 
@@ -409,7 +443,7 @@ export function AssistantFlow() {
                     </div>
                     <div className="flex flex-wrap justify-center gap-3">
                         <Link
-                            href="/auth/login?redirect=/assistant"
+                            href="/auth/login?redirect=/assistant/start"
                             className="rounded-xl border border-accent/50 bg-accent/[0.08] px-5 py-2.5 text-sm font-semibold text-accent transition-all hover:border-accent hover:bg-accent/[0.14] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
                             Войти
@@ -503,6 +537,7 @@ export function AssistantFlow() {
         return (
             <div className="flex flex-col gap-8">
                 <Stepper currentStep="feature" mode={mode} />
+                {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
                 <StepCard onBack={() => setStep("vacancy")}>
                     <div>
                         <h2 className="text-lg font-bold text-foreground">Что подготовить?</h2>
@@ -543,6 +578,7 @@ export function AssistantFlow() {
         return (
             <div className="flex flex-col gap-8">
                 <Stepper currentStep="mode" mode={mode} />
+                {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
                 <StepCard onBack={isLoading ? undefined : () => { setError(null); setStep("feature"); }}>
                     <div>
                         <h2 className="text-lg font-bold text-foreground">Выберите режим</h2>
@@ -595,6 +631,7 @@ export function AssistantFlow() {
         return (
             <div className="flex flex-col gap-8">
                 <Stepper currentStep="questionnaire" mode={mode} />
+                {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
                 <StepCard onBack={isLoading ? undefined : () => { setError(null); setStep("mode"); }}>
                     <div>
                         <h2 className="text-lg font-bold text-foreground">Персональная анкета</h2>
@@ -668,6 +705,7 @@ export function AssistantFlow() {
         return (
             <div className="flex flex-col gap-8">
                 <Stepper currentStep="result" mode={mode} />
+                {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
                 <StepCard onBack={() => setStep(mode === "individual" ? "questionnaire" : "mode")}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>

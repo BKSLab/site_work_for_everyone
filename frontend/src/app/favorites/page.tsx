@@ -7,6 +7,7 @@ import { FavoritesList } from "@/components/features/favorites/FavoritesList";
 import { useAuthStore } from "@/stores/auth";
 import { useFavorites } from "@/hooks/useFavorites";
 import { ServiceError } from "@/components/ui/ServiceError";
+import { FavoritesListSkeleton } from "@/components/features/favorites/FavoritesListSkeleton";
 
 const PAGE_SIZE = 10;
 
@@ -39,13 +40,8 @@ export default function FavoritesPage() {
     if (isLoading || !user) {
         return (
             <Container className="py-12">
-                <p
-                    role="status"
-                    aria-live="polite"
-                    className="text-sm text-muted"
-                >
-                    Загрузка…
-                </p>
+                <div className="mb-8 h-9 w-64 animate-pulse rounded bg-white/10" aria-hidden="true" />
+                <FavoritesListSkeleton />
             </Container>
         );
     }
@@ -59,15 +55,7 @@ export default function FavoritesPage() {
                 Избранные вакансии
             </h1>
 
-            {query.isLoading && (
-                <p
-                    role="status"
-                    aria-live="polite"
-                    className="text-sm text-muted"
-                >
-                    Загрузка…
-                </p>
-            )}
+            {query.isLoading && <FavoritesListSkeleton />}
 
             {query.isError && !query.isLoading && (
                 <ServiceError />

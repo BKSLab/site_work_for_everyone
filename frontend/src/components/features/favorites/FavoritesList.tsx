@@ -168,7 +168,7 @@ export function FavoritesList({
                                         Подробнее
                                     </Link>
                                     <Link
-                                        href={`/assistant?vacancy_id=${vacancy.vacancy_id}`}
+                                        href={`/assistant/start?vacancy_id=${vacancy.vacancy_id}`}
                                         className={btnClass()}
                                         aria-label={`Открыть карьерного ассистента для вакансии: ${vacancy.vacancy_name}`}
                                     >
