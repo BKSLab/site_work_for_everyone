@@ -158,15 +158,13 @@ export function RegionCombobox({
                     )}
                 </div>
             </div>
-            {error && (
-                <span
-                    id={errorId}
-                    role="alert"
-                    className="text-sm text-red-400 md:self-start"
-                >
-                    {error}
-                </span>
-            )}
+            <span
+                id={errorId}
+                role="alert"
+                className="block min-h-[1.25rem] text-sm text-red-400 md:self-start"
+            >
+                {error}
+            </span>
         </div>
     );
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/stores/auth";
+import { favoritesApi } from "@/lib/api";
 import { Pagination } from "@/components/ui/Pagination";
 import { Button, btnClass } from "@/components/ui/Button";
 import { SourceBadge, getSourceLabel } from "@/components/ui/SourceBadge";
@@ -40,7 +43,16 @@ export function FavoritesList({
     onRemove,
     removingId,
 }: FavoritesListProps) {
+    const queryClient = useQueryClient();
+    const userId = useAuthStore((s) => s.user?.email);
     const totalPages = Math.ceil(total / pageSize);
+
+    function handleDetailHover(vacancyId: string) {
+        queryClient.prefetchQuery({
+            queryKey: ["favorite-vacancy", vacancyId, userId ?? null],
+            queryFn: () => favoritesApi.getById(vacancyId, userId),
+        });
+    }
 
     if (items.length === 0) {
         return (
@@ -149,6 +161,8 @@ export function FavoritesList({
                                 <div className="mt-auto flex flex-wrap gap-3 pt-4">
                                     <Link
                                         href={`/favorites/${vacancy.vacancy_id}`}
+                                        onMouseEnter={() => handleDetailHover(vacancy.vacancy_id)}
+                                        onFocus={() => handleDetailHover(vacancy.vacancy_id)}
                                         className={btnClass()}
                                     >
                                         Подробнее

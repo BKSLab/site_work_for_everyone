@@ -37,11 +37,13 @@ export function LocationInput({ value, onChange, error }: LocationInputProps) {
                     className="flex-1 w-full rounded border border-white/20 bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 />
             </div>
-            {error && (
-                <span id={errorId} role="alert" className="text-sm text-red-400 md:self-start">
-                    {error}
-                </span>
-            )}
+            <span
+                id={errorId}
+                role="alert"
+                className="block min-h-[1.25rem] text-sm text-red-400 md:self-start"
+            >
+                {error}
+            </span>
         </div>
     );
 }

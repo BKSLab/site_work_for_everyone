@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { Container } from "@/components/layout/Container";
 import { VacancyDetail } from "@/components/features/vacancies/VacancyDetail";
+import { VacancyDetailSkeleton } from "@/components/features/vacancies/VacancyDetailSkeleton";
 import { useFavoriteVacancyDetail } from "@/hooks/useFavoriteVacancyDetail";
 import { useAuthStore } from "@/stores/auth";
 import { ServiceError } from "@/components/ui/ServiceError";
@@ -14,15 +15,7 @@ export default function FavoriteVacancyDetailPage() {
 
     return (
         <Container className="py-12">
-            {isLoading && (
-                <p
-                    role="status"
-                    aria-live="polite"
-                    className="text-sm text-muted"
-                >
-                    Загрузка вакансии…
-                </p>
-            )}
+            {isLoading && <VacancyDetailSkeleton />}
 
             {isError && !isLoading && (
                 <ServiceError />

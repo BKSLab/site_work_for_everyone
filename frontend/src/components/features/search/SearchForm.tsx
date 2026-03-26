@@ -85,13 +85,16 @@ export function SearchForm() {
                     />
                 </div>
 
-                <button
-                    type="submit"
-                    disabled={searchMutation.isPending}
-                    className="w-full rounded border border-accent/50 bg-white/10 px-6 py-2 text-lg font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:w-fit disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                    Найти
-                </button>
+                <div className="flex flex-col gap-1 md:gap-0">
+                    <button
+                        type="submit"
+                        disabled={searchMutation.isPending}
+                        className="w-full rounded border border-accent/50 bg-white/10 px-6 py-2 text-lg font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:w-fit disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        Найти
+                    </button>
+                    <span className="hidden md:block min-h-[1.25rem]" aria-hidden="true" />
+                </div>
             </form>
 
             <SearchModal

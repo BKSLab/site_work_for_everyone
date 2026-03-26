@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth";
-import { favoritesApi } from "@/lib/api";
+import { favoritesApi, vacanciesApi } from "@/lib/api";
 import { ApiRequestError } from "@/lib/api/client";
 import { SourceBadge, getSourceLabel } from "@/components/ui/SourceBadge";
 import type { VacancyOut } from "@/types/vacancy";
@@ -32,7 +33,15 @@ const InfoRow = ({ label, value }: { label: string; value?: string | null }) => 
 
 export function VacancyCard({ vacancy }: VacancyCardProps) {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const user = useAuthStore((s) => s.user);
+
+    function handleDetailHover() {
+        queryClient.prefetchQuery({
+            queryKey: ["vacancy", vacancy.vacancy_id, user?.email ?? null],
+            queryFn: () => vacanciesApi.getById(vacancy.vacancy_id, user?.email),
+        });
+    }
     const [isFavoritePending, setIsFavoritePending] = useState(false);
     const [isFavorite, setIsFavorite] = useState(vacancy.is_favorite);
     const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -116,6 +125,8 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
             <div className="mt-auto flex flex-wrap justify-start gap-3 pt-4">
                 <Link
                     href={`/vacancies/${vacancy.vacancy_id}`}
+                    onMouseEnter={handleDetailHover}
+                    onFocus={handleDetailHover}
                     className="rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-center text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                     Подробнее

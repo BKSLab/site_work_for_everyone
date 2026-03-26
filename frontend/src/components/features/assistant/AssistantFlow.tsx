@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
@@ -165,8 +165,8 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
 
 function StepCard({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) {
     return (
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] bg-[radial-gradient(ellipse_at_top_left,rgba(245,184,0,0.06),transparent_60%)] backdrop-blur-sm">
-            <div aria-hidden="true" className="h-px bg-gradient-to-r from-transparent via-accent to-transparent" />
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] bg-[radial-gradient(ellipse_at_top_left,rgba(245,184,0,0.06),transparent_60%)] backdrop-blur-sm">
+            <div aria-hidden="true" className="h-px rounded-t-2xl bg-gradient-to-r from-transparent via-accent to-transparent" />
             <div className="flex flex-col gap-6 p-6">
                 {children}
                 {onBack && (
@@ -175,6 +175,88 @@ function StepCard({ children, onBack }: { children: React.ReactNode; onBack?: ()
                     </Button>
                 )}
             </div>
+        </div>
+    );
+}
+
+// ─── Кастомный дропдаун для выбора вакансии ──────────────────────────────────
+
+function VacancySelect({
+    options,
+    value,
+    onChange,
+}: {
+    options: Vacancy[];
+    value: string;
+    onChange: (id: string) => void;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const selected = options.find((v) => v.vacancy_id === value);
+
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    return (
+        <div ref={containerRef} className="relative">
+            <button
+                type="button"
+                onClick={() => setIsOpen((o) => !o)}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                className="flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm backdrop-blur-sm transition-colors hover:border-white/25 focus-visible:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
+            >
+                <span className={selected ? "text-foreground" : "text-muted"}>
+                    {selected
+                        ? `${selected.vacancy_name}${selected.employer_name ? ` · ${selected.employer_name}` : ""}`
+                        : "— Выберите вакансию —"}
+                </span>
+                <svg
+                    width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.5"
+                    strokeLinecap="round" strokeLinejoin="round"
+                    aria-hidden="true"
+                    className={`ml-2 shrink-0 text-muted transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                >
+                    <path d="M6 9l6 6 6-6" />
+                </svg>
+            </button>
+
+            {isOpen && (
+                <ul
+                    role="listbox"
+                    aria-label="Вакансии из избранного"
+                    className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-white/15 bg-surface shadow-xl"
+                >
+                    {options.map((v) => (
+                        <li
+                            key={v.vacancy_id}
+                            role="option"
+                            aria-selected={v.vacancy_id === value}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                onChange(v.vacancy_id);
+                                setIsOpen(false);
+                            }}
+                            className={`cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-surface-hover ${
+                                v.vacancy_id === value ? "text-accent" : "text-foreground"
+                            }`}
+                        >
+                            {v.vacancy_name}
+                            {v.employer_name && (
+                                <span className="text-muted"> · {v.employer_name}</span>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
         </div>
     );
 }
@@ -385,27 +467,14 @@ export function AssistantFlow() {
 
                     {favorites.length > 0 && (
                         <div className="flex flex-col gap-3">
-                            <div className="relative">
-                                <select
-                                    aria-label="Вакансия из избранного"
-                                    value={selectedVacancy?.vacancy_id ?? ""}
-                                    onChange={(e) => {
-                                        const found = favorites.find((v) => v.vacancy_id === e.target.value);
-                                        setSelectedVacancy(found ?? null);
-                                    }}
-                                    className="w-full appearance-none rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 pr-10 text-sm text-foreground backdrop-blur-sm transition-colors focus-visible:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
-                                >
-                                    <option value="" className="bg-surface">— Выберите вакансию —</option>
-                                    {favorites.map((v) => (
-                                        <option key={v.vacancy_id} value={v.vacancy_id} className="bg-surface">
-                                            {v.vacancy_name}{v.employer_name ? ` · ${v.employer_name}` : ""}
-                                        </option>
-                                    ))}
-                                </select>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-muted">
-                                    <path d="M6 9l6 6 6-6" />
-                                </svg>
-                            </div>
+                            <VacancySelect
+                                options={favorites}
+                                value={selectedVacancy?.vacancy_id ?? ""}
+                                onChange={(id) => {
+                                    const found = favorites.find((v) => v.vacancy_id === id);
+                                    setSelectedVacancy(found ?? null);
+                                }}
+                            />
 
                             {selectedVacancy && (
                                 <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
