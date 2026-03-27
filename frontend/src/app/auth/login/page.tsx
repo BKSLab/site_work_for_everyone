@@ -32,6 +32,8 @@ export default function LoginPage() {
 
     if (authLoading) return null;
     if (isAuthenticated) {
+        // router.replace без refresh может использовать кэшированный редирект middleware
+        router.refresh();
         router.replace(redirect);
         return null;
     }
@@ -60,6 +62,7 @@ export default function LoginPage() {
             { email, password },
             {
                 onSuccess: () => {
+                    router.refresh(); // сбрасываем Router Cache (кэшированные редиректы middleware до логина)
                     router.push(redirect);
                 },
                 onError: (error) => {
