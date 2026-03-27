@@ -32,6 +32,8 @@ export function RegionCombobox({
         if (!regionCode) setInputValue("");
     }, [regionCode]);
 
+    // Когда поле пустое — показываем все регионы (уже загружены);
+    // когда введён текст — фильтруем по совпадению, показываем первые 10
     const filtered =
         inputValue.length >= 1
             ? regions
@@ -39,7 +41,7 @@ export function RegionCombobox({
                       r.name.toLowerCase().includes(inputValue.toLowerCase())
                   )
                   .slice(0, 10)
-            : [];
+            : regions;
 
     function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
         setInputValue(e.target.value);
@@ -60,8 +62,13 @@ export function RegionCombobox({
     function handleKeyDown(e: React.KeyboardEvent) {
         if (e.key === "ArrowDown") {
             e.preventDefault();
-            if (!isOpen) setIsOpen(true);
-            setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+            if (!isOpen) {
+                // Открываем список и сразу фокусируемся на первом элементе
+                setIsOpen(true);
+                setActiveIndex(0);
+            } else {
+                setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+            }
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
             setActiveIndex((i) => Math.max(i - 1, -1));
@@ -112,7 +119,7 @@ export function RegionCombobox({
                         onKeyDown={handleKeyDown}
                         onFocus={() => inputValue.length >= 1 && setIsOpen(true)}
                         placeholder={
-                            isLoading ? "Загрузка..." : "Начните вводить название региона"
+                            isLoading ? "Загрузка..." : "Введите название или нажмите ↓"
                         }
                         aria-required="true"
                         aria-invalid={error ? true : undefined}
@@ -157,7 +164,7 @@ export function RegionCombobox({
                         </ul>
                     )}
 
-                    {/* Живое сообщение для скринридеров когда нет совпадений */}
+                    {/* «Нет совпадений» — только когда введён текст, но ничего не найдено */}
                     {isOpen && inputValue.length >= 1 && !isLoading && filtered.length === 0 && (
                         <p
                             role="status"
