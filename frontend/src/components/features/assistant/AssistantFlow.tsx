@@ -225,9 +225,13 @@ function VacancySelect({
     onChange: (id: string) => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [focusedIdx, setFocusedIdx] = useState(0);
     const containerRef = useRef<HTMLDivElement>(null);
+    const listboxRef = useRef<HTMLUListElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
     const selected = options.find((v) => v.vacancy_id === value);
 
+    // Закрытие по клику вне
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
             if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -238,13 +242,70 @@ function VacancySelect({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Переносим фокус на listbox при открытии
+    useEffect(() => {
+        if (isOpen) listboxRef.current?.focus();
+    }, [isOpen]);
+
+    function openList() {
+        const idx = options.findIndex((v) => v.vacancy_id === value);
+        setFocusedIdx(idx >= 0 ? idx : 0);
+        setIsOpen(true);
+    }
+
+    function closeList() {
+        setIsOpen(false);
+        buttonRef.current?.focus();
+    }
+
+    function selectOption(idx: number) {
+        onChange(options[idx].vacancy_id);
+        closeList();
+    }
+
+    function handleButtonKeyDown(e: React.KeyboardEvent) {
+        if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            if (!isOpen) openList();
+        }
+        if (e.key === "Escape") closeList();
+    }
+
+    function handleListKeyDown(e: React.KeyboardEvent) {
+        switch (e.key) {
+            case "ArrowDown":
+                e.preventDefault();
+                setFocusedIdx((i) => Math.min(i + 1, options.length - 1));
+                break;
+            case "ArrowUp":
+                e.preventDefault();
+                setFocusedIdx((i) => Math.max(i - 1, 0));
+                break;
+            case "Enter":
+            case " ":
+                e.preventDefault();
+                selectOption(focusedIdx);
+                break;
+            case "Escape":
+            case "Tab":
+                e.preventDefault();
+                closeList();
+                break;
+        }
+    }
+
+    const optionId = (idx: number) => `vac-opt-${idx}`;
+
     return (
         <div ref={containerRef} className="relative">
             <button
+                ref={buttonRef}
                 type="button"
-                onClick={() => setIsOpen((o) => !o)}
+                onClick={() => (isOpen ? closeList() : openList())}
+                onKeyDown={handleButtonKeyDown}
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
+                aria-controls={isOpen ? "vacancy-listbox" : undefined}
                 className="flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm backdrop-blur-sm transition-colors hover:border-white/25 focus-visible:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
             >
                 <span className={selected ? "text-foreground" : "text-muted"}>
@@ -265,28 +326,31 @@ function VacancySelect({
 
             {isOpen && (
                 <ul
+                    ref={listboxRef}
+                    id="vacancy-listbox"
                     role="listbox"
+                    tabIndex={-1}
                     aria-label="Вакансии из избранного"
-                    className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-white/15 bg-surface shadow-xl"
+                    aria-activedescendant={optionId(focusedIdx)}
+                    onKeyDown={handleListKeyDown}
+                    className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-white/15 bg-surface shadow-xl focus:outline-none"
                 >
-                    {options.map((v) => (
+                    {options.map((v, idx) => (
                         <li
                             key={v.vacancy_id}
+                            id={optionId(idx)}
                             role="option"
                             aria-selected={v.vacancy_id === value}
                             onMouseDown={(e) => {
                                 e.preventDefault();
-                                onChange(v.vacancy_id);
-                                setIsOpen(false);
+                                selectOption(idx);
                             }}
-                            className={`cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-surface-hover ${
-                                v.vacancy_id === value ? "text-accent" : "text-foreground"
-                            }`}
+                            className={`cursor-pointer px-4 py-3 text-sm transition-colors ${
+                                idx === focusedIdx ? "bg-surface-hover" : "hover:bg-surface-hover"
+                            } ${v.vacancy_id === value ? "text-accent" : "text-foreground"}`}
                         >
-                            {v.vacancy_name}
-                            {v.employer_name && (
-                                <span className="text-muted"> · {v.employer_name}</span>
-                            )}
+                            {/* Один текстовый узел — скринридер читает как единую строку */}
+                            {v.employer_name ? `${v.vacancy_name} · ${v.employer_name}` : v.vacancy_name}
                         </li>
                     ))}
                 </ul>
@@ -417,6 +481,18 @@ export function AssistantFlow() {
         }
     }
 
+    // Вычисляем favorites и регистрируем useEffect до любых ранних return'ов —
+    // React требует одинакового порядка вызовов хуков на каждом рендере.
+    const favorites = favQuery.data?.items ?? [];
+
+    // Если пришли из избранного с vacancy_id — предзаполняем вакансию (без пропуска шага)
+    useEffect(() => {
+        if (!vacancyIdParam || favQuery.isLoading || favorites.length === 0) return;
+        if (selectedVacancy || step !== "vacancy") return;
+        const found = favorites.find((v) => v.vacancy_id === vacancyIdParam);
+        if (found) setSelectedVacancy(found);
+    }, [vacancyIdParam, favQuery.isLoading, favorites, selectedVacancy, step]);
+
     if (isAuthLoading) {
         return <p role="status" aria-live="polite" className="text-sm text-muted">Загрузка…</p>;
     }
@@ -459,16 +535,6 @@ export function AssistantFlow() {
             </div>
         );
     }
-
-    const favorites = favQuery.data?.items ?? [];
-
-    // Если пришли из избранного с vacancy_id — предзаполняем вакансию (без пропуска шага)
-    useEffect(() => {
-        if (!vacancyIdParam || favQuery.isLoading || favorites.length === 0) return;
-        if (selectedVacancy || step !== "vacancy") return;
-        const found = favorites.find((v) => v.vacancy_id === vacancyIdParam);
-        if (found) setSelectedVacancy(found);
-    }, [vacancyIdParam, favQuery.isLoading, favorites, selectedVacancy, step]);
 
     // ── Шаг 1: Вакансия ──────────────────────────────────────────────────────
     if (step === "vacancy") {
