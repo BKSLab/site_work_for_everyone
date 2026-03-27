@@ -156,6 +156,16 @@ export function RegionCombobox({
                             ))}
                         </ul>
                     )}
+
+                    {/* Живое сообщение для скринридеров когда нет совпадений */}
+                    {isOpen && inputValue.length >= 1 && !isLoading && filtered.length === 0 && (
+                        <p
+                            role="status"
+                            className="absolute z-10 mt-1 w-full rounded border border-white/20 bg-surface px-3 py-2 text-sm text-muted shadow-lg"
+                        >
+                            Регионов не найдено
+                        </p>
+                    )}
                 </div>
             </div>
             <span

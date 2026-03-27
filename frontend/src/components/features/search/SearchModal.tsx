@@ -30,13 +30,14 @@ export function SearchModal({
             {(isPending || isSuccess) && (
                 <div className="flex flex-col items-center gap-6 text-center">
 
-                    {/* Спиннеры в стеклянном контейнере */}
-                    <div className="relative flex justify-center gap-5 rounded-2xl border border-white/10 bg-white/[0.04] px-8 py-6 backdrop-blur-sm">
+                    {/* Спиннеры в стеклянном контейнере — чисто декоративные,
+                        статус загрузки уже передан заголовком и текстом модала */}
+                    <div
+                        aria-hidden="true"
+                        className="relative flex justify-center gap-5 rounded-2xl border border-white/10 bg-white/[0.04] px-8 py-6 backdrop-blur-sm"
+                    >
                         {/* Фоновое свечение */}
-                        <div
-                            aria-hidden="true"
-                            className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(ellipse_at_center,rgba(245,184,0,0.09),transparent_70%)]"
-                        />
+                        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(ellipse_at_center,rgba(245,184,0,0.09),transparent_70%)]" />
                         {Array.from({ length: 5 }).map((_, i) => (
                             <Spinner key={i} />
                         ))}
