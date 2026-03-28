@@ -10,6 +10,6 @@ export function useRegions(federalDistrictCode?: string) {
             federalDistrictCode
                 ? regionsApi.getByFederalDistrict(federalDistrictCode)
                 : regionsApi.getAll(),
-        staleTime: Infinity,
+        staleTime: 24 * 60 * 60 * 1000, // 24 часа
     });
 }

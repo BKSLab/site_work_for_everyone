@@ -72,6 +72,7 @@ export function VacanciesContent() {
     if (!location) {
         return (
             <Container className="py-12">
+                <h1 className="mb-4 text-2xl font-bold text-foreground">Результаты поиска</h1>
                 <p className="text-sm text-muted">
                     Введите параметры поиска на{" "}
                     <Link

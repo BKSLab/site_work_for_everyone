@@ -26,8 +26,13 @@ export function validateOrigin(request: NextRequest): NextResponse | null {
     // Определяем хост запроса
     const requestHost = request.headers.get("host") ?? request.nextUrl.host;
 
-    // requestHost может быть с портом или без — нормализуем к hostname
-    const requestHostname = requestHost.split(":")[0];
+    // requestHost может быть с портом или без, включая IPv6 — нормализуем к hostname
+    let requestHostname: string;
+    try {
+        requestHostname = new URL(`http://${requestHost}`).hostname;
+    } catch {
+        requestHostname = requestHost.split(":")[0];
+    }
 
     if (origin) {
         try {

@@ -4,9 +4,11 @@ import { btnClass } from "@/components/ui/Button";
 interface ServiceErrorProps {
     /** Переопределить заголовок (по умолчанию «Сервис временно недоступен») */
     title?: string;
+    /** Callback для кнопки «Попробовать снова» (передаётся из Error Boundary) */
+    onRetry?: () => void;
 }
 
-export function ServiceError({ title = "Сервис временно недоступен" }: ServiceErrorProps) {
+export function ServiceError({ title = "Сервис временно недоступен", onRetry }: ServiceErrorProps) {
     return (
         <div
             role="alert"
@@ -34,9 +36,16 @@ export function ServiceError({ title = "Сервис временно недос
             <p className="text-sm text-muted">
                 Что-то пошло не так. Пожалуйста, попробуйте позже или свяжитесь с нами.
             </p>
-            <Link href="/contact" className={btnClass("secondary")}>
-                Обратная связь
-            </Link>
+            <div className="flex gap-3">
+                {onRetry && (
+                    <button onClick={onRetry} className={btnClass("primary")}>
+                        Попробовать снова
+                    </button>
+                )}
+                <Link href="/contact" className={btnClass("secondary")}>
+                    Обратная связь
+                </Link>
+            </div>
         </div>
     );
 }

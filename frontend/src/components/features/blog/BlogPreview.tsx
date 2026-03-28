@@ -27,11 +27,13 @@ export function BlogPreview() {
             </div>
 
             {/* Карточки */}
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <ul role="list" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {posts.map((post) => (
-                    <BlogCard key={post.slug} post={post} />
+                    <li key={post.slug}>
+                        <BlogCard post={post} />
+                    </li>
                 ))}
-            </div>
+            </ul>
         </div>
     );
 }

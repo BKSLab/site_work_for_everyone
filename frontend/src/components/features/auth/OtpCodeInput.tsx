@@ -9,6 +9,7 @@ interface OtpCodeInputProps {
 
 export function OtpCodeInput({ id, value, onChange, error }: OtpCodeInputProps) {
     const errorId = `${id}-error`;
+    const hintId = `${id}-hint`;
 
     return (
         <div className="flex flex-col gap-1">
@@ -22,6 +23,7 @@ export function OtpCodeInput({ id, value, onChange, error }: OtpCodeInputProps) 
                 </span>
                 <span className="sr-only"> (обязательное поле)</span>
             </label>
+            <span id={hintId} className="sr-only">6-значный код из письма</span>
             <input
                 id={id}
                 type="text"
@@ -32,7 +34,7 @@ export function OtpCodeInput({ id, value, onChange, error }: OtpCodeInputProps) 
                 placeholder="Введите код из письма"
                 aria-required="true"
                 aria-invalid={error ? true : undefined}
-                aria-describedby={error ? errorId : undefined}
+                aria-describedby={[hintId, error ? errorId : ""].filter(Boolean).join(" ")}
                 className="rounded border border-border bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
             {error && (

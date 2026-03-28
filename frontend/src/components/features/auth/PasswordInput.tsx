@@ -56,6 +56,7 @@ export function PasswordInput({
                     aria-label={
                         showPassword ? "Скрыть пароль" : "Показать пароль"
                     }
+                    aria-pressed={showPassword}
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"

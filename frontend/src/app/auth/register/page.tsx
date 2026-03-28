@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useRegister } from "@/hooks/useRegister";
+import { getSafeRedirect } from "@/lib/utils/redirect";
 import {
     AuthFormLayout,
     PasswordInput,
@@ -17,6 +18,8 @@ import { ApiRequestError } from "@/lib/api/client";
 
 export default function RegisterPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const redirect = getSafeRedirect(searchParams.get("redirect"));
     const { isAuthenticated, isLoading: authLoading } = useAuth();
     const registerMutation = useRegister();
 
@@ -64,9 +67,10 @@ export default function RegisterPage() {
             { first_name: firstName, last_name: lastName, email, password },
             {
                 onSuccess: () => {
-                    router.push(
-                        `/auth/verify-email?email=${encodeURIComponent(email)}`
-                    );
+                    const verifyUrl = redirect !== "/"
+                        ? `/auth/verify-email?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(redirect)}`
+                        : `/auth/verify-email?email=${encodeURIComponent(email)}`;
+                    router.push(verifyUrl);
                 },
                 onError: (error) => {
                     if (error instanceof ApiRequestError) {
@@ -193,7 +197,7 @@ export default function RegisterPage() {
             <div className="mt-4 text-sm text-muted">
                 Уже есть аккаунт?{" "}
                 <Link
-                    href="/auth/login"
+                    href={redirect !== "/" ? `/auth/login?redirect=${encodeURIComponent(redirect)}` : "/auth/login"}
                     className="text-accent hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                     Войти

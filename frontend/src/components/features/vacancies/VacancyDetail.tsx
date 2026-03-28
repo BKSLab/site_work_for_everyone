@@ -1,13 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button, btnClass } from "@/components/ui/Button";
 import { SourceBadge, getSourceLabel } from "@/components/ui/SourceBadge";
-import { useAuthStore } from "@/stores/auth";
-import { favoritesApi } from "@/lib/api";
-import { ApiRequestError } from "@/lib/api/client";
+import { useFavoriteToggle } from "@/hooks/useFavoriteToggle";
 import type { VacancyDetail as VacancyDetailType } from "@/types/vacancy";
 
 interface VacancyDetailProps {
@@ -45,48 +42,8 @@ const InfoRow = ({
 
 export function VacancyDetail({ vacancy, showAssistant = false }: VacancyDetailProps) {
     const router = useRouter();
-    const user = useAuthStore((s) => s.user);
-    const [isFavoritePending, setIsFavoritePending] = useState(false);
-    const [isFavorite, setIsFavorite] = useState(vacancy.is_favorite);
-    const [favoriteError, setFavoriteError] = useState<string | null>(null);
-
-    async function handleFavoriteClick() {
-        if (!user) {
-            router.push(`/auth/login?redirect=/vacancies/${vacancy.vacancy_id}`);
-            return;
-        }
-
-        const previous = isFavorite;
-
-        // Оптимистичное обновление — UI меняется сразу
-        setIsFavorite(!isFavorite);
-        setIsFavoritePending(true);
-        setFavoriteError(null);
-
-        try {
-            if (previous) {
-                await favoritesApi.remove({
-                    user_id: user.email,
-                    vacancy_id: vacancy.vacancy_id,
-                });
-            } else {
-                await favoritesApi.add({
-                    user_id: user.email,
-                    vacancy_id: vacancy.vacancy_id,
-                });
-            }
-        } catch (err) {
-            setIsFavorite(previous);
-            if (err instanceof ApiRequestError && err.status === 409) {
-                setIsFavorite(true);
-                setFavoriteError("Вакансия уже в избранном");
-            } else {
-                setFavoriteError("Не удалось обновить избранное");
-            }
-        } finally {
-            setIsFavoritePending(false);
-        }
-    }
+    const { isFavorite, isFavoritePending, favoriteError, handleFavoriteClick } =
+        useFavoriteToggle(vacancy.vacancy_id, vacancy.is_favorite);
 
     return (
         <article
@@ -165,20 +122,13 @@ export function VacancyDetail({ vacancy, showAssistant = false }: VacancyDetailP
                 </section>
             )}
 
-            {favoriteError && (
-                <p role="alert" className="text-xs text-red-400">{favoriteError}</p>
-            )}
+            <p role="alert" className="text-xs text-red-400 min-h-[1.25rem]">{favoriteError}</p>
 
             {/* Кнопки действий */}
             <div className="mt-auto flex flex-wrap gap-3 pt-2">
                 <Button
                     onClick={handleFavoriteClick}
                     disabled={isFavoritePending}
-                    aria-label={
-                        isFavorite
-                            ? `Удалить вакансию «${vacancy.vacancy_name}» из избранного`
-                            : `Добавить вакансию «${vacancy.vacancy_name}» в избранное`
-                    }
                 >
                     {isFavorite ? "Удалить из избранного" : "В избранное"}
                 </Button>

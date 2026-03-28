@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth";
-import { favoritesApi, vacanciesApi } from "@/lib/api";
-import { ApiRequestError } from "@/lib/api/client";
+import { vacanciesApi } from "@/lib/api";
+import { useFavoriteToggle } from "@/hooks/useFavoriteToggle";
 import { SourceBadge, getSourceLabel } from "@/components/ui/SourceBadge";
 import type { VacancyOut } from "@/types/vacancy";
 
@@ -32,56 +30,16 @@ const InfoRow = ({ label, value }: { label: string; value?: string | null }) => 
 };
 
 export function VacancyCard({ vacancy }: VacancyCardProps) {
-    const router = useRouter();
     const queryClient = useQueryClient();
     const user = useAuthStore((s) => s.user);
+    const { isFavorite, isFavoritePending, favoriteError, handleFavoriteClick } =
+        useFavoriteToggle(vacancy.vacancy_id, vacancy.is_favorite);
 
     function handleDetailHover() {
         queryClient.prefetchQuery({
             queryKey: ["vacancy", vacancy.vacancy_id, user?.email ?? null],
             queryFn: () => vacanciesApi.getById(vacancy.vacancy_id, user?.email),
         });
-    }
-    const [isFavoritePending, setIsFavoritePending] = useState(false);
-    const [isFavorite, setIsFavorite] = useState(vacancy.is_favorite);
-    const [favoriteError, setFavoriteError] = useState<string | null>(null);
-
-    async function handleFavoriteClick() {
-        if (!user) {
-            router.push("/auth/login?redirect=/vacancies");
-            return;
-        }
-
-        const previous = isFavorite;
-
-        // Оптимистичное обновление — UI меняется сразу
-        setIsFavorite(!isFavorite);
-        setIsFavoritePending(true);
-        setFavoriteError(null);
-
-        try {
-            if (previous) {
-                await favoritesApi.remove({
-                    user_id: user.email,
-                    vacancy_id: vacancy.vacancy_id,
-                });
-            } else {
-                await favoritesApi.add({
-                    user_id: user.email,
-                    vacancy_id: vacancy.vacancy_id,
-                });
-            }
-        } catch (err) {
-            setIsFavorite(previous);
-            if (err instanceof ApiRequestError && err.status === 409) {
-                setIsFavorite(true);
-                setFavoriteError("Вакансия уже в избранном");
-            } else {
-                setFavoriteError("Не удалось обновить избранное");
-            }
-        } finally {
-            setIsFavoritePending(false);
-        }
     }
 
     return (
@@ -117,9 +75,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                 </p>
             )}
 
-            {favoriteError && (
-                <p role="alert" className="text-xs text-red-400">{favoriteError}</p>
-            )}
+            <p role="alert" className="text-xs text-red-400 min-h-[1.25rem]">{favoriteError}</p>
 
             {/* Action Buttons */}
             <div className="mt-auto flex flex-wrap justify-start gap-3 pt-4">

@@ -7,6 +7,6 @@ export function useFederalDistricts() {
     return useQuery({
         queryKey: ["federalDistricts"],
         queryFn: () => regionsApi.getFederalDistricts(),
-        staleTime: Infinity,
+        staleTime: 24 * 60 * 60 * 1000, // 24 часа
     });
 }

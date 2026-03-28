@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export function Footer() {
     return (
-        <footer className="border-t border-border bg-surface">
+        <footer className="border-t border-border bg-surface" aria-label="Подвал сайта">
             <div className="mx-auto max-w-5xl px-4 py-8 flex flex-col items-center gap-3">
                 <Link
                     href="/contact"

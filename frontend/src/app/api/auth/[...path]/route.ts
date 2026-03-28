@@ -51,6 +51,7 @@ const loginLimiter = createRateLimiter({ interval: 60_000, limit: 5 });     // 5
 const registerLimiter = createRateLimiter({ interval: 60_000, limit: 3 });  // 3/мин
 const forgotLimiter = createRateLimiter({ interval: 60_000, limit: 3 });    // 3/мин
 const resendLimiter = createRateLimiter({ interval: 60_000, limit: 3 });    // 3/мин
+const refreshLimiter = createRateLimiter({ interval: 60_000, limit: 10 });  // 10/мин
 
 const feedbackLimiter = createRateLimiter({ interval: 60_000 * 60, limit: 5 }); // 5/час
 
@@ -59,6 +60,7 @@ const PATH_LIMITERS: Record<string, ReturnType<typeof createRateLimiter>> = {
     register: registerLimiter,
     "forgot-password": forgotLimiter,
     "resend-verification-code": resendLimiter,
+    refresh: refreshLimiter,
     feedback: feedbackLimiter,
 };
 

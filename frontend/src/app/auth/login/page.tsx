@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,8 @@ import { loginSchema } from "@/lib/schemas/auth";
 import { zodFieldErrors } from "@/lib/utils/validation";
 import { getSafeRedirect } from "@/lib/utils/redirect";
 import { ApiRequestError } from "@/lib/api/client";
+import { favoritesApi } from "@/lib/api";
+import { getPendingFavorite, clearPendingFavorite } from "@/lib/utils/pendingFavorite";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -23,6 +25,7 @@ export default function LoginPage() {
 
     const { isAuthenticated, isLoading: authLoading } = useAuth();
     const loginMutation = useLogin();
+    const handlingLoginRef = useRef(false);
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -31,9 +34,7 @@ export default function LoginPage() {
     const [serverError, setServerError] = useState<string | null>(null);
 
     if (authLoading) return null;
-    if (isAuthenticated) {
-        // router.replace без refresh может использовать кэшированный редирект middleware
-        router.refresh();
+    if (isAuthenticated && !handlingLoginRef.current) {
         router.replace(redirect);
         return null;
     }
@@ -58,14 +59,24 @@ export default function LoginPage() {
 
         if (!validate()) return;
 
+        handlingLoginRef.current = true;
         loginMutation.mutate(
             { email, password },
             {
-                onSuccess: () => {
-                    router.refresh(); // сбрасываем Router Cache (кэшированные редиректы middleware до логина)
+                onSuccess: async (data) => {
+                    const pendingId = getPendingFavorite();
+                    if (pendingId) {
+                        clearPendingFavorite();
+                        try {
+                            await favoritesApi.add({ user_id: data.user.email, vacancy_id: pendingId });
+                        } catch {
+                            // 409 = уже в избранном — ок, остальные ошибки не блокируют редирект
+                        }
+                    }
                     router.push(redirect);
                 },
                 onError: (error) => {
+                    handlingLoginRef.current = false;
                     if (error instanceof ApiRequestError) {
                         if (error.status === 403) {
                             router.push(
@@ -145,7 +156,7 @@ export default function LoginPage() {
                 <span>
                     Нет аккаунта?{" "}
                     <Link
-                        href="/auth/register"
+                        href={redirect !== "/" ? `/auth/register?redirect=${encodeURIComponent(redirect)}` : "/auth/register"}
                         className="text-accent hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     >
                         Зарегистрироваться

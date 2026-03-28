@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
     return (
-        <main id="main-content" className="mx-auto max-w-2xl px-4 py-12">
+        <div className="mx-auto max-w-2xl px-4 py-12">
 
             {/* Приветствие автора */}
             <section aria-labelledby="author-heading" className="mb-10">
@@ -68,6 +68,6 @@ export default function ContactPage() {
                     />
                 </a>
             </section>
-        </main>
+        </div>
     );
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
+import DOMPurify from "isomorphic-dompurify";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -149,11 +150,14 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
                                               : "border border-white/20 text-muted",
                                     ].join(" ")}
                                 >
+                                    <span className="sr-only">
+                                        {`Шаг ${i + 1} из ${steps.length}: ${LABEL[step]}${isCompleted ? " (выполнен)" : isCurrent ? " (текущий)" : ""}`}
+                                    </span>
                                     {isCompleted ? (
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                             <polyline points="20 6 9 17 4 12" />
                                         </svg>
-                                    ) : i + 1}
+                                    ) : <span aria-hidden="true">{i + 1}</span>}
                                 </span>
                                 <span className={[
                                     "hidden text-xs font-medium uppercase tracking-wider sm:block",
@@ -786,7 +790,7 @@ export function AssistantFlow() {
                     {/* Результат — HTML от бэкенда (контент от нашего LLM, не пользователя) */}
                     <div
                         // eslint-disable-next-line react/no-danger
-                        dangerouslySetInnerHTML={{ __html: resultHtml }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(resultHtml) }}
                         className="rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm leading-relaxed text-foreground [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:font-semibold [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5"
                     />
 

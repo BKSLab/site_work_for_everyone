@@ -4,9 +4,24 @@ import { validateOrigin } from "@/lib/utils/csrf";
 import { sanitizeProxyPath } from "@/lib/utils/proxy";
 import { getRequestId } from "@/lib/utils/request-id";
 import { logger } from "@/lib/utils/logger";
+import { createRateLimiter } from "@/lib/utils/rate-limit";
 
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
+
+if (!API_URL || !API_KEY) {
+    throw new Error("API_URL and API_KEY environment variables must be configured");
+}
+
+const searchLimiter = createRateLimiter({ interval: 60_000, limit: 30 }); // 30 POST/мин
+
+function getClientIp(request: NextRequest): string {
+    return (
+        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+        request.headers.get("x-real-ip") ??
+        "unknown"
+    );
+}
 
 async function proxyRequest(request: NextRequest, path: string) {
     const requestId = getRequestId(request);
@@ -67,7 +82,7 @@ async function proxyRequest(request: NextRequest, path: string) {
             method: request.method,
             durationMs: Date.now() - startTime,
             error: error instanceof Error ? error.message : String(error),
-            targetUrl: url.toString(),
+            targetPath: `/api/v1/${path}`,
         });
         return NextResponse.json(
             { detail: "Ошибка соединения с сервером." },
@@ -122,6 +137,21 @@ export async function POST(
     // CSRF protection: проверяем Origin header
     const originError = validateOrigin(request);
     if (originError) return originError;
+
+    // Rate limiting для POST-запросов
+    const ip = getClientIp(request);
+    const rateResult = searchLimiter.check(ip);
+    if (!rateResult.allowed) {
+        return NextResponse.json(
+            { detail: "Слишком много запросов. Подождите и попробуйте снова." },
+            {
+                status: 429,
+                headers: {
+                    "Retry-After": String(Math.ceil((rateResult.resetAt - Date.now()) / 1000)),
+                },
+            }
+        );
+    }
 
     const { path } = await params;
     return proxyRequest(request, sanitizeProxyPath(path));

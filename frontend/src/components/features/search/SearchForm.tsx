@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, useEffect } from "react";
+import { useState, useRef, type FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { RegionCombobox } from "./RegionCombobox";
 import { LocationInput } from "./LocationInput";
@@ -12,6 +12,7 @@ import { zodFieldErrors } from "@/lib/utils/validation";
 
 export function SearchForm() {
     const router = useRouter();
+    const formRef = useRef<HTMLFormElement>(null);
     const [regionCode, setRegionCode] = useState("");
     const [location, setLocation] = useState("");
     const [errors, setErrors] = useState<{ region?: string; location?: string }>({});
@@ -46,6 +47,10 @@ export function SearchForm() {
                 region: fieldErrors.region_code,
                 location: fieldErrors.location,
             });
+            setTimeout(() => {
+                const firstError = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+                firstError?.focus();
+            }, 0);
             return;
         }
 
@@ -57,6 +62,7 @@ export function SearchForm() {
     return (
         <div className="rounded-lg border border-white/20 bg-surface bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_35%)] p-8">
             <form
+                ref={formRef}
                 role="search"
                 onSubmit={handleSubmit}
                 className="flex flex-col gap-4 md:flex-row md:items-end md:gap-3"

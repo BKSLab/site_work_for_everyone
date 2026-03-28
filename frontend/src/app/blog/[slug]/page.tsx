@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import DOMPurify from "isomorphic-dompurify";
 import { Container } from "@/components/layout/Container";
 import { getAllSlugs, getPostBySlug } from "@/lib/blog/posts";
 
@@ -125,7 +126,7 @@ export default async function BlogPostPage({
                     <div
                         // Контент генерируется нашим remark-парсером из .md файлов, не из пользовательского ввода
                         // eslint-disable-next-line react/no-danger
-                        dangerouslySetInnerHTML={{ __html: post.contentHtml }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.contentHtml) }}
                         className={[
                             "prose-blog",
                             "text-[15px] leading-[1.85] text-muted",

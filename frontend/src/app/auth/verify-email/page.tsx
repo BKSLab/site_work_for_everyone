@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getSafeRedirect } from "@/lib/utils/redirect";
 import { useVerifyEmail } from "@/hooks/useVerifyEmail";
 import { useResendCode } from "@/hooks/useResendCode";
+import { favoritesApi } from "@/lib/api";
+import { getPendingFavorite, clearPendingFavorite } from "@/lib/utils/pendingFavorite";
 import {
     AuthFormLayout,
     OtpCodeInput,
@@ -18,6 +21,7 @@ export default function VerifyEmailPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const email = searchParams.get("email") ?? "";
+    const redirect = getSafeRedirect(searchParams.get("redirect"));
 
     const verifyMutation = useVerifyEmail();
     const resendMutation = useResendCode();
@@ -57,8 +61,17 @@ export default function VerifyEmailPage() {
         verifyMutation.mutate(
             { email, code },
             {
-                onSuccess: () => {
-                    router.push("/");
+                onSuccess: async (data) => {
+                    const pendingId = getPendingFavorite();
+                    if (pendingId) {
+                        clearPendingFavorite();
+                        try {
+                            await favoritesApi.add({ user_id: data.user.email, vacancy_id: pendingId });
+                        } catch {
+                            // 409 = уже в избранном — ок, остальные ошибки не блокируют редирект
+                        }
+                    }
+                    router.push(redirect);
                 },
                 onError: (error) => {
                     if (error instanceof ApiRequestError) {

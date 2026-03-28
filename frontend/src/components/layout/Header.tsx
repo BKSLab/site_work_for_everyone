@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Suspense } from "react";
+import { FocusScope } from "react-aria";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/auth";
 import { useLogout } from "@/hooks/useLogout";
@@ -59,8 +60,10 @@ export function Header() {
         setMenuOpen(false);
     }
 
-    const linkClass =
-        "text-sm text-muted hover:text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+    const linkClass = (isActive: boolean) =>
+        `text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+            isActive ? "text-accent font-semibold" : "text-muted hover:text-foreground"
+        }`;
 
     return (
         <header className="sticky top-0 z-40 border-b border-white/10 bg-background/60 backdrop-blur-md backdrop-saturate-150">
@@ -100,14 +103,21 @@ export function Header() {
                     <ul className="flex items-center gap-6">
                         {NAV_LINKS.map(({ href, label }) => (
                             <li key={href}>
-                                <Link href={href} className={linkClass}>{label}</Link>
+                                <Link
+                                    href={href}
+                                    className={linkClass(pathname === href)}
+                                    aria-current={pathname === href ? "page" : undefined}
+                                >
+                                    {label}
+                                </Link>
                             </li>
                         ))}
                         <li>
                             <Link
                                 href="/assistant"
-                                className={`flex items-center gap-2 ${linkClass}`}
+                                className={`flex items-center gap-2 ${linkClass(pathname.startsWith("/assistant"))}`}
                                 aria-label="Ассистент Вера"
+                                aria-current={pathname.startsWith("/assistant") ? "page" : undefined}
                             >
                                 <span className="flex shrink-0 items-center justify-center rounded-full ring-1 ring-white/25 shadow-[0_0_8px_rgba(245,184,0,0.15)]">
                                     <Image
@@ -182,9 +192,11 @@ export function Header() {
 
             {/* ── Мобильное меню ───────────────────────────────────────────── */}
             {menuOpen && (
+                <FocusScope contain restoreFocus autoFocus>
                 <div
                     id="mobile-menu"
                     className="border-t border-white/10 bg-background/95 backdrop-blur-md md:hidden"
+                    onKeyDown={(e) => { if (e.key === "Escape") setMenuOpen(false); }}
                 >
                     <nav aria-label="Мобильная навигация">
                         <ul className="flex flex-col divide-y divide-white/8">
@@ -193,7 +205,8 @@ export function Header() {
                                     <Link
                                         href={href}
                                         onClick={closeMenu}
-                                        className="block px-5 py-3.5 text-sm text-muted transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                        className={`block px-5 py-3.5 text-sm transition-colors hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${pathname === href ? "text-accent font-semibold" : "text-muted hover:text-foreground"}`}
+                                        aria-current={pathname === href ? "page" : undefined}
                                     >
                                         {label}
                                     </Link>
@@ -203,7 +216,8 @@ export function Header() {
                                 <Link
                                     href="/assistant"
                                     onClick={closeMenu}
-                                    className="flex items-center gap-2.5 px-5 py-3.5 text-sm text-muted transition-colors hover:bg-white/5 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                    className={`flex items-center gap-2.5 px-5 py-3.5 text-sm transition-colors hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${pathname.startsWith("/assistant") ? "text-accent font-semibold" : "text-muted hover:text-foreground"}`}
+                                    aria-current={pathname.startsWith("/assistant") ? "page" : undefined}
                                 >
                                     <span className="flex shrink-0 items-center justify-center rounded-full ring-1 ring-white/25">
                                         <Image
@@ -250,6 +264,7 @@ export function Header() {
                         </ul>
                     </nav>
                 </div>
+                </FocusScope>
             )}
         </header>
     );

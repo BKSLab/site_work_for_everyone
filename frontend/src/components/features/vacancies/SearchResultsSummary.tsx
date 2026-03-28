@@ -61,25 +61,25 @@ export function SearchResultsSummary({ summary, actions, filteredTotal, isFilter
                 {/* ── Сегмент 1: Итоговое число ── */}
                 {summary && (
                     <div className="flex shrink-0 items-center justify-center px-7 py-4">
-                        <div className="text-center">
-                            <p className={LABEL}>{showFiltered ? "По фильтру" : "Найдено"}</p>
+                        <dl className="text-center">
+                            <dt className={LABEL}>{showFiltered ? "По фильтру" : "Найдено"}</dt>
                             {showFiltered ? (
-                                <p
+                                <dd
                                     className="mt-0.5 leading-none tabular-nums"
                                     aria-label={`По фильтру: ${filteredTotal} из ${summary.all_vacancies_count}`}
                                 >
                                     <span className="text-3xl font-bold text-accent">{filteredTotal}</span>
                                     <span className="text-base font-semibold text-muted"> из {summary.all_vacancies_count}</span>
-                                </p>
+                                </dd>
                             ) : (
-                                <p
+                                <dd
                                     className="mt-0.5 text-3xl font-bold leading-none tabular-nums text-accent"
                                     aria-label={`Найдено вакансий: ${summary.all_vacancies_count}`}
                                 >
                                     {summary.all_vacancies_count}
-                                </p>
+                                </dd>
                             )}
-                        </div>
+                        </dl>
                     </div>
                 )}
 
@@ -96,41 +96,41 @@ export function SearchResultsSummary({ summary, actions, filteredTotal, isFilter
                         )}
                         <div className="flex flex-1 items-stretch divide-x divide-white/10">
                             <div className="flex items-center gap-2.5 px-5 py-4">
-                                <div>
-                                    <p className={LABEL}>hh.ru</p>
+                                <dl>
+                                    <dt className={LABEL}>hh.ru</dt>
                                     {showFiltered && filteredCountHh !== undefined ? (
-                                        <p
+                                        <dd
                                             className="mt-0.5 leading-none tabular-nums"
                                             aria-label={`hh.ru по фильтру: ${filteredCountHh} из ${summary.vacancies_count_hh}`}
                                         >
                                             <span className="text-lg font-bold text-accent">{filteredCountHh}</span>
                                             <span className="text-xs font-semibold text-muted"> из {summary.vacancies_count_hh}</span>
-                                        </p>
+                                        </dd>
                                     ) : (
-                                        <p className="mt-0.5 text-lg font-bold leading-none tabular-nums text-foreground">
+                                        <dd className="mt-0.5 text-lg font-bold leading-none tabular-nums text-foreground">
                                             {summary.vacancies_count_hh}
-                                        </p>
+                                        </dd>
                                     )}
-                                </div>
+                                </dl>
                                 <SourceBadge source="hh.ru" className="opacity-70" />
                             </div>
                             <div className="flex items-center gap-2.5 px-5 py-4">
-                                <div>
-                                    <p className={LABEL}>Работа России</p>
+                                <dl>
+                                    <dt className={LABEL}>Работа России</dt>
                                     {showFiltered && filteredCountTv !== undefined ? (
-                                        <p
+                                        <dd
                                             className="mt-0.5 leading-none tabular-nums"
                                             aria-label={`Работа России по фильтру: ${filteredCountTv} из ${summary.vacancies_count_tv}`}
                                         >
                                             <span className="text-lg font-bold text-accent">{filteredCountTv}</span>
                                             <span className="text-xs font-semibold text-muted"> из {summary.vacancies_count_tv}</span>
-                                        </p>
+                                        </dd>
                                     ) : (
-                                        <p className="mt-0.5 text-lg font-bold leading-none tabular-nums text-foreground">
+                                        <dd className="mt-0.5 text-lg font-bold leading-none tabular-nums text-foreground">
                                             {summary.vacancies_count_tv}
-                                        </p>
+                                        </dd>
                                     )}
-                                </div>
+                                </dl>
                                 <SourceBadge source="trudvsem.ru" className="opacity-70" />
                             </div>
                         </div>
@@ -141,17 +141,17 @@ export function SearchResultsSummary({ summary, actions, filteredTotal, isFilter
                 {summary && (
                     <div className="flex min-w-0 flex-1 items-center gap-3 px-5 py-4">
                         <MapPinIcon />
-                        <div className="min-w-0">
-                            <p className={LABEL}>Местоположение</p>
+                        <dl className="min-w-0">
+                            <dt className={LABEL}>Местоположение</dt>
                             {summary.location && (
-                                <p className={VALUE}>{summary.location}</p>
+                                <dd className={VALUE}>{summary.location}</dd>
                             )}
                             {summary.region_name && (
-                                <p className="truncate text-xs text-muted">
+                                <dd className="truncate text-xs text-muted">
                                     {summary.region_name}
-                                </p>
+                                </dd>
                             )}
-                        </div>
+                        </dl>
                     </div>
                 )}
 
