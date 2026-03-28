@@ -1,5 +1,12 @@
+from datetime import datetime, timedelta, timezone
+
 from markupsafe import Markup
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqladmin import ModelView
+from sqladmin import BaseView, expose
+from starlette.requests import Request
+from starlette.responses import Response
 
 from src.db.models.blocklist import BlockedToken
 from src.db.models.users import EmailVerificationCode, PasswordResetCode, User
@@ -101,6 +108,48 @@ class PasswordResetCodeAdmin(ModelView, model=PasswordResetCode):
     can_create = False
     can_edit = False
     can_delete = True
+
+
+class StatsView(BaseView):
+    name = "Статистика"
+    icon = "fa-solid fa-chart-bar"
+    engine = None  # устанавливается в create_admin перед add_base_view
+
+    @expose("/stats", methods=["GET"])
+    async def stats_page(self, request: Request) -> Response:
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=6)
+
+        async with AsyncSession(self.__class__.engine) as session:
+            total = (await session.execute(select(func.count()).select_from(User))).scalar_one()
+            verified = (await session.execute(
+                select(func.count()).select_from(User).where(User.is_verified == True)  # noqa: E712
+            )).scalar_one()
+            active = (await session.execute(
+                select(func.count()).select_from(User).where(User.is_active == True)  # noqa: E712
+            )).scalar_one()
+            new_today = (await session.execute(
+                select(func.count()).select_from(User).where(User.created_at >= today_start)
+            )).scalar_one()
+            new_week = (await session.execute(
+                select(func.count()).select_from(User).where(User.created_at >= week_start)
+            )).scalar_one()
+
+        stats = {
+            "total": total,
+            "verified": verified,
+            "unverified": total - verified,
+            "active": active,
+            "inactive": total - active,
+            "new_today": new_today,
+            "new_week": new_week,
+        }
+        return await self.templates.TemplateResponse(
+            request,
+            "sqladmin/stats.html",
+            {"title": "Статистика", "subtitle": "Сводка по пользователям", "stats": stats},
+        )
 
 
 class BlockedTokenAdmin(ModelView, model=BlockedToken):

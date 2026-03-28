@@ -1,0 +1,208 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+
+{# ── Главная карточка: всего пользователей ── #}
+<div class="col-12">
+  <div class="card" style="
+    background: radial-gradient(circle at top left, rgba(245,184,0,0.07), transparent 50%), var(--surface);
+    border: 1px solid rgba(255,255,255,0.12);
+  ">
+    <div class="card-body" style="padding: 2rem;">
+      <p style="
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        margin-bottom: 0.5rem;
+      ">Всего зарегистрировано</p>
+      <p style="
+        font-size: 3rem;
+        font-weight: 800;
+        color: var(--accent);
+        line-height: 1;
+        margin-bottom: 0;
+      ">{{ stats.total }}</p>
+      <hr style="border-top: 2px solid var(--accent); margin-top: 1.25rem; margin-bottom: 0;">
+    </div>
+  </div>
+</div>
+
+{# ── Новые регистрации ── #}
+<div class="col-12 col-sm-6">
+  <div class="card">
+    <div class="card-body" style="padding: 1.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <span style="
+          display: inline-block;
+          width: 8px; height: 8px;
+          border-radius: 50%;
+          background: var(--accent);
+          flex-shrink: 0;
+        "></span>
+        <p style="
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--muted);
+          margin: 0;
+        ">Новые сегодня</p>
+      </div>
+      <p style="font-size: 2rem; font-weight: 700; color: var(--accent); margin: 0;">
+        {{ stats.new_today }}
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="col-12 col-sm-6">
+  <div class="card">
+    <div class="card-body" style="padding: 1.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <span style="
+          display: inline-block;
+          width: 8px; height: 8px;
+          border-radius: 50%;
+          background: var(--accent);
+          flex-shrink: 0;
+          opacity: 0.5;
+        "></span>
+        <p style="
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--muted);
+          margin: 0;
+        ">Новые за 7 дней</p>
+      </div>
+      <p style="font-size: 2rem; font-weight: 700; color: var(--foreground); margin: 0;">
+        {{ stats.new_week }}
+      </p>
+    </div>
+  </div>
+</div>
+
+{# ── Email верификация ── #}
+<div class="col-12 col-sm-6">
+  <div class="card">
+    <div class="card-body" style="padding: 1.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <span style="
+          display: inline-block;
+          width: 8px; height: 8px;
+          border-radius: 50%;
+          background: #4ADE80;
+          flex-shrink: 0;
+        "></span>
+        <p style="
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--muted);
+          margin: 0;
+        ">Email подтверждён</p>
+      </div>
+      <p style="font-size: 2rem; font-weight: 700; color: #4ADE80; margin: 0;">
+        {{ stats.verified }}
+      </p>
+      {% if stats.total > 0 %}
+      <p style="font-size: 12px; color: var(--muted); margin-top: 0.25rem; margin-bottom: 0;">
+        {{ "%.0f"|format(stats.verified / stats.total * 100) }}% от общего числа
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="col-12 col-sm-6">
+  <div class="card">
+    <div class="card-body" style="padding: 1.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <span style="
+          display: inline-block;
+          width: 8px; height: 8px;
+          border-radius: 50%;
+          background: #F87171;
+          flex-shrink: 0;
+        "></span>
+        <p style="
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--muted);
+          margin: 0;
+        ">Email не подтверждён</p>
+      </div>
+      <p style="font-size: 2rem; font-weight: 700; color: #F87171; margin: 0;">
+        {{ stats.unverified }}
+      </p>
+      {% if stats.total > 0 %}
+      <p style="font-size: 12px; color: var(--muted); margin-top: 0.25rem; margin-bottom: 0;">
+        {{ "%.0f"|format(stats.unverified / stats.total * 100) }}% от общего числа
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── Активность ── #}
+<div class="col-12 col-sm-6">
+  <div class="card">
+    <div class="card-body" style="padding: 1.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <span style="
+          display: inline-block;
+          width: 8px; height: 8px;
+          border-radius: 50%;
+          background: var(--accent);
+          flex-shrink: 0;
+        "></span>
+        <p style="
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--muted);
+          margin: 0;
+        ">Активные</p>
+      </div>
+      <p style="font-size: 2rem; font-weight: 700; color: var(--foreground); margin: 0;">
+        {{ stats.active }}
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="col-12 col-sm-6">
+  <div class="card">
+    <div class="card-body" style="padding: 1.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <span style="
+          display: inline-block;
+          width: 8px; height: 8px;
+          border-radius: 50%;
+          background: var(--muted);
+          flex-shrink: 0;
+        "></span>
+        <p style="
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--muted);
+          margin: 0;
+        ">Неактивные</p>
+      </div>
+      <p style="font-size: 2rem; font-weight: 700; color: var(--muted); margin: 0;">
+        {{ stats.inactive }}
+      </p>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

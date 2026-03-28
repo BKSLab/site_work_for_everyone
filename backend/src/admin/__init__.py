@@ -3,7 +3,7 @@ from pathlib import Path
 from sqladmin import Admin
 
 from .auth import MasterKeyAuth
-from .views import BlockedTokenAdmin, EmailVerificationCodeAdmin, PasswordResetCodeAdmin, UserAdmin
+from .views import BlockedTokenAdmin, EmailVerificationCodeAdmin, PasswordResetCodeAdmin, StatsView, UserAdmin
 
 _TEMPLATES_DIR = str(Path(__file__).parent.parent.parent / "templates")
 
@@ -26,4 +26,6 @@ def create_admin(app, engine) -> Admin:
     admin.add_view(EmailVerificationCodeAdmin)
     admin.add_view(PasswordResetCodeAdmin)
     admin.add_view(BlockedTokenAdmin)
+    StatsView.engine = engine
+    admin.add_base_view(StatsView)
     return admin
