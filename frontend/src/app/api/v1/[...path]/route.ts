@@ -9,10 +9,6 @@ import { createRateLimiter } from "@/lib/utils/rate-limit";
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
 
-if (!API_URL || !API_KEY) {
-    throw new Error("API_URL and API_KEY environment variables must be configured");
-}
-
 const searchLimiter = createRateLimiter({ interval: 60_000, limit: 30 }); // 30 POST/мин
 
 function getClientIp(request: NextRequest): string {
@@ -24,6 +20,13 @@ function getClientIp(request: NextRequest): string {
 }
 
 async function proxyRequest(request: NextRequest, path: string) {
+    if (!API_URL || !API_KEY) {
+        return NextResponse.json(
+            { detail: "Сервер не настроен." },
+            { status: 503 }
+        );
+    }
+
     const requestId = getRequestId(request);
     const startTime = Date.now();
 
