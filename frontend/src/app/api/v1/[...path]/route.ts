@@ -6,6 +6,9 @@ import { getRequestId } from "@/lib/utils/request-id";
 import { logger } from "@/lib/utils/logger";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 
+// Увеличиваем лимит выполнения для LLM-эндпоинтов (cover letter, ассистент)
+export const maxDuration = 300;
+
 const API_URL = process.env.API_URL;
 const API_KEY = process.env.API_KEY;
 

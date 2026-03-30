@@ -106,7 +106,6 @@ export function RegionCombobox({
                     <span aria-hidden="true" className="ml-1 text-accent">
                         *
                     </span>
-                    <span className="sr-only"> (обязательное поле)</span>
                 </label>
                 <div className="relative flex-1">
                     <input

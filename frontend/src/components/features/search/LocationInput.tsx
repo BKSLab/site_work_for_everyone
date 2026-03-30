@@ -23,7 +23,6 @@ export function LocationInput({ value, onChange, error }: LocationInputProps) {
                     <span aria-hidden="true" className="ml-1 text-accent">
                         *
                     </span>
-                    <span className="sr-only"> (обязательное поле)</span>
                 </label>
                 <input
                     id={inputId}

@@ -100,11 +100,10 @@ export function Pagination({
                 <button
                     key={page}
                     onClick={() => page !== currentPage ? onPageChange(page) : undefined}
-                    aria-label={`Страница ${page}`}
                     aria-current={page === currentPage ? "page" : undefined}
                     className={`${baseBtn} ${page === currentPage ? activeBtn : idleBtn}`}
                 >
-                    {page}
+                    <span className="sr-only">Страница </span>{page}
                 </button>
             ))}
 
@@ -121,10 +120,9 @@ export function Pagination({
                     )}
                     <button
                         onClick={() => onPageChange(totalPages)}
-                        aria-label={`Страница ${totalPages}`}
                         className={`${baseBtn} ${idleBtn}`}
                     >
-                        {totalPages}
+                        <span className="sr-only">Страница </span>{totalPages}
                     </button>
                 </>
             )}

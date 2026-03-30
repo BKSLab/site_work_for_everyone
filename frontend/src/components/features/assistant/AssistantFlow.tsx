@@ -11,8 +11,9 @@ import { assistantApi } from "@/lib/api/assistant";
 import { ApiRequestError } from "@/lib/api/client";
 import { SourceBadge } from "@/components/ui/SourceBadge";
 import { Button } from "@/components/ui/Button";
-import { Spinner } from "@/components/ui/Spinner";
 import { ServiceError } from "@/components/ui/ServiceError";
+import { AssistantResultSkeleton } from "./AssistantResultSkeleton";
+import { AssistantQuestionnaireSkeleton } from "./AssistantQuestionnaireSkeleton";
 import type { Vacancy } from "@/types/vacancy";
 import type { Question, QuestionAnswer } from "@/types/assistant";
 
@@ -399,14 +400,38 @@ export function AssistantFlow() {
     }
 
     function handleCopy() {
-        // Извлекаем plain-текст из HTML для буфера обмена
         const div = document.createElement("div");
         div.innerHTML = resultHtml;
-        const plainText = div.textContent || div.innerText || "";
-        navigator.clipboard.writeText(plainText.trim()).then(() => {
+        const plainText = (div.textContent || div.innerText || "").trim();
+
+        const markCopied = () => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-        });
+        };
+
+        // navigator.clipboard доступен только в HTTPS / localhost
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(plainText).then(markCopied).catch(() => {
+                copyViaExecCommand(plainText, markCopied);
+            });
+        } else {
+            copyViaExecCommand(plainText, markCopied);
+        }
+    }
+
+    function copyViaExecCommand(text: string, onSuccess: () => void) {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+            document.execCommand("copy");
+            onSuccess();
+        } finally {
+            document.body.removeChild(textarea);
+        }
     }
 
     async function handleModeSelect(selectedMode: Mode) {
@@ -552,7 +577,17 @@ export function AssistantFlow() {
                     </div>
 
                     {favQuery.isLoading && (
-                        <p role="status" className="text-sm text-muted">Загружаем избранные вакансии…</p>
+                        <div className="flex flex-col gap-3" role="status" aria-label="Загружаем избранные вакансии" aria-live="polite">
+                            {[0, 1, 2].map((i) => (
+                                <div key={i} className="animate-pulse flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                                    <div className="h-5 w-10 rounded bg-white/10" />
+                                    <div className="flex flex-1 flex-col gap-1.5">
+                                        <div className="h-3.5 w-3/5 rounded bg-white/10" />
+                                        <div className="h-3 w-2/5 rounded bg-white/10" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     )}
 
                     {!favQuery.isLoading && favorites.length === 0 && (
@@ -656,11 +691,11 @@ export function AssistantFlow() {
                     </div>
 
                     {isLoading ? (
-                        <div className="flex items-center gap-3 py-4" role="status" aria-live="polite">
-                            <Spinner />
-                            <p className="text-sm text-muted">
-                                {mode === "individual" ? "Формируем анкету…" : "Генерируем результат…"}
-                            </p>
+                        <div className="py-2">
+                            {mode === "individual"
+                                ? <AssistantQuestionnaireSkeleton />
+                                : <AssistantResultSkeleton />
+                            }
                         </div>
                     ) : (
                         <>
@@ -753,10 +788,7 @@ export function AssistantFlow() {
                     )}
 
                     {isLoading ? (
-                        <div className="flex items-center gap-3" role="status" aria-live="polite">
-                            <Spinner />
-                            <p className="text-sm text-muted">Генерируем результат…</p>
-                        </div>
+                        <AssistantResultSkeleton />
                     ) : (
                         <Button onClick={handleSubmitAnswers} className="self-start">
                             Получить результат →
@@ -799,7 +831,7 @@ export function AssistantFlow() {
                         className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"
                     />
 
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-3 sm:flex-nowrap">
                         <Button onClick={handleCopy}>
                             {copied ? (
                                 <>

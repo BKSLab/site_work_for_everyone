@@ -13,7 +13,7 @@ export default function HomePage() {
     return (
         <Container className="py-12">
             {/* ── Hero ─────────────────────────────────────────────── */}
-            <section aria-label="О сервисе">
+            <div>
                 <div className="relative flex flex-col items-center text-center">
                     {/* Атмосферное свечение за логотипом */}
                     <div
@@ -40,11 +40,13 @@ export default function HomePage() {
 
                     <h1
                         className="text-4xl font-black leading-tight text-foreground sm:text-5xl"
-                        tabIndex={-1}
+                        aria-label="Поиск вакансий для людей с инвалидностью"
                     >
-                        Поиск вакансий{" "}
-                        <span className="text-accent">
-                            для людей с инвалидностью
+                        <span aria-hidden="true">
+                            Поиск вакансий{" "}
+                            <span className="text-accent">
+                                для людей с инвалидностью
+                            </span>
                         </span>
                     </h1>
                     <p className="mt-4 max-w-lg text-lg text-muted">
@@ -52,17 +54,14 @@ export default function HomePage() {
                         в&nbsp;едином доступном интерфейсе
                     </p>
                 </div>
-            </section>
+            </div>
 
             {/* ── Форма поиска ─────────────────────────────────────── */}
-            <section
-                aria-label="Форма поиска вакансий"
-                className="mt-12"
-            >
+            <div className="mt-12">
                 <div className="mx-auto max-w-4xl rounded-2xl border border-white/20 bg-surface bg-[radial-gradient(ellipse_at_top,rgba(245,184,0,0.05),transparent_60%)] p-8 shadow-[0_1px_1px_rgba(255,255,255,0.05)_inset]">
                     <SearchForm />
                 </div>
-            </section>
+            </div>
 
             {/* ── Возможности сервиса ──────────────────────────────── */}
             <section

@@ -170,14 +170,12 @@ export function FavoritesList({
                                     <Link
                                         href={`/assistant/start?vacancy_id=${vacancy.vacancy_id}`}
                                         className={btnClass()}
-                                        aria-label={`Открыть карьерного ассистента для вакансии: ${vacancy.vacancy_name}`}
                                     >
                                         Карьерный ассистент
                                     </Link>
                                     <Button
                                         onClick={() => onRemove(vacancy.vacancy_id)}
                                         disabled={removingId === vacancy.vacancy_id}
-                                        aria-label={`Удалить из избранного: ${vacancy.vacancy_name}`}
                                     >
                                         {removingId === vacancy.vacancy_id
                                             ? "Удаление…"

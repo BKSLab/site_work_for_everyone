@@ -64,18 +64,12 @@ export function SearchResultsSummary({ summary, actions, filteredTotal, isFilter
                         <dl className="text-center">
                             <dt className={LABEL}>{showFiltered ? "По фильтру" : "Найдено"}</dt>
                             {showFiltered ? (
-                                <dd
-                                    className="mt-0.5 leading-none tabular-nums"
-                                    aria-label={`По фильтру: ${filteredTotal} из ${summary.all_vacancies_count}`}
-                                >
+                                <dd className="mt-0.5 leading-none tabular-nums">
                                     <span className="text-3xl font-bold text-accent">{filteredTotal}</span>
                                     <span className="text-base font-semibold text-muted"> из {summary.all_vacancies_count}</span>
                                 </dd>
                             ) : (
-                                <dd
-                                    className="mt-0.5 text-3xl font-bold leading-none tabular-nums text-accent"
-                                    aria-label={`Найдено вакансий: ${summary.all_vacancies_count}`}
-                                >
+                                <dd className="mt-0.5 text-3xl font-bold leading-none tabular-nums text-accent">
                                     {summary.all_vacancies_count}
                                 </dd>
                             )}
@@ -99,10 +93,7 @@ export function SearchResultsSummary({ summary, actions, filteredTotal, isFilter
                                 <dl>
                                     <dt className={LABEL}>hh.ru</dt>
                                     {showFiltered && filteredCountHh !== undefined ? (
-                                        <dd
-                                            className="mt-0.5 leading-none tabular-nums"
-                                            aria-label={`hh.ru по фильтру: ${filteredCountHh} из ${summary.vacancies_count_hh}`}
-                                        >
+                                        <dd className="mt-0.5 leading-none tabular-nums">
                                             <span className="text-lg font-bold text-accent">{filteredCountHh}</span>
                                             <span className="text-xs font-semibold text-muted"> из {summary.vacancies_count_hh}</span>
                                         </dd>
@@ -118,10 +109,7 @@ export function SearchResultsSummary({ summary, actions, filteredTotal, isFilter
                                 <dl>
                                     <dt className={LABEL}>Работа России</dt>
                                     {showFiltered && filteredCountTv !== undefined ? (
-                                        <dd
-                                            className="mt-0.5 leading-none tabular-nums"
-                                            aria-label={`Работа России по фильтру: ${filteredCountTv} из ${summary.vacancies_count_tv}`}
-                                        >
+                                        <dd className="mt-0.5 leading-none tabular-nums">
                                             <span className="text-lg font-bold text-accent">{filteredCountTv}</span>
                                             <span className="text-xs font-semibold text-muted"> из {summary.vacancies_count_tv}</span>
                                         </dd>
