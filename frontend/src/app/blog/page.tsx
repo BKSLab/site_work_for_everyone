@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { BlogCard } from "@/components/features/blog/BlogCard";
 import { getAllPosts } from "@/lib/blog/posts";
@@ -11,8 +12,19 @@ export const metadata: Metadata = {
 
 const ALL_TAGS = ["Все", "Трудоустройство", "Удалёнка", "Резюме", "Права", "Карьера", "Собеседование"];
 
-export default function BlogPage() {
-    const posts = getAllPosts();
+export default async function BlogPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ tag?: string }>;
+}) {
+    const { tag } = await searchParams;
+    const activeTag = tag && ALL_TAGS.includes(tag) ? tag : "Все";
+
+    const allPosts = getAllPosts();
+    const posts =
+        activeTag === "Все"
+            ? allPosts
+            : allPosts.filter((p) => p.tag === activeTag);
 
     return (
         <Container className="py-12">
@@ -27,8 +39,7 @@ export default function BlogPage() {
                         Блог
                     </p>
                     <h1 className="text-4xl font-black leading-tight text-foreground sm:text-5xl">
-                        Советы и&nbsp;статьи{" "}
-                        <span className="text-accent">для соискателей</span>
+                        Советы и&nbsp;статьи для соискателей
                     </h1>
                     <p className="mt-4 max-w-lg text-lg text-muted">
                         Практические материалы о&nbsp;поиске работы, правах
@@ -37,37 +48,51 @@ export default function BlogPage() {
                 </div>
             </section>
 
-            {/* ── Теги-фильтры (визуальные, без логики пока) ───────────── */}
+            {/* ── Теги-фильтры ─────────────────────────────────────────── */}
             <section aria-label="Фильтр по темам" className="mb-10">
-                <div className="flex flex-wrap gap-2">
-                    {ALL_TAGS.map((tag, i) => (
-                        <span
-                            key={tag}
-                            className={[
-                                "rounded-full border px-3.5 py-1 text-xs font-medium transition-colors",
-                                i === 0
-                                    ? "border-accent/50 bg-accent/10 text-accent"
-                                    : "border-white/12 bg-white/[0.04] text-muted hover:border-white/25 hover:text-foreground cursor-pointer",
-                            ].join(" ")}
-                        >
-                            {tag}
-                        </span>
-                    ))}
-                </div>
+                <nav aria-label="Темы статей">
+                    <ul className="flex flex-wrap gap-2" role="list">
+                        {ALL_TAGS.map((t) => {
+                            const isActive = activeTag === t;
+                            return (
+                                <li key={t}>
+                                    <Link
+                                        href={t === "Все" ? "/blog" : `/blog?tag=${encodeURIComponent(t)}`}
+                                        aria-current={isActive ? "true" : undefined}
+                                        className={[
+                                            "rounded-full border px-3.5 py-1 text-xs font-medium transition-colors",
+                                            isActive
+                                                ? "border-accent/50 bg-accent/10 text-accent"
+                                                : "border-white/12 bg-white/[0.04] text-muted hover:border-white/25 hover:text-foreground",
+                                        ].join(" ")}
+                                    >
+                                        {t}
+                                    </Link>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </nav>
             </section>
 
             {/* ── Сетка статей ─────────────────────────────────────────── */}
             <section aria-label="Статьи блога">
-                <ul
-                    role="list"
-                    className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-                >
-                    {posts.map((post) => (
-                        <li key={post.slug}>
-                            <BlogCard post={post} />
-                        </li>
-                    ))}
-                </ul>
+                {posts.length > 0 ? (
+                    <ul
+                        role="list"
+                        className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+                    >
+                        {posts.map((post) => (
+                            <li key={post.slug}>
+                                <BlogCard post={post} />
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="py-16 text-center text-muted">
+                        Статей по теме «{activeTag}» пока нет.
+                    </p>
+                )}
             </section>
         </Container>
     );

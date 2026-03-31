@@ -4,9 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import DOMPurify from "isomorphic-dompurify";
 import { Container } from "@/components/layout/Container";
+import { ShareButton } from "@/components/features/blog/ShareButton";
 import { getAllSlugs, getPostBySlug } from "@/lib/blog/posts";
+import type { BlogPost } from "@/lib/blog/posts";
 
-// Статическая генерация всех страниц статей при билде
 export async function generateStaticParams() {
     return getAllSlugs().map((slug) => ({ slug }));
 }
@@ -31,7 +32,7 @@ export async function generateMetadata({
     };
 }
 
-const TAG_COLORS = {
+const TAG_COLORS: Record<BlogPost["tagColor"], string> = {
     yellow: "border-amber-400/30 bg-amber-400/10 text-amber-300",
     blue:   "border-blue-400/30 bg-blue-400/10 text-blue-300",
     green:  "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
@@ -74,44 +75,17 @@ export default async function BlogPostPage({
                 {/* ── Шапка статьи ───────────────────────────────────── */}
                 <article>
                     <header className="mb-10">
-                        {/* Обложка */}
-                        <div className={`relative mb-8 h-56 overflow-hidden rounded-2xl bg-gradient-to-b ${post.coverGradient} bg-surface`}>
-                            {post.coverImage ? (
-                                <>
-                                    <Image
-                                        src={post.coverImage}
-                                        alt=""
-                                        aria-hidden="true"
-                                        fill
-                                        className="object-cover opacity-45"
-                                        sizes="(max-width: 768px) 100vw, 672px"
-                                        priority
-                                    />
-                                    <div aria-hidden="true" className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 to-transparent" />
-                                    <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 to-transparent" />
-                                </>
-                            ) : (
-                                <div
-                                    aria-hidden="true"
-                                    className="absolute inset-0 opacity-[0.06]"
-                                    style={{
-                                        backgroundImage:
-                                            "linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)",
-                                        backgroundSize: "32px 32px",
-                                    }}
-                                />
-                            )}
-                            <div aria-hidden="true" className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-                            <span className={`absolute left-5 top-5 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${TAG_COLORS[post.tagColor]}`}>
+
+                        {/* Тег + дата + время чтения */}
+                        <div className="mb-5 flex flex-wrap items-center gap-3">
+                            <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${TAG_COLORS[post.tagColor]}`}>
                                 {post.tag}
                             </span>
-                        </div>
-
-                        {/* Мета */}
-                        <div className="mb-4 flex items-center gap-3 text-xs text-muted/70">
-                            <time dateTime={post.date}>{formatDate(post.date)}</time>
-                            <span aria-hidden="true">·</span>
-                            <span>{post.readingTime} мин чтения</span>
+                            <time dateTime={post.date} className="text-xs text-muted/70">
+                                {formatDate(post.date)}
+                            </time>
+                            <span aria-hidden="true" className="text-muted/40">·</span>
+                            <span className="text-xs text-muted/70">{post.readingTime} мин чтения</span>
                         </div>
 
                         <h1 className="text-3xl font-black leading-tight text-foreground sm:text-4xl">
@@ -120,6 +94,18 @@ export default async function BlogPostPage({
                         <p className="mt-4 text-lg leading-relaxed text-muted">
                             {post.excerpt}
                         </p>
+
+                        {/* Обложка — просто картинка, без контейнера и рамки */}
+                        {post.coverImage && (
+                            <Image
+                                src={post.coverImage}
+                                alt={`Обложка статьи: ${post.title}`}
+                                width={800}
+                                height={500}
+                                className="mt-8 w-full h-auto rounded-xl"
+                                priority
+                            />
+                        )}
                     </header>
 
                     {/* ── Тело статьи ──────────────────────────────────── */}
@@ -129,7 +115,7 @@ export default async function BlogPostPage({
                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.contentHtml) }}
                         className={[
                             "prose-blog",
-                            "text-[15px] leading-[1.85] text-muted",
+                            "text-[16px] leading-[1.85] text-foreground/80",
                             // Заголовки
                             "[&_h2]:mb-4 [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-foreground",
                             "[&_h3]:mb-3 [&_h3]:mt-8 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-foreground",
@@ -150,24 +136,28 @@ export default async function BlogPostPage({
                             // Код
                             "[&_code]:rounded [&_code]:bg-white/[0.08] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-[13px] [&_code]:text-accent/90",
                             "[&_pre]:mb-5 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-white/10 [&_pre]:bg-white/[0.05] [&_pre]:p-4",
+                            // Картинки — без обрезки, оригинальные пропорции
+                            "[&_img]:my-6 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-xl",
                         ].join(" ")}
                     />
                 </article>
 
                 {/* ── Подвал статьи ──────────────────────────────────── */}
                 <div className="mt-12 border-t border-white/10 pt-8">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-sm text-muted">
-                            Понравилась статья? Поделитесь с теми, кому она поможет.
-                        </p>
+                    <p className="mb-4 text-sm text-muted">
+                        Понравилась статья? Поделитесь с теми, кому она поможет.
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                        <ShareButton title={post.title} text={post.excerpt} />
                         <Link
                             href="/blog"
-                            className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-muted transition-all hover:border-white/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            className="inline-flex items-center gap-2 rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
                             ← Все статьи
                         </Link>
                     </div>
                 </div>
+
             </div>
         </Container>
     );

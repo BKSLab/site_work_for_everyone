@@ -15,7 +15,7 @@ interface Feature {
 const FEATURES: Feature[] = [
     {
         title: "Два источника",
-        description: "hh.ru и Работы России в одном поиске",
+        description: "hh.ru и Работа России в одном поиске",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="9" cy="12" r="6" />

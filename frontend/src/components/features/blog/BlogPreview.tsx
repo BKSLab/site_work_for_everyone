@@ -14,8 +14,7 @@ export function BlogPreview() {
                         Блог
                     </p>
                     <h2 className="text-2xl font-black text-foreground">
-                        Полезные статьи{" "}
-                        <span className="text-accent">для соискателей</span>
+                        Полезные статьи для соискателей
                     </h2>
                 </div>
                 <Link

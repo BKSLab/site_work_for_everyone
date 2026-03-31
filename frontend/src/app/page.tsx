@@ -38,19 +38,12 @@ export default function HomePage() {
                         />
                     </div>
 
-                    <h1
-                        className="text-4xl font-black leading-tight text-foreground sm:text-5xl"
-                        aria-label="Поиск вакансий для людей с инвалидностью"
-                    >
-                        <span aria-hidden="true">
-                            Поиск вакансий{" "}
-                            <span className="text-accent">
-                                для людей с инвалидностью
-                            </span>
-                        </span>
+                    <h1 className="text-4xl font-black leading-tight text-foreground sm:text-5xl">
+                        Поиск вакансий{" "}
+                        <span role="none" className="text-accent">для людей с инвалидностью</span>
                     </h1>
                     <p className="mt-4 max-w-lg text-lg text-muted">
-                        Агрегируем вакансии с&nbsp;hh.ru и&nbsp;Работы России
+                        Агрегируем вакансии с&nbsp;hh.ru и&nbsp;Работа России
                         в&nbsp;едином доступном интерфейсе
                     </p>
                 </div>
