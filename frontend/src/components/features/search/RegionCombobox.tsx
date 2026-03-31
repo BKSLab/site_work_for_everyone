@@ -96,11 +96,11 @@ export function RegionCombobox({
     }, []);
 
     return (
-        <div className="flex flex-col gap-1 md:gap-0" ref={containerRef}> {/* Outer container for field + error */}
-            <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2"> {/* For label and input/combobox */}
+        <div className="flex flex-col gap-1" ref={containerRef}>
+            <div className="flex flex-col gap-1">
                 <label
                     htmlFor={id}
-                    className="flex-none text-sm font-medium text-foreground"
+                    className="text-sm font-medium text-foreground"
                 >
                     Регион
                     <span aria-hidden="true" className="ml-1 text-accent">
@@ -118,7 +118,7 @@ export function RegionCombobox({
                         onKeyDown={handleKeyDown}
                         onFocus={() => inputValue.length >= 1 && setIsOpen(true)}
                         placeholder={
-                            isLoading ? "Загрузка..." : "Введите название или нажмите ↓"
+                            isLoading ? "Загрузка..." : "Начните вводить регион"
                         }
                         aria-required="true"
                         aria-invalid={error ? true : undefined}

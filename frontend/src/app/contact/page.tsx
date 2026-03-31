@@ -60,7 +60,7 @@ export default function ContactPage() {
                     aria-label="Барабанщиков Кирилл ВКонтакте (открывается в новой вкладке)"
                 >
                     <Image
-                        src="/VK Text Logo Black&white.png"
+                        src="/vk-logo.png"
                         alt="ВКонтакте"
                         width={72}
                         height={24}

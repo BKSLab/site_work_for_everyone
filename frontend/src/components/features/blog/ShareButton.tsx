@@ -7,6 +7,28 @@ interface ShareButtonProps {
     text: string;
 }
 
+async function copyToClipboard(text: string): Promise<boolean> {
+    // Современный способ — требует HTTPS
+    if (navigator.clipboard) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            // падаем на execCommand
+        }
+    }
+    // Старый способ — работает и на HTTP
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(el);
+    return ok;
+}
+
 export function ShareButton({ title, text }: ShareButtonProps) {
     const [copied, setCopied] = useState(false);
 
@@ -26,12 +48,11 @@ export function ShareButton({ title, text }: ShareButtonProps) {
         }
 
         // Fallback: копируем ссылку в буфер обмена
-        try {
-            await navigator.clipboard.writeText(url);
+        // navigator.clipboard требует HTTPS; execCommand работает и на HTTP
+        const copied = await copyToClipboard(url);
+        if (copied) {
             setCopied(true);
             setTimeout(() => setCopied(false), 2500);
-        } catch {
-            // clipboard недоступен (HTTP, старый браузер) — молча игнорируем
         }
     }
 
