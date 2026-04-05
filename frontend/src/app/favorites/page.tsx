@@ -24,11 +24,21 @@ export default function FavoritesPage() {
         }
     }, [isLoading, user, router]);
 
-    const { query, removeMutation } = useFavorites(
-        user?.email ?? "",
-        page,
-        PAGE_SIZE
-    );
+    const userId = user?.email ?? "";
+    const { query, removeMutation } = useFavorites(userId, page, PAGE_SIZE);
+
+    // DEBUG BUG-001: логируем каждый рендер для диагностики пустой страницы
+    console.log("[FavoritesPage] render", {
+        authIsLoading: isLoading,
+        userEmail: user?.email ?? null,
+        userId,
+        queryStatus: query.status,
+        queryFetchStatus: query.fetchStatus,
+        queryIsLoading: query.isLoading,
+        queryIsError: query.isError,
+        queryDataKeys: query.data ? Object.keys(query.data) : null,
+        queryDataTotal: (query.data as { total?: number } | undefined)?.total ?? null,
+    });
 
     function handleRemove(vacancyId: string) {
         setRemovingId(vacancyId);
