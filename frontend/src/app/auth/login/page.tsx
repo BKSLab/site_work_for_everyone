@@ -69,6 +69,11 @@ export default function LoginPage() {
                     // so we need to manually update the auth state here.
                     useAuthStore.getState().setUser(data.user);
 
+                    // BUG-001 FIX: clear Next.js router cache so stale
+                    // redirects (e.g. /favorites → /auth/login cached while
+                    // unauthenticated) don't replay after login.
+                    router.refresh();
+
                     const pendingId = getPendingFavorite();
                     if (pendingId) {
                         clearPendingFavorite();

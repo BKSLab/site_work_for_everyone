@@ -67,6 +67,10 @@ export default function VerifyEmailPage() {
                     // so we need to manually update the auth state here.
                     useAuthStore.getState().setUser(data.user);
 
+                    // BUG-001 FIX: clear Next.js router cache so stale
+                    // redirects cached while unauthenticated don't replay.
+                    router.refresh();
+
                     const pendingId = getPendingFavorite();
                     if (pendingId) {
                         clearPendingFavorite();
