@@ -16,6 +16,7 @@ import { zodFieldErrors } from "@/lib/utils/validation";
 import { getSafeRedirect } from "@/lib/utils/redirect";
 import { ApiRequestError } from "@/lib/api/client";
 import { favoritesApi } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth";
 import { getPendingFavorite, clearPendingFavorite } from "@/lib/utils/pendingFavorite";
 
 export default function LoginPage() {
@@ -64,6 +65,10 @@ export default function LoginPage() {
             { email, password },
             {
                 onSuccess: async (data) => {
+                    // BUG-001 FIX: login mutation's onSuccess was overridden,
+                    // so we need to manually update the auth state here.
+                    useAuthStore.getState().setUser(data.user);
+
                     const pendingId = getPendingFavorite();
                     if (pendingId) {
                         clearPendingFavorite();

@@ -7,6 +7,7 @@ import { useVerifyEmail } from "@/hooks/useVerifyEmail";
 import { useResendCode } from "@/hooks/useResendCode";
 import { favoritesApi } from "@/lib/api";
 import { getPendingFavorite, clearPendingFavorite } from "@/lib/utils/pendingFavorite";
+import { useAuthStore } from "@/stores/auth";
 import {
     AuthFormLayout,
     OtpCodeInput,
@@ -62,6 +63,10 @@ export default function VerifyEmailPage() {
             { email, code },
             {
                 onSuccess: async (data) => {
+                    // BUG-001 FIX: verifyEmail mutation's onSuccess was overridden,
+                    // so we need to manually update the auth state here.
+                    useAuthStore.getState().setUser(data.user);
+
                     const pendingId = getPendingFavorite();
                     if (pendingId) {
                         clearPendingFavorite();
