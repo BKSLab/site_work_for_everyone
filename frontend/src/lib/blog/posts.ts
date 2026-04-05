@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
 import { remark } from "remark";
+import remarkGfm from "remark-gfm";
 import remarkHtml from "remark-html";
 
 export interface BlogPost {
@@ -12,8 +13,7 @@ export interface BlogPost {
     readingTime: number;
     tag: string;
     tagColor: "yellow" | "blue" | "green" | "purple" | "red";
-    coverGradient: string;
-    coverImage?: string; // путь из /public, например "/blog/cover.jpg"
+    coverImage?: string; // путь из /public, например "/blog/slug/cover.jpg"
 }
 
 export interface BlogPostFull extends BlogPost {
@@ -35,14 +35,13 @@ function parseFrontmatter(slug: string): BlogPost {
 
     return {
         slug,
-        title:        data.title        ?? "",
-        excerpt:      data.excerpt      ?? "",
-        date:         data.date         ?? "",
-        readingTime:  data.readingTime  ?? 5,
-        tag:          data.tag          ?? "",
-        tagColor:     data.tagColor     ?? "yellow",
-        coverGradient: data.coverGradient ?? "from-amber-950/80 via-yellow-900/40 to-transparent",
-        coverImage:    data.coverImage,
+        title:       data.title       ?? "",
+        excerpt:     data.excerpt     ?? "",
+        date:        data.date        ?? "",
+        readingTime: data.readingTime ?? 5,
+        tag:         data.tag         ?? "",
+        tagColor:    data.tagColor    ?? "yellow",
+        coverImage:  data.coverImage,
     };
 }
 
@@ -73,7 +72,7 @@ export async function getPostBySlug(slug: string): Promise<BlogPostFull | null> 
     const fileContents = fs.readFileSync(fullPath, "utf8");
     const { data, content } = matter(fileContents);
 
-    const processed = await remark().use(remarkHtml).process(content);
+    const processed = await remark().use(remarkGfm).use(remarkHtml).process(content);
     const contentHtml = processed.toString();
 
     return {
@@ -83,9 +82,8 @@ export async function getPostBySlug(slug: string): Promise<BlogPostFull | null> 
         date:         data.date         ?? "",
         readingTime:  data.readingTime  ?? 5,
         tag:          data.tag          ?? "",
-        tagColor:     data.tagColor     ?? "yellow",
-        coverGradient: data.coverGradient ?? "from-amber-950/80 via-yellow-900/40 to-transparent",
-        coverImage:    data.coverImage,
+        tagColor:    data.tagColor    ?? "yellow",
+        coverImage:  data.coverImage,
         contentHtml,
     };
 }

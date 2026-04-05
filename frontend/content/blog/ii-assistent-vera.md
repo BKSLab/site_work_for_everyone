@@ -5,8 +5,7 @@ date: "2026-03-14"
 tag: "ИИ-ассистент"
 tagColor: "purple"
 readingTime: 6
-coverGradient: "from-purple-950/80 via-violet-900/40 to-transparent"
-coverImage: "/logo_ai_assistant.png"
+coverImage: "/blog/ii-assistent-vera/cover.png"
 ---
 
 Отклик на вакансию — это первое впечатление, которое вы производите на работодателя. Ещё до собеседования, ещё до того, как вас увидели и услышали. И именно от качества сопроводительного письма или резюме нередко зависит, позвонят ли вам вообще.

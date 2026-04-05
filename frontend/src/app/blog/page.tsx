@@ -10,17 +10,16 @@ export const metadata: Metadata = {
         "Полезные статьи о поиске работы, правах сотрудников с ОВЗ, составлении резюме и подготовке к собеседованию.",
 };
 
-const ALL_TAGS = ["Все", "Трудоустройство", "Удалёнка", "Резюме", "Права", "Карьера", "Собеседование"];
-
 export default async function BlogPage({
     searchParams,
 }: {
     searchParams: Promise<{ tag?: string }>;
 }) {
     const { tag } = await searchParams;
-    const activeTag = tag && ALL_TAGS.includes(tag) ? tag : "Все";
-
     const allPosts = getAllPosts();
+
+    const ALL_TAGS = ["Все", ...Array.from(new Set(allPosts.map((p) => p.tag))).filter(Boolean)];
+    const activeTag = tag && ALL_TAGS.includes(tag) ? tag : "Все";
     const posts =
         activeTag === "Все"
             ? allPosts

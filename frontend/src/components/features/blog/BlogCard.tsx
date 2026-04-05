@@ -64,9 +64,9 @@ export function BlogCard({ post }: { post: BlogPost }) {
 
             {/* ── Контент ────────────────────────────────────────────── */}
             <div className="flex flex-1 flex-col gap-3 p-5">
-                <h3 className="text-[15px] font-bold leading-snug text-foreground transition-colors duration-200 group-hover:text-accent">
+                <h2 className="text-[15px] font-bold leading-snug text-foreground transition-colors duration-200 group-hover:text-accent">
                     {post.title}
-                </h3>
+                </h2>
                 <p className="flex-1 text-[13px] leading-relaxed text-muted line-clamp-3">
                     {post.excerpt}
                 </p>
