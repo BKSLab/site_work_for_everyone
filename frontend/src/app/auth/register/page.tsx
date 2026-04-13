@@ -32,6 +32,8 @@ export default function RegisterPage() {
     const [emailError, setEmailError] = useState("");
     const [passwordError, setPasswordError] = useState("");
     const [serverError, setServerError] = useState<string | null>(null);
+    const [consent, setConsent] = useState(false);
+    const [consentError, setConsentError] = useState("");
 
     if (authLoading) return null;
     if (isAuthenticated) {
@@ -60,8 +62,14 @@ export default function RegisterPage() {
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setServerError(null);
+        setConsentError("");
 
         if (!validate()) return;
+
+        if (!consent) {
+            setConsentError("Необходимо согласие на обработку персональных данных.");
+            return;
+        }
 
         registerMutation.mutate(
             { first_name: firstName, last_name: lastName, email, password },
@@ -188,6 +196,46 @@ export default function RegisterPage() {
                     error={passwordError}
                     autoComplete="new-password"
                 />
+
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-start gap-3">
+                        <input
+                            id="register-consent"
+                            type="checkbox"
+                            checked={consent}
+                            onChange={(e) => {
+                                setConsent(e.target.checked);
+                                if (e.target.checked) setConsentError("");
+                            }}
+                            aria-required="true"
+                            aria-invalid={consentError ? true : undefined}
+                            aria-describedby={
+                                consentError
+                                    ? "register-consent-error register-consent-hint"
+                                    : "register-consent-hint"
+                            }
+                            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-accent"
+                        />
+                        <label htmlFor="register-consent" className="cursor-pointer text-sm text-muted">
+                            Я даю согласие на обработку персональных данных.
+                            <span className="sr-only"> (обязательное поле)</span>
+                        </label>
+                    </div>
+                    <a
+                        id="register-consent-hint"
+                        href="/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-7 text-sm text-accent hover:text-accent-hover underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    >
+                        Читать политику конфиденциальности (откроется в новой вкладке)
+                    </a>
+                    {consentError && (
+                        <span id="register-consent-error" role="alert" className="ml-7 text-sm text-red-400">
+                            {consentError}
+                        </span>
+                    )}
+                </div>
 
                 <SubmitButton isLoading={registerMutation.isPending}>
                     Зарегистрироваться
