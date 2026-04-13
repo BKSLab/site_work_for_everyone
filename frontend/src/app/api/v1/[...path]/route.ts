@@ -58,9 +58,9 @@ async function proxyRequest(request: NextRequest, path: string) {
         fetchOptions.body = await request.text();
     }
 
-    // === Fetch с таймаутом 120 секунд (поиск вакансий может занимать >1 минуты) ===
+    // === Fetch с таймаутом 280 секунд (LLM ассистент: до 3 попыток × 90s + backoff) ===
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120_000);
+    const timeoutId = setTimeout(() => controller.abort(), 280_000);
 
     let response: Response;
     try {
