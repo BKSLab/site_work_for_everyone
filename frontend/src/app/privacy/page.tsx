@@ -60,12 +60,23 @@ export default function PrivacyPage() {
                         <h2 id="section-llm" className="mb-3 text-base font-semibold text-foreground">
                             4. ИИ-ассистент и персональные данные
                         </h2>
-                        <p>
+                        <p className="mb-3">
                             При использовании ИИ-ассистента Веры ваши персональные данные
                             (имя, email) <strong className="text-foreground">не передаются</strong> в языковую модель.
-                            Ассистент получает только публичную информацию о выбранной вакансии:
-                            название, описание, работодателя, требования.
                         </p>
+                        <p className="mb-2">В зависимости от режима работы ассистент получает:</p>
+                        <ul className="flex flex-col gap-1 pl-4">
+                            <li className="list-disc">
+                                <strong className="text-foreground">Быстрый режим</strong> — только публичные данные
+                                выбранной вакансии: название, описание, работодателя, требования, формат работы.
+                            </li>
+                            <li className="list-disc">
+                                <strong className="text-foreground">Персональный режим</strong> — данные вакансии
+                                и ваши ответы на вопросы анкеты (опыт, навыки, пожелания).
+                                Анкета не содержит имени, email или других идентифицирующих данных —
+                                только профессиональная информация, которую вы вводите самостоятельно.
+                            </li>
+                        </ul>
                     </section>
 
                     <section aria-labelledby="section-third-party">
