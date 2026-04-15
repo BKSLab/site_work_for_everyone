@@ -71,10 +71,10 @@ VERIFICATION_MESSAGE = """
                     <tr>
                         <td style="padding:32px 40px 8px;">
 
-                            <p style="margin:0 0 16px;font-size:16px;color:#F5F5F5;line-height:1.5;">
+                            <p style="margin:0 0 16px;font-size:16px;color:#F0F0F0;line-height:1.5;">
                                 Здравствуйте, <strong style="color:#F5B800;">{user_name}</strong>!
                             </p>
-                            <p style="margin:0 0 28px;font-size:15px;color:#888888;line-height:1.7;">
+                            <p style="margin:0 0 28px;font-size:15px;color:#999999;line-height:1.7;">
                                 Спасибо за регистрацию. Для подтверждения электронной почты введите код ниже:
                             </p>
 
@@ -85,7 +85,7 @@ VERIFICATION_MESSAGE = """
                                         <table cellpadding="0" cellspacing="0" border="0">
                                             <tr>
                                                 <td align="center"
-                                                    style="background-color:#1A1A1A;border-radius:12px;border:1px solid #2D2800;padding:20px 40px;">
+                                                    style="background-color:#1A1A1A;border-radius:12px;border:1px solid #2D2800;padding:20px 40px;box-shadow:0 0 24px rgba(245,184,0,0.12);">
                                                     <span style="font-family:Courier,monospace,serif;font-size:36px;font-weight:700;letter-spacing:12px;color:#F5B800;">{otp_code}</span>
                                                 </td>
                                             </tr>
@@ -95,7 +95,7 @@ VERIFICATION_MESSAGE = """
                             </table>
 
                             <p style="margin:0 0 32px;font-size:14px;color:#555555;text-align:center;line-height:1.5;">
-                                Код действителен <strong style="color:#888888;">10 минут</strong>.
+                                Код действителен <strong style="color:#999999;">10 минут</strong>.
                                 Не передавайте его никому.
                             </p>
 
@@ -106,7 +106,7 @@ VERIFICATION_MESSAGE = """
                                         <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#F5B800;">
                                             Карьерный консультант Вера
                                         </p>
-                                        <p style="margin:0;font-size:13px;color:#777777;line-height:1.6;">
+                                        <p style="margin:0;font-size:13px;color:#999999;line-height:1.6;">
                                             После входа вам будет доступен персональный карьерный консультант. Вера поможет составить
                                             сопроводительное письмо и адаптировать резюме под каждую вакансию.
                                         </p>
@@ -180,11 +180,14 @@ FEEDBACK_MESSAGE = """
 
                     <tr>
                         <td align="center" style="padding:36px 40px 28px;">
-                            <p style="margin:8px 0 0;font-size:20px;font-weight:700;color:#F5F5F5;letter-spacing:0.02em;">
+                            <p style="margin:0 0 10px;font-size:11px;letter-spacing:5px;text-transform:uppercase;color:#7A5E00;font-family:Arial,sans-serif;">
                                 Работа для всех
                             </p>
-                            <p style="margin:6px 0 0;font-size:13px;color:#7A5E00;">
-                                Форма обратной связи
+                            <p style="margin:0;font-size:20px;font-weight:700;color:#F0F0F0;letter-spacing:0.02em;">
+                                Новое сообщение
+                            </p>
+                            <p style="margin:6px 0 0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#555555;">
+                                форма обратной связи
                             </p>
                         </td>
                     </tr>
@@ -200,14 +203,14 @@ FEEDBACK_MESSAGE = """
                     <tr>
                         <td style="padding:32px 40px 8px;">
 
-                            <p style="margin:0 0 20px;font-size:15px;color:#888888;line-height:1.7;">
+                            <p style="margin:0 0 20px;font-size:15px;color:#999999;line-height:1.7;">
                                 Новое сообщение с сайта:
                             </p>
 
                             <table width="100%" cellpadding="0" cellspacing="0" border="0">
                                 <tr>
                                     <td style="background-color:#171700;border-radius:12px;border:1px solid #2D2800;padding:20px 24px;">
-                                        <p style="margin:0;font-size:15px;color:#F5F5F5;line-height:1.8;white-space:pre-wrap;">{message}</p>
+                                        <p style="margin:0;font-size:15px;color:#F0F0F0;line-height:1.8;white-space:pre-wrap;">{message}</p>
                                     </td>
                                 </tr>
                             </table>
@@ -216,13 +219,13 @@ FEEDBACK_MESSAGE = """
                                 <tr>
                                     <td style="padding:16px 20px;background-color:#0F0F0F;border-radius:10px;border:1px solid #1E1E1E;">
                                         <p style="margin:0 0 8px;font-size:12px;color:#555555;text-transform:uppercase;letter-spacing:1px;">Детали</p>
-                                        <p style="margin:0 0 6px;font-size:13px;color:#777777;">
+                                        <p style="margin:0 0 6px;font-size:13px;color:#999999;">
                                             <span style="color:#555555;">Ответить:</span>&nbsp;
                                             <span style="color:#F5B800;">{reply_email}</span>
                                         </p>
-                                        <p style="margin:0;font-size:13px;color:#777777;">
+                                        <p style="margin:0;font-size:13px;color:#999999;">
                                             <span style="color:#555555;">Страница:</span>&nbsp;
-                                            <span style="color:#888888;">{page}</span>
+                                            <span style="color:#999999;">{page}</span>
                                         </p>
                                     </td>
                                 </tr>
@@ -330,10 +333,10 @@ PASSWORD_RESET_MESSAGE = """
                     <tr>
                         <td style="padding:32px 40px 8px;">
 
-                            <p style="margin:0 0 16px;font-size:16px;color:#F5F5F5;line-height:1.5;">
+                            <p style="margin:0 0 16px;font-size:16px;color:#F0F0F0;line-height:1.5;">
                                 Здравствуйте, <strong style="color:#F5B800;">{user_name}</strong>!
                             </p>
-                            <p style="margin:0 0 28px;font-size:15px;color:#888888;line-height:1.7;">
+                            <p style="margin:0 0 28px;font-size:15px;color:#999999;line-height:1.7;">
                                 Вы запросили сброс пароля на портале «Работа для всех».
                                 Введите код ниже для создания нового пароля:
                             </p>
@@ -345,7 +348,7 @@ PASSWORD_RESET_MESSAGE = """
                                         <table cellpadding="0" cellspacing="0" border="0">
                                             <tr>
                                                 <td align="center"
-                                                    style="background-color:#1A1A1A;border-radius:12px;border:1px solid #2D2800;padding:20px 40px;">
+                                                    style="background-color:#1A1A1A;border-radius:12px;border:1px solid #2D2800;padding:20px 40px;box-shadow:0 0 24px rgba(245,184,0,0.12);">
                                                     <span style="font-family:Courier,monospace,serif;font-size:36px;font-weight:700;letter-spacing:12px;color:#F5B800;">{otp_code}</span>
                                                 </td>
                                             </tr>
@@ -355,7 +358,7 @@ PASSWORD_RESET_MESSAGE = """
                             </table>
 
                             <p style="margin:0 0 32px;font-size:14px;color:#555555;text-align:center;line-height:1.5;">
-                                Код действителен <strong style="color:#888888;">10 минут</strong>.
+                                Код действителен <strong style="color:#999999;">10 минут</strong>.
                                 Не передавайте его никому.
                             </p>
 
@@ -366,7 +369,7 @@ PASSWORD_RESET_MESSAGE = """
                                         <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#E05555;">
                                             Не вы запрашивали сброс?
                                         </p>
-                                        <p style="margin:0;font-size:13px;color:#777777;line-height:1.6;">
+                                        <p style="margin:0;font-size:13px;color:#999999;line-height:1.6;">
                                             Проигнорируйте это письмо — ваш пароль останется прежним.
                                             Если вы не делали этот запрос, рекомендуем убедиться,
                                             что ваш аккаунт в безопасности.

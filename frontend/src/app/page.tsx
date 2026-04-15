@@ -13,44 +13,43 @@ export default function HomePage() {
     return (
         <Container className="py-12">
             {/* ── Hero ─────────────────────────────────────────────── */}
-            <div>
-                <div className="relative flex flex-col items-center text-center">
-                    {/* Атмосферное свечение за логотипом */}
-                    <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute -top-8 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-accent/10 blur-3xl"
-                    />
+            <div className="flex flex-col items-center gap-8 pb-10 text-center">
 
-                    {/* Логотип */}
-                    <div className="relative mb-8">
-                        <div
-                            aria-hidden="true"
-                            className="absolute inset-0 scale-150 rounded-full bg-accent/25 blur-2xl"
-                        />
-                        <Image
-                            src="/logo.jpg"
-                            alt=""
-                            aria-hidden="true"
-                            width={160}
-                            height={160}
-                            className="relative rounded-full border-2 border-accent/60 shadow-[0_0_48px_rgba(245,184,0,0.35)]"
-                            priority
-                        />
-                    </div>
+                {/* Логотип */}
+                <Image
+                    src="/logo.jpg"
+                    alt=""
+                    aria-hidden="true"
+                    width={144}
+                    height={144}
+                    className="mx-auto block rounded-full border-2 border-accent/60 shadow-[0_0_40px_rgba(245,184,0,0.32)]"
+                    priority
+                />
 
-                    <h1 className="text-4xl font-black leading-tight text-foreground sm:text-5xl">
-                        Поиск вакансий{" "}
-                        <span role="none" className="text-accent">для людей с инвалидностью</span>
+                {/* Текст */}
+                <div className="flex flex-col gap-6">
+                    <h1 className="text-3xl font-black leading-tight text-foreground sm:text-4xl">
+                        Поиск вакансий для людей с инвалидностью
                     </h1>
-                    <p className="mt-4 max-w-lg text-lg text-muted">
-                        Агрегируем вакансии с&nbsp;hh.ru и&nbsp;Работа России
-                        в&nbsp;едином доступном интерфейсе
+                    <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-lg text-foreground/70">
+                        Агрегируем вакансии из&nbsp;
+                        <span className="inline-flex items-center gap-1.5 rounded border border-accent/50 bg-white/10 px-2.5 py-1 text-sm font-semibold text-accent">
+                            <Image src="/hh.ru.png" alt="" width={16} height={16} className="rounded-sm" />
+                            hh.ru
+                        </span>
+                        &nbsp;и&nbsp;
+                        <span className="inline-flex items-center gap-1.5 rounded border border-accent/50 bg-white/10 px-2.5 py-1 text-sm font-semibold text-accent">
+                            <Image src="/trudvsem.ru.png" alt="" width={16} height={16} className="rounded-sm" />
+                            Работа России
+                        </span>
+                        &nbsp;в едином доступном интерфейсе
                     </p>
                 </div>
+
             </div>
 
             {/* ── Форма поиска ─────────────────────────────────────── */}
-            <div className="mt-12">
+            <div className="mt-4">
                 <div className="mx-auto max-w-4xl rounded-2xl border border-white/20 bg-surface bg-[radial-gradient(ellipse_at_top,rgba(245,184,0,0.05),transparent_60%)] p-8 shadow-[0_1px_1px_rgba(255,255,255,0.05)_inset]">
                     <SearchForm />
                 </div>
@@ -63,7 +62,7 @@ export default function HomePage() {
             >
                 <h2
                     id="features-heading"
-                    className="mb-8 text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted"
+                    className="mb-8 text-center text-2xl font-black text-foreground"
                 >
                     Возможности сервиса
                 </h2>
