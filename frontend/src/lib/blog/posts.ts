@@ -65,6 +65,20 @@ export function getLatestPosts(count: number): BlogPost[] {
     return getAllPosts().slice(0, count);
 }
 
+export const POSTS_PER_PAGE = 9;
+
+export function getPagedPosts(
+    page: number,
+    tag?: string,
+): { posts: BlogPost[]; total: number; totalPages: number } {
+    const all = tag ? getAllPosts().filter((p) => p.tag === tag) : getAllPosts();
+    const total = all.length;
+    const totalPages = Math.max(1, Math.ceil(total / POSTS_PER_PAGE));
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const posts = all.slice((safePage - 1) * POSTS_PER_PAGE, safePage * POSTS_PER_PAGE);
+    return { posts, total, totalPages };
+}
+
 export async function getPostBySlug(slug: string): Promise<BlogPostFull | null> {
     const fullPath = path.join(CONTENT_DIR, `${slug}.md`);
     if (!fs.existsSync(fullPath)) return null;

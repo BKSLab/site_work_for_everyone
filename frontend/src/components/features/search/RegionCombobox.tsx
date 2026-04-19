@@ -24,13 +24,15 @@ export function RegionCombobox({
     const [inputValue, setInputValue] = useState("");
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
+    const [prevRegionCode, setPrevRegionCode] = useState(regionCode);
 
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Сбрасываем ввод если regionCode сброшен снаружи
-    useEffect(() => {
+    // Сбрасываем ввод если regionCode сброшен снаружи (derived state pattern)
+    if (regionCode !== prevRegionCode) {
+        setPrevRegionCode(regionCode);
         if (!regionCode) setInputValue("");
-    }, [regionCode]);
+    }
 
     // Когда поле пустое — показываем все регионы (уже загружены);
     // когда введён текст — фильтруем по совпадению, показываем первые 10

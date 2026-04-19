@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,11 +34,14 @@ export default function LoginPage() {
     const [passwordError, setPasswordError] = useState("");
     const [serverError, setServerError] = useState<string | null>(null);
 
+    useEffect(() => {
+        if (!authLoading && isAuthenticated && !handlingLoginRef.current) {
+            router.replace(redirect);
+        }
+    }, [authLoading, isAuthenticated, redirect, router]);
+
     if (authLoading) return null;
-    if (isAuthenticated && !handlingLoginRef.current) {
-        router.replace(redirect);
-        return null;
-    }
+    if (isAuthenticated) return null;
 
     function validate(): boolean {
         setEmailError("");

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { BlogCard } from "@/components/features/blog/BlogCard";
-import { getAllPosts } from "@/lib/blog/posts";
+import { BlogPagination } from "@/components/features/blog/BlogPagination";
+import { getAllPosts, getPagedPosts } from "@/lib/blog/posts";
 
 export const metadata: Metadata = {
     title: "Блог — советы по трудоустройству для людей с инвалидностью",
@@ -13,17 +14,27 @@ export const metadata: Metadata = {
 export default async function BlogPage({
     searchParams,
 }: {
-    searchParams: Promise<{ tag?: string }>;
+    searchParams: Promise<{ tag?: string; page?: string }>;
 }) {
-    const { tag } = await searchParams;
+    const { tag, page: pageParam } = await searchParams;
     const allPosts = getAllPosts();
 
     const ALL_TAGS = ["Все", ...Array.from(new Set(allPosts.map((p) => p.tag))).filter(Boolean)];
     const activeTag = tag && ALL_TAGS.includes(tag) ? tag : "Все";
-    const posts =
-        activeTag === "Все"
-            ? allPosts
-            : allPosts.filter((p) => p.tag === activeTag);
+    const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+
+    const { posts, totalPages } = getPagedPosts(
+        currentPage,
+        activeTag === "Все" ? undefined : activeTag,
+    );
+
+    function buildHref(page: number): string {
+        const params = new URLSearchParams();
+        if (activeTag !== "Все") params.set("tag", activeTag);
+        if (page > 1) params.set("page", String(page));
+        const qs = params.toString();
+        return qs ? `/blog?${qs}` : "/blog";
+    }
 
     return (
         <Container className="py-12">
@@ -93,6 +104,13 @@ export default async function BlogPage({
                     </p>
                 )}
             </section>
+
+            {/* ── Пагинация ────────────────────────────────────────────── */}
+            <BlogPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                buildHref={buildHref}
+            />
         </Container>
     );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { SourceBadge } from "@/components/ui/SourceBadge";
@@ -33,15 +33,17 @@ export function VacancyFilters({
     const [keyword, setKeyword] = useState(currentKeyword);
     const [source, setSource] = useState(currentSource);
     const [pageSize, setPageSize] = useState(currentPageSize);
+    const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-    // Синхронизируем локальное состояние формы с URL при каждом открытии
-    useEffect(() => {
+    // Синхронизируем форму с текущими значениями при каждом открытии (derived state pattern)
+    if (isOpen !== prevIsOpen) {
+        setPrevIsOpen(isOpen);
         if (isOpen) {
             setKeyword(currentKeyword);
             setSource(currentSource);
             setPageSize(currentPageSize);
         }
-    }, [isOpen, currentKeyword, currentSource, currentPageSize]);
+    }
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

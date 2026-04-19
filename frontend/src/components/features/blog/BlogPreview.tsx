@@ -3,7 +3,7 @@ import { getLatestPosts } from "@/lib/blog/posts";
 import { BlogCard } from "./BlogCard";
 
 export function BlogPreview() {
-    const posts = getLatestPosts(3);
+    const posts = getLatestPosts(6);
 
     return (
         <div className="flex flex-col gap-8">
