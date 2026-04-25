@@ -32,6 +32,12 @@ export function VacanciesContent() {
     const [isFiltersOpen, setIsFiltersOpen] = useState(false);
     const h1Ref = useRef<HTMLHeadingElement>(null);
 
+    const {
+        data,
+        isFetching,
+        isError: isListError,
+    } = useVacancies(location, page, pageSize, userId, keyword, source);
+
     useEffect(() => {
         h1Ref.current?.focus();
     }, [location, page, keyword, source]);
@@ -45,12 +51,6 @@ export function VacanciesContent() {
             document.getElementById(`detail-link-${savedId}`)?.focus();
         });
     }, [data]);
-
-    const {
-        data,
-        isFetching,
-        isError: isListError,
-    } = useVacancies(location, page, pageSize, userId, keyword, source);
 
     const activeFilterCount = (keyword ? 1 : 0) + (source ? 1 : 0);
 
