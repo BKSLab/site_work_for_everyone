@@ -29,6 +29,9 @@ export default function FavoritesPage() {
         h1Ref.current?.focus();
     }, [page]);
 
+    const userId = user?.email ?? "";
+    const { query, removeMutation } = useFavorites(userId, page, PAGE_SIZE);
+
     useEffect(() => {
         if (!query.data) return;
         const savedId = sessionStorage.getItem('returnFocusVacancyId');
@@ -38,9 +41,6 @@ export default function FavoritesPage() {
             document.getElementById(`detail-link-${savedId}`)?.focus();
         });
     }, [query.data]);
-
-    const userId = user?.email ?? "";
-    const { query, removeMutation } = useFavorites(userId, page, PAGE_SIZE);
 
 
     function handleRemove(vacancyId: string) {
