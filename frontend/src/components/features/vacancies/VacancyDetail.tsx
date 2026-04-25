@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, btnClass } from "@/components/ui/Button";
@@ -44,6 +45,8 @@ export function VacancyDetail({ vacancy, showAssistant = false }: VacancyDetailP
     const router = useRouter();
     const { isFavorite, isFavoritePending, favoriteError, handleFavoriteClick } =
         useFavoriteToggle(vacancy.vacancy_id, vacancy.is_favorite);
+    const h1Ref = useRef<HTMLHeadingElement>(null);
+    useEffect(() => { h1Ref.current?.focus(); }, []);
 
     return (
         <article
@@ -52,8 +55,9 @@ export function VacancyDetail({ vacancy, showAssistant = false }: VacancyDetailP
         >
             {/* Заголовок */}
             <h1
+                ref={h1Ref}
                 id="vacancy-detail-title"
-                className="text-2xl font-bold text-foreground"
+                className="text-2xl font-bold text-foreground focus:outline-none"
                 tabIndex={-1}
             >
                 {vacancy.vacancy_name}

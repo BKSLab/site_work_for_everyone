@@ -4,6 +4,7 @@ import { Container } from "@/components/layout/Container";
 import { SearchForm } from "@/components/features/search/SearchForm";
 import { FeatureCards } from "@/components/features/home/FeatureCards";
 import { BlogPreview } from "@/components/features/blog/BlogPreview";
+import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
     title: "Поиск вакансий",
@@ -28,9 +29,9 @@ export default function HomePage() {
 
                 {/* Текст */}
                 <div className="flex flex-col gap-6">
-                    <h1 className="text-3xl font-black leading-tight text-foreground sm:text-4xl">
+                    <FocusHeading className="text-3xl font-black leading-tight text-foreground sm:text-4xl">
                         Поиск вакансий для людей с инвалидностью
-                    </h1>
+                    </FocusHeading>
                     <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-lg text-foreground/70">
                         Агрегируем вакансии из&nbsp;
                         <span className="inline-flex items-center gap-1.5 rounded border border-accent/50 bg-white/10 px-2.5 py-1 text-sm font-semibold text-accent">

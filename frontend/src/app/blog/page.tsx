@@ -4,6 +4,7 @@ import { Container } from "@/components/layout/Container";
 import { BlogCard } from "@/components/features/blog/BlogCard";
 import { BlogPagination } from "@/components/features/blog/BlogPagination";
 import { getAllPosts, getPagedPosts } from "@/lib/blog/posts";
+import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
     title: "Блог — советы по трудоустройству для людей с инвалидностью",
@@ -48,9 +49,9 @@ export default async function BlogPage({
                     <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-accent/70">
                         Блог
                     </p>
-                    <h1 className="text-4xl font-black leading-tight text-foreground sm:text-5xl">
+                    <FocusHeading className="text-4xl font-black leading-tight text-foreground sm:text-5xl">
                         Советы и&nbsp;статьи для соискателей
-                    </h1>
+                    </FocusHeading>
                     <p className="mt-4 max-w-lg text-lg text-muted">
                         Практические материалы о&nbsp;поиске работы, правах
                         и&nbsp;карьере для людей с&nbsp;инвалидностью

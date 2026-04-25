@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
@@ -30,6 +30,21 @@ export function VacanciesContent() {
     const userId = useAuthStore((s) => s.user?.email);
 
     const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+    const h1Ref = useRef<HTMLHeadingElement>(null);
+
+    useEffect(() => {
+        h1Ref.current?.focus();
+    }, [location, page, keyword, source]);
+
+    useEffect(() => {
+        if (!data) return;
+        const savedId = sessionStorage.getItem('returnFocusVacancyId');
+        if (!savedId) return;
+        sessionStorage.removeItem('returnFocusVacancyId');
+        requestAnimationFrame(() => {
+            document.getElementById(`detail-link-${savedId}`)?.focus();
+        });
+    }, [data]);
 
     const {
         data,
@@ -72,7 +87,7 @@ export function VacanciesContent() {
     if (!location) {
         return (
             <Container className="py-12">
-                <h1 className="mb-4 text-2xl font-bold text-foreground">Результаты поиска</h1>
+                <h1 ref={h1Ref} tabIndex={-1} className="mb-4 text-2xl font-bold text-foreground focus:outline-none">Результаты поиска</h1>
                 <p className="text-sm text-muted">
                     Введите параметры поиска на{" "}
                     <Link
@@ -130,8 +145,9 @@ export function VacanciesContent() {
     return (
         <Container className="py-12">
             <h1
-                className="mb-8 text-3xl font-bold text-foreground"
+                ref={h1Ref}
                 tabIndex={-1}
+                className="mb-8 text-3xl font-bold text-foreground focus:outline-none"
             >
                 Результаты поиска
             </h1>

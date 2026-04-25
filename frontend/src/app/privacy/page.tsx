@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/layout/Container";
+import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
     title: "Политика конфиденциальности",
@@ -9,12 +10,12 @@ export default function PrivacyPage() {
     return (
         <Container className="py-12">
             <article className="mx-auto max-w-2xl" aria-labelledby="privacy-heading">
-                <h1
+                <FocusHeading
                     id="privacy-heading"
                     className="mb-8 text-3xl font-bold text-foreground"
                 >
                     Политика конфиденциальности
-                </h1>
+                </FocusHeading>
 
                 <div className="flex flex-col gap-8 text-sm leading-relaxed text-muted">
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { FeedbackForm } from "@/components/features/feedback/FeedbackForm";
+import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
     title: "Обратная связь",
@@ -25,12 +26,12 @@ export default function ContactPage() {
                         />
                     </div>
                     <div>
-                        <h1
+                        <FocusHeading
                             id="author-heading"
                             className="mb-2 text-xl font-bold text-foreground"
                         >
                             Привет! Рад видеть тебя здесь
-                        </h1>
+                        </FocusHeading>
                         <p className="text-sm text-muted leading-relaxed">
                             Меня зовут <strong className="text-foreground">Кирилл Барабанщиков</strong>, и я автор этого проекта.
                             Мне очень приятно, что ты воспользовался сайтом — для меня это уже много значит.

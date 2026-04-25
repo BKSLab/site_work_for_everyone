@@ -161,6 +161,8 @@ export function FavoritesList({
                                 <div className="mt-auto flex flex-wrap gap-3 pt-4">
                                     <Link
                                         href={`/favorites/${vacancy.vacancy_id}`}
+                                        id={`detail-link-${vacancy.vacancy_id}`}
+                                        onClick={() => sessionStorage.setItem('returnFocusVacancyId', vacancy.vacancy_id)}
                                         onMouseEnter={() => handleDetailHover(vacancy.vacancy_id)}
                                         onFocus={() => handleDetailHover(vacancy.vacancy_id)}
                                         className={btnClass()}

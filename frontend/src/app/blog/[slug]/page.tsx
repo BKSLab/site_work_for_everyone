@@ -7,6 +7,7 @@ import { Container } from "@/components/layout/Container";
 import { ShareButton } from "@/components/features/blog/ShareButton";
 import { getAllSlugs, getPostBySlug } from "@/lib/blog/posts";
 import type { BlogPost } from "@/lib/blog/posts";
+import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export async function generateStaticParams() {
     return getAllSlugs().map((slug) => ({ slug }));
@@ -91,9 +92,9 @@ export default async function BlogPostPage({
                             <span className="text-xs text-muted/70">{post.readingTime} мин чтения</span>
                         </div>
 
-                        <h1 className="text-3xl font-black leading-tight text-foreground sm:text-4xl">
+                        <FocusHeading className="text-3xl font-black leading-tight text-foreground sm:text-4xl">
                             {post.title}
-                        </h1>
+                        </FocusHeading>
                         <p className="mt-4 text-lg leading-relaxed text-muted">
                             {post.excerpt}
                         </p>
@@ -145,8 +146,30 @@ export default async function BlogPostPage({
                     />
                 </article>
 
+                {/* ── CTA: поиск вакансий ─────────────────────────────── */}
+                <div className="mt-12 rounded-2xl border border-accent/20 bg-[radial-gradient(ellipse_at_top,rgba(245,184,0,0.07),transparent_70%)] p-8 text-center">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent/60">
+                        Основной функционал сервиса
+                    </p>
+                    <h2 className="mb-3 text-xl font-bold text-foreground">
+                        Готовы искать работу?
+                    </h2>
+                    <p className="mb-6 text-sm text-muted">
+                        Агрегируем вакансии из hh.ru и&nbsp;Работы России специально для людей с&nbsp;инвалидностью.
+                    </p>
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent/10 px-5 py-2.5 text-sm font-semibold text-accent transition-colors hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    >
+                        Найти вакансии
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                    </Link>
+                </div>
+
                 {/* ── Подвал статьи ──────────────────────────────────── */}
-                <div className="mt-12 border-t border-white/10 pt-8">
+                <div className="mt-10 border-t border-white/10 pt-8">
                     <p className="mb-4 text-sm text-muted">
                         Понравилась статья? Поделитесь с теми, кому она поможет.
                     </p>

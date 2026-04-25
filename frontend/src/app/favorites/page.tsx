@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Container } from "@/components/layout/Container";
 import { FavoritesList } from "@/components/features/favorites/FavoritesList";
@@ -17,12 +17,27 @@ export default function FavoritesPage() {
     const isLoading = useAuthStore((s) => s.isLoading);
     const [page, setPage] = useState(1);
     const [removingId, setRemovingId] = useState<string | null>(null);
+    const h1Ref = useRef<HTMLHeadingElement>(null);
 
     useEffect(() => {
         if (!isLoading && !user) {
             router.replace("/auth/login?redirect=/favorites");
         }
     }, [isLoading, user, router]);
+
+    useEffect(() => {
+        h1Ref.current?.focus();
+    }, [page]);
+
+    useEffect(() => {
+        if (!query.data) return;
+        const savedId = sessionStorage.getItem('returnFocusVacancyId');
+        if (!savedId) return;
+        sessionStorage.removeItem('returnFocusVacancyId');
+        requestAnimationFrame(() => {
+            document.getElementById(`detail-link-${savedId}`)?.focus();
+        });
+    }, [query.data]);
 
     const userId = user?.email ?? "";
     const { query, removeMutation } = useFavorites(userId, page, PAGE_SIZE);
@@ -31,7 +46,10 @@ export default function FavoritesPage() {
     function handleRemove(vacancyId: string) {
         setRemovingId(vacancyId);
         removeMutation.mutate(vacancyId, {
-            onSettled: () => setRemovingId(null),
+            onSettled: () => {
+                setRemovingId(null);
+                h1Ref.current?.focus();
+            },
         });
     }
 
@@ -47,8 +65,9 @@ export default function FavoritesPage() {
     return (
         <Container className="py-12">
             <h1
-                className="mb-8 text-3xl font-bold text-foreground"
+                ref={h1Ref}
                 tabIndex={-1}
+                className="mb-8 text-3xl font-bold text-foreground focus:outline-none"
             >
                 Избранные вакансии
             </h1>

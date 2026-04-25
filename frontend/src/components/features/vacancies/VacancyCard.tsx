@@ -81,6 +81,8 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
             <div className="mt-auto flex flex-wrap justify-start gap-3 pt-4">
                 <Link
                     href={`/vacancies/${vacancy.vacancy_id}`}
+                    id={`detail-link-${vacancy.vacancy_id}`}
+                    onClick={() => sessionStorage.setItem('returnFocusVacancyId', vacancy.vacancy_id)}
                     onMouseEnter={handleDetailHover}
                     onFocus={handleDetailHover}
                     className="rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-center text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"

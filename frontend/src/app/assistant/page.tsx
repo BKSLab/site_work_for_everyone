@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
@@ -27,6 +28,8 @@ function CheckIcon() {
 export default function AssistantPage() {
     const user = useAuthStore((s) => s.user);
     const greeting = user?.first_name ? `Привет, ${user.first_name}!` : "Привет!";
+    const h1Ref = useRef<HTMLHeadingElement>(null);
+    useEffect(() => { h1Ref.current?.focus(); }, []);
 
     return (
         <Container className="py-12">
@@ -49,7 +52,7 @@ export default function AssistantPage() {
                     </span>
 
                     <div className="flex flex-col gap-5">
-                        <h1 className="text-3xl font-bold text-foreground sm:text-4xl">
+                        <h1 ref={h1Ref} tabIndex={-1} className="text-3xl font-bold text-foreground sm:text-4xl focus:outline-none">
                             {greeting} <span className="text-accent">Я Вера</span> —<br className="hidden sm:block" /> ваш карьерный ассистент
                         </h1>
                         <p className="max-w-xl text-lg leading-relaxed text-muted">
