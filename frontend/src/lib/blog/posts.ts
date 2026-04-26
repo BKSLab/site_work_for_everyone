@@ -10,7 +10,6 @@ export interface BlogPost {
     title: string;
     excerpt: string;
     date: string;
-    readingTime: number;
     tag: string;
     tagColor: "yellow" | "blue" | "green" | "purple" | "red";
     coverImage?: string; // путь из /public, например "/blog/slug/cover.jpg"
@@ -35,13 +34,12 @@ function parseFrontmatter(slug: string): BlogPost {
 
     return {
         slug,
-        title:       data.title       ?? "",
-        excerpt:     data.excerpt     ?? "",
-        date:        data.date        ?? "",
-        readingTime: data.readingTime ?? 5,
-        tag:         data.tag         ?? "",
-        tagColor:    data.tagColor    ?? "yellow",
-        coverImage:  data.coverImage,
+        title:      data.title      ?? "",
+        excerpt:    data.excerpt    ?? "",
+        date:       data.date       ?? "",
+        tag:        data.tag        ?? "",
+        tagColor:   data.tagColor   ?? "yellow",
+        coverImage: data.coverImage,
     };
 }
 
@@ -91,11 +89,10 @@ export async function getPostBySlug(slug: string): Promise<BlogPostFull | null> 
 
     return {
         slug,
-        title:        data.title        ?? "",
-        excerpt:      data.excerpt      ?? "",
-        date:         data.date         ?? "",
-        readingTime:  data.readingTime  ?? 5,
-        tag:          data.tag          ?? "",
+        title:       data.title       ?? "",
+        excerpt:     data.excerpt     ?? "",
+        date:        data.date        ?? "",
+        tag:         data.tag         ?? "",
         tagColor:    data.tagColor    ?? "yellow",
         coverImage:  data.coverImage,
         contentHtml,

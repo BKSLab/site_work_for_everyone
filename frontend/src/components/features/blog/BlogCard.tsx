@@ -55,7 +55,6 @@ export function BlogCard({ post }: { post: BlogPost }) {
                     <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${TAG_COLORS[post.tagColor]}`}>
                         {post.tag}
                     </span>
-                    <span className="text-[11px] text-white/35">{post.readingTime}&nbsp;мин</span>
                 </div>
 
                 {/* Разделитель */}

@@ -236,6 +236,7 @@ __marimo__/
 
 
 # work docs
+BLOG_CHEATSHEET.md
 DESIGN_GUIDE.md
 FRONTEND_AUDIT_REPORT.md
 AUDIT_PROMPT.md

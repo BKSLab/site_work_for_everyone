@@ -88,8 +88,6 @@ export default async function BlogPostPage({
                             <time dateTime={post.date} className="text-xs text-muted/70">
                                 {formatDate(post.date)}
                             </time>
-                            <span aria-hidden="true" className="text-muted/40">·</span>
-                            <span className="text-xs text-muted/70">{post.readingTime} мин чтения</span>
                         </div>
 
                         <FocusHeading className="text-3xl font-black leading-tight text-foreground sm:text-4xl">
