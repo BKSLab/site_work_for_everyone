@@ -7,11 +7,18 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 
 export const metadata: Metadata = {
+    metadataBase: new URL("https://work-for-everyone.ru"),
     title: {
         template: "%s — Работа для всех",
         default: "Работа для всех",
     },
     description: "Сервис поиска вакансий для людей с инвалидностью",
+    openGraph: {
+        siteName: "Работа для всех",
+        locale: "ru_RU",
+        type: "website",
+        images: [{ url: "/logo.jpg", alt: "Работа для всех" }],
+    },
 };
 
 export default function RootLayout({

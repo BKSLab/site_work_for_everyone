@@ -6,6 +6,7 @@ import { FocusHeading } from "@/components/ui/FocusHeading";
 export const metadata: Metadata = {
     title: "Обратная связь",
     description: "Свяжитесь с автором проекта «Работа для всех» — Барабанщиковым Кириллом.",
+    alternates: { canonical: "/contact" },
 };
 
 export default function ContactPage() {

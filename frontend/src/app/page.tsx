@@ -8,11 +8,30 @@ import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
     title: "Поиск вакансий",
+    description: "Находите вакансии из hh.ru и Работы России в едином доступном интерфейсе для людей с инвалидностью.",
+    alternates: { canonical: "/" },
+    openGraph: {
+        title: "Поиск вакансий для людей с инвалидностью — Работа для всех",
+        description: "Находите вакансии из hh.ru и Работы России в едином доступном интерфейсе для людей с инвалидностью.",
+        url: "/",
+    },
+};
+
+const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Работа для всех",
+    url: "https://work-for-everyone.ru",
+    description: "Сервис поиска вакансий для людей с инвалидностью",
 };
 
 export default function HomePage() {
     return (
         <Container className="py-12">
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+            />
             {/* ── Hero ─────────────────────────────────────────────── */}
             <div className="flex flex-col items-center gap-8 pb-10 text-center">
 

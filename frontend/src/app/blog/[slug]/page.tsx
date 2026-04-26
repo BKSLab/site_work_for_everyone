@@ -24,9 +24,11 @@ export async function generateMetadata({
     return {
         title: post.title,
         description: post.excerpt,
+        alternates: { canonical: `/blog/${slug}` },
         openGraph: {
             title: post.title,
             description: post.excerpt,
+            url: `/blog/${slug}`,
             type: "article",
             publishedTime: post.date,
             ...(post.coverImage && {
@@ -61,8 +63,28 @@ export default async function BlogPostPage({
     const post = await getPostBySlug(slug);
     if (!post) notFound();
 
+    const jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: post.title,
+        description: post.excerpt,
+        datePublished: post.date,
+        url: `https://work-for-everyone.ru/blog/${slug}`,
+        ...(post.coverImage && { image: `https://work-for-everyone.ru${post.coverImage}` }),
+        author: { "@type": "Person", name: "Барабанщиков Кирилл" },
+        publisher: {
+            "@type": "Organization",
+            name: "Работа для всех",
+            url: "https://work-for-everyone.ru",
+        },
+    };
+
     return (
         <Container className="py-12">
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+            />
             <div className="mx-auto max-w-3xl">
 
                 {/* ── Назад ──────────────────────────────────────────── */}

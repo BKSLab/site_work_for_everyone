@@ -4,6 +4,7 @@ import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
     title: "Политика конфиденциальности",
+    alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

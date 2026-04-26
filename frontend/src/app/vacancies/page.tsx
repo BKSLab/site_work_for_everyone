@@ -5,6 +5,8 @@ import { VacanciesContent } from "./VacanciesContent";
 
 export const metadata: Metadata = {
     title: "Результаты поиска",
+    description: "Вакансии для людей с инвалидностью из hh.ru и Работы России.",
+    alternates: { canonical: "/vacancies" },
 };
 
 export default function VacanciesPage() {
