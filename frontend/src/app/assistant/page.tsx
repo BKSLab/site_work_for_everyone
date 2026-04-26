@@ -231,6 +231,42 @@ export default function AssistantPage() {
                     </div>
                 </section>
 
+                {/* Разделитель */}
+                <div aria-hidden="true" className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+                {/* ── Ссылка на статью ───────────────────────────────────── */}
+                <div className="relative overflow-hidden rounded-2xl border border-accent/25 bg-accent/[0.05] backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(245,184,0,0.08)]">
+                    <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+                    <div aria-hidden="true" className="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-accent/[0.07] blur-3xl" />
+                    <div className="relative flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-4">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/30 bg-accent/[0.10] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                                </svg>
+                            </span>
+                            <div className="flex flex-col gap-1">
+                                <p className="text-sm font-semibold text-foreground">
+                                    Хотите узнать, как работает Вера?
+                                </p>
+                                <p className="text-sm leading-relaxed text-muted">
+                                    Пошаговое руководство со скриншотами — от регистрации до получения готового письма.
+                                </p>
+                            </div>
+                        </div>
+                        <Link
+                            href="/blog/ii-assistent-vera"
+                            className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-accent/50 bg-accent/[0.08] px-5 py-2.5 text-sm font-semibold text-accent transition-all hover:border-accent hover:bg-accent/[0.14] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                            Читать руководство
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                        </Link>
+                    </div>
+                </div>
+
             </div>
         </Container>
     );
