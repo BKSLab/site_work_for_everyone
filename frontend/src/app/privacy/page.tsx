@@ -4,6 +4,7 @@ import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
     title: "Политика конфиденциальности",
+    description: "Какие данные собирает сервис «Работа для всех», как они используются и защищаются.",
     alternates: { canonical: "/privacy" },
 };
 

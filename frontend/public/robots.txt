@@ -1,9 +1,7 @@
 User-agent: *
-Allow: /
-
-Disallow: /api
-Disallow: /auth
-Disallow: /favorites
-Disallow: /assistant
+Disallow: /api/
+Disallow: /auth/
+Disallow: /favorites/
+Disallow: /assistant/
 
 Sitemap: https://work-for-everyone.ru/sitemap.xml

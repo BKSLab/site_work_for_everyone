@@ -7,7 +7,7 @@ import { getAllPosts, getPagedPosts } from "@/lib/blog/posts";
 import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
-    title: "Блог — советы по трудоустройству для людей с инвалидностью",
+    title: { absolute: "Блог — советы по трудоустройству для людей с инвалидностью" },
     description:
         "Полезные статьи о поиске работы, правах сотрудников с ОВЗ, составлении резюме и подготовке к собеседованию.",
     alternates: { canonical: "/blog" },
