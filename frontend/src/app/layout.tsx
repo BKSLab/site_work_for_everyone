@@ -19,7 +19,7 @@ export const metadata: Metadata = {
         siteName: "Работа для всех",
         locale: "ru_RU",
         type: "website",
-        images: [{ url: "/logo.jpg", alt: "Работа для всех", width: 640, height: 640 }],
+        images: [{ url: "/logo.png", alt: "Работа для всех", width: 2000, height: 2000 }],
     },
 };
 

@@ -87,7 +87,7 @@ export function Header() {
                 >
                     <span className="flex shrink-0 items-center justify-center rounded-full ring-1 ring-accent/45 shadow-[0_0_16px_rgba(245,184,0,0.28)]">
                         <Image
-                            src="/logo.jpg"
+                            src="/logo.png"
                             alt=""
                             aria-hidden="true"
                             width={32}

@@ -37,7 +37,7 @@ export default function HomePage() {
 
                 {/* Логотип */}
                 <Image
-                    src="/logo.jpg"
+                    src="/logo.png"
                     alt=""
                     aria-hidden="true"
                     width={144}
