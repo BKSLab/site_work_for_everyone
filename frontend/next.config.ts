@@ -52,7 +52,7 @@ const securityHeaders = [
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: https://mc.yandex.ru",
             "font-src 'self'",
-            "connect-src 'self' https://mc.yandex.ru",
+            "connect-src 'self' https://mc.yandex.ru wss://mc.yandex.ru",
             "object-src 'none'",
             "base-uri 'self'",
             "frame-ancestors 'none'",
