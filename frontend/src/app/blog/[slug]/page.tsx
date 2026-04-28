@@ -166,6 +166,20 @@ export default async function BlogPostPage({
                     />
                 </article>
 
+                {/* ── CTA: карьерный ассистент Вера ──────────────────── */}
+                <div className="mt-10 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
+                    <p className="text-sm leading-relaxed text-muted/80">
+                        Используйте Вашего личного карьерного ассистента{" "}
+                        <Link
+                            href="/assistant"
+                            className="font-semibold text-accent underline decoration-accent/40 hover:decoration-accent"
+                        >
+                            Веру
+                        </Link>
+                        , чтобы подготовить сопроводительное письмо или рекомендации по составлению резюме под конкретную вакансию — это значительно увеличивает шансы на ответ от работодателя.
+                    </p>
+                </div>
+
                 {/* ── CTA: поиск вакансий ─────────────────────────────── */}
                 <div className="mt-12 rounded-2xl border border-accent/20 bg-[radial-gradient(ellipse_at_top,rgba(245,184,0,0.07),transparent_70%)] p-8 text-center">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent/60">

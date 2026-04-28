@@ -3,7 +3,9 @@ import path from "path";
 import matter from "gray-matter";
 import { remark } from "remark";
 import remarkGfm from "remark-gfm";
-import remarkHtml from "remark-html";
+import remarkRehype from "remark-rehype";
+import rehypeSlug from "rehype-slug";
+import rehypeStringify from "rehype-stringify";
 
 export interface BlogPost {
     slug: string;
@@ -84,7 +86,12 @@ export async function getPostBySlug(slug: string): Promise<BlogPostFull | null> 
     const fileContents = fs.readFileSync(fullPath, "utf8");
     const { data, content } = matter(fileContents);
 
-    const processed = await remark().use(remarkGfm).use(remarkHtml).process(content);
+    const processed = await remark()
+        .use(remarkGfm)
+        .use(remarkRehype, { allowDangerousHtml: true })
+        .use(rehypeSlug)
+        .use(rehypeStringify, { allowDangerousHtml: true })
+        .process(content);
     const contentHtml = processed.toString();
 
     return {
