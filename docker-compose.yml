@@ -55,8 +55,15 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # host:port агента «Вера» (vera_agent_service) — только через env var,
+      # без общей docker-сети (docs/VERA_AGENT_INTEGRATION_PLAN.md)
+      - AGENT_SSE_UPSTREAM=${AGENT_SSE_UPSTREAM}
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Шаблон, не готовый конфиг: официальный entrypoint nginx:alpine сам
+      # прогоняет envsubst по файлам в /etc/nginx/templates/*.template и
+      # кладёт результат в /etc/nginx/conf.d/ при старте контейнера.
+      - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro
       - certbot_certs:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot
     restart: unless-stopped

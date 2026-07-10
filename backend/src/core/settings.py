@@ -57,11 +57,18 @@ class DBSettings(SettingsBase):
         )
 
 
+class VeraSettings(SettingsBase):
+    """Класс настроек для публикации сообщений агенту «Вера» (RabbitMQ)."""
+    rabbitmq_url: SecretStr
+    rabbitmq_queue: str = "agent.requests"
+
+
 class Settings(BaseSettings):
     """Общий класс работы с чувствительными данными."""
     db: DBSettings = Field(default_factory=DBSettings)
     app: AppSettings = Field(default_factory=AppSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
+    vera: VeraSettings = Field(default_factory=VeraSettings)
 
 
 @lru_cache

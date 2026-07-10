@@ -27,7 +27,23 @@ class BlocklistServiceError(Exception):
 
     def __str__(self) -> str:
         return f"An error occurred in the Blocklist service. Details: {self.error_details}"
-    
+
     @property
     def detail(self) -> str:
         return f"An error occurred in the blocklist service. Details: {self.error_details}"
+
+
+class VeraPublisherError(Exception):
+    """Публикация сообщения агенту «Вера» в очередь RabbitMQ не удалась."""
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    def __init__(self, error_details: str):
+        self.error_details = error_details
+        super().__init__(self.error_details)
+
+    def __str__(self) -> str:
+        return f"An error occurred while publishing to Vera queue. Details: {self.error_details}"
+
+    @property
+    def detail(self) -> str:
+        return "Ассистент временно недоступен."

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { useAuthStore } from "@/stores/auth";
+import { VeraChatBanner } from "@/components/features/vera/VeraChatBanner";
 
 function CheckIcon() {
     return (
@@ -74,6 +75,12 @@ export default function AssistantPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* ── Вера умеет и консультировать по трудовым правам ──── */}
+                <VeraChatBanner
+                    title="А если нужна не помощь с резюме, а консультация по правам?"
+                    description="Вера отвечает и на вопросы о квотах, льготах, защите от увольнения и трудоустройстве людей с инвалидностью — для соискателей, работников и работодателей."
+                />
 
                 {/* Разделитель */}
                 <div aria-hidden="true" className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -163,6 +170,40 @@ export default function AssistantPage() {
                                 </ul>
                             </div>
                         </article>
+
+                        {/* Консультация по правам (чат) */}
+                        <Link
+                            href="/assistant/chat"
+                            className="group relative overflow-hidden rounded-2xl border border-white/15 bg-white/[0.04] backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:border-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:col-span-2"
+                        >
+                            <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/70 to-transparent" />
+                            <div aria-hidden="true" className="absolute -top-10 -left-10 h-36 w-36 rounded-full bg-accent/[0.10] blur-3xl" />
+                            <div className="relative flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-start gap-4">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.07] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                        </svg>
+                                    </span>
+                                    <div className="flex flex-col gap-1">
+                                        <h3 className="text-base font-bold text-foreground">
+                                            Консультация по правам
+                                        </h3>
+                                        <p className="text-sm leading-relaxed text-muted">
+                                            Спросите у Веры про квоты, льготы, защиту от увольнения или
+                                            трудоустройство людей с инвалидностью — отвечу на основе базы
+                                            знаний, без регистрации.
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-accent/50 bg-accent/[0.08] px-5 py-2.5 text-sm font-semibold text-accent transition-all group-hover:border-accent group-hover:bg-accent/[0.14]">
+                                    Спросить у Веры
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <path d="M5 12h14M12 5l7 7-7 7" />
+                                    </svg>
+                                </span>
+                            </div>
+                        </Link>
 
                     </div>
                 </section>

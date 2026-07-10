@@ -1,3 +1,4 @@
+aio-pika==9.6.2
 aiosmtplib==5.1.0
 alembic==1.18.4
 annotated-doc==0.0.4

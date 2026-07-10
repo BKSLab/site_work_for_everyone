@@ -87,6 +87,34 @@ async def get_current_user_payload(
         )
 
 
+async def get_optional_user_payload(
+    credentials: TokenDep,
+    jwt_manager: JWTManagerDep,
+    blocklist_service: BlocklistServiceDep
+) -> dict | None:
+    """
+    Как `get_current_user_payload`, но не требует авторизации: отсутствие,
+    невалидность, просроченность или блокировка токена трактуются как
+    анонимный пользователь (`None`), а не как `HTTPException`.
+
+    Используется там, где эндпоинт доступен и без авторизации, но должен
+    учитывать личность пользователя, если он всё же залогинен (например,
+    `user_id` для агента «Вера» — `None` для анонимных запросов).
+    """
+    if credentials is None:
+        return None
+    try:
+        payload = jwt_manager.decode_access_token(credentials.credentials)
+        if await blocklist_service.is_token_blocked(payload):
+            return None
+        return payload
+    except JWTManagerError:
+        return None
+
+
+OptionalUserPayloadDep = Annotated[dict | None, Depends(get_optional_user_payload)]
+
+
 async def get_current_refresh_payload(
     data: RefreshTokenRequestSchema,
     jwt_manager: JWTManagerDep,

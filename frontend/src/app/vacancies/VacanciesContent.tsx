@@ -7,6 +7,7 @@ import { Container } from "@/components/layout/Container";
 import { VacancyList } from "@/components/features/vacancies/VacancyList";
 import { VacancyFilters } from "@/components/features/vacancies/VacancyFilters";
 import { SearchResultsSummary } from "@/components/features/vacancies/SearchResultsSummary";
+import { VeraChatBanner } from "@/components/features/vera/VeraChatBanner";
 import { useVacancies } from "@/hooks/useVacancies";
 import { useSearchStore } from "@/stores/search";
 import { useAuthStore } from "@/stores/auth";
@@ -183,6 +184,9 @@ export function VacanciesContent() {
                     />
                 </div>
             )}
+
+            {/* Баннер-приглашение в чат с Верой — после результатов поиска */}
+            {data && <VeraChatBanner />}
 
             <VacancyFilters
                 isOpen={isFiltersOpen}

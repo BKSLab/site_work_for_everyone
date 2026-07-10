@@ -4,6 +4,7 @@ import { Container } from "@/components/layout/Container";
 import { SearchForm } from "@/components/features/search/SearchForm";
 import { FeatureCards } from "@/components/features/home/FeatureCards";
 import { BlogPreview } from "@/components/features/blog/BlogPreview";
+import { VeraChatBanner } from "@/components/features/vera/VeraChatBanner";
 import { FocusHeading } from "@/components/ui/FocusHeading";
 
 export const metadata: Metadata = {
@@ -73,6 +74,15 @@ export default function HomePage() {
                 <div className="mx-auto max-w-4xl rounded-2xl border border-white/20 bg-surface bg-[radial-gradient(ellipse_at_top,rgba(245,184,0,0.05),transparent_60%)] p-8 shadow-[0_1px_1px_rgba(255,255,255,0.05)_inset]">
                     <SearchForm />
                 </div>
+            </div>
+
+            {/* ── Вера: консультация по трудовым вопросам ──────────── */}
+            <div className="mx-auto max-w-4xl">
+                <VeraChatBanner
+                    title="Есть вопросы по трудовым правам?"
+                    description="Вера — ИИ-консультант по правам людей с инвалидностью в сфере труда: для соискателей, работников и работодателей. Спросите про квоты, льготы, увольнение или оформление сотрудника — бесплатно и без регистрации."
+                    ctaLabel="Спросить у Веры"
+                />
             </div>
 
             {/* ── Возможности сервиса ──────────────────────────────── */}

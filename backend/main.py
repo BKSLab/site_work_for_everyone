@@ -13,10 +13,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.admin import create_admin
 from src.api.auth import router as auth_router
+from src.api.vera import router as vera_router
 from src.core.config_logger import logger
 from src.core.limiter import limiter
+from src.core.settings import get_settings
 from src.db.session import async_session_factory, engine
+from src.services.vera_publisher import VeraPublisher
 from src.utils.check_db import check_db_connection
+
+
+async def _init_vera_publisher() -> VeraPublisher | None:
+    """Подключается к RabbitMQ агента «Вера». Недоступность RabbitMQ не
+    должна ронять весь backend (auth и остальные эндпоинты не зависят от
+    Веры) — при ошибке возвращает `None`, эндпоинт `/api/vera/chat`
+    в этом случае отвечает `503`."""
+    settings = get_settings().vera
+    try:
+        return await VeraPublisher.connect(
+            rabbitmq_url=settings.rabbitmq_url.get_secret_value(),
+            queue_name=settings.rabbitmq_queue,
+        )
+    except Exception as error:
+        logger.error("⚠️ Агент «Вера» недоступен — не удалось подключиться к RabbitMQ: %s", error)
+        return None
 
 
 @asynccontextmanager
@@ -28,9 +47,13 @@ async def lifespan(app: FastAPI):
         # Проверка подключения к БД. При ошибки поднимает исключение RuntimeError
         await check_db_connection(db_session=db_session)
 
+    app.state.vera_publisher = await _init_vera_publisher()
+
     logger.info("✅ Приложение успешно запущено.")
     yield
     logger.info("🛑 Приложение останавливается...")
+    if app.state.vera_publisher is not None:
+        await app.state.vera_publisher.close()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -61,3 +84,4 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth_router, prefix='/api')
+app.include_router(vera_router, prefix='/api')

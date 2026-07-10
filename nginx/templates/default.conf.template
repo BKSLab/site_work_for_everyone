@@ -52,6 +52,19 @@ server {
         proxy_send_timeout 120s;
     }
 
+    # SSE-стрим ответа агента «Вера» — напрямую на vera_agent_service, минуя
+    # Next.js/backend (docs/VERA_AGENT_INTEGRATION_PLAN.md). Адрес — host:port
+    # из env var AGENT_SSE_UPSTREAM, без общей docker-сети с vera_agent_service.
+    location /vera/sse/ {
+        proxy_pass http://${AGENT_SSE_UPSTREAM}/sse/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection '';
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+        proxy_read_timeout 3600s;
+    }
+
     location / {
         proxy_pass http://frontend:3000;
     }
