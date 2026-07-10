@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Агент Вера — Критерии приёмки (Итерация 1)</title>
+    <style>
+        :root {
+            --bg: #0A0A0A;
+            --fg: #F0F0F0;
+            --accent: #F5B800;
+            --surface: #1A1A1A;
+            --border: #2D2D2D;
+            --muted: #999999;
+            --must: #F5B800;
+            --should: #6FA8DC;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        @media print {
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            @page { margin: 20mm 15mm; }
+
+            .section { break-inside: avoid; }
+            .section-header { break-after: avoid; }
+            .card, .table-wrap, .list-item, .legend { break-inside: avoid; }
+            h2, h3, h4 { break-after: avoid; }
+            tr { break-inside: avoid; }
+            .section { padding-top: 16px; }
+            .header { padding-top: 0; }
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--fg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.7;
+            padding: 56px 24px;
+        }
+
+        .container { max-width: 980px; margin: 0 auto; }
+
+        /* ── Header ── */
+        .header {
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 36px;
+            margin-bottom: 64px;
+        }
+
+        .tag {
+            display: block;
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--fg);
+            margin-top: 36px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 34px;
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 6px;
+            letter-spacing: -0.5px;
+        }
+
+        h1 span { color: var(--accent); }
+
+        .short-name {
+            font-size: 16px;
+            color: var(--muted);
+            margin-bottom: 28px;
+        }
+
+        .meta {
+            display: flex;
+            gap: 32px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item { display: flex; flex-direction: column; gap: 3px; }
+
+        .meta-label {
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+        }
+
+        .meta-value { font-size: 14px; font-weight: 500; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(245, 184, 0, 0.12);
+            color: var(--accent);
+            border: 1px solid rgba(245, 184, 0, 0.35);
+        }
+
+        /* ── Sections ── */
+        .section { margin-bottom: 60px; }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .section-number {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #0A0A0A;
+            font-weight: 800;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        h2 { font-size: 22px; font-weight: 700; }
+
+        p { font-size: 15px; margin-bottom: 12px; }
+        p:last-child { margin-bottom: 0; }
+
+        /* ── Highlight ── */
+        .highlight {
+            background: rgba(245, 184, 0, 0.07);
+            border: 1px solid rgba(245, 184, 0, 0.25);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 10px 10px 0;
+            padding: 18px 22px;
+            margin-top: 16px;
+        }
+
+        .highlight p { font-size: 14px; color: var(--fg); }
+
+        /* ── Legend ── */
+        .legend {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .legend-dot.must { background: var(--must); }
+        .legend-dot.should { background: var(--should); }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+
+        .badge.must {
+            background: rgba(245, 184, 0, 0.12);
+            color: var(--accent);
+            border: 1px solid rgba(245, 184, 0, 0.35);
+        }
+
+        .badge.should {
+            background: rgba(111, 168, 220, 0.12);
+            color: var(--should);
+            border: 1px solid rgba(111, 168, 220, 0.35);
+        }
+
+        /* ── KPI table ── */
+        .table-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+        thead tr { border-bottom: 2px solid var(--accent); }
+
+        th {
+            text-align: left;
+            padding: 14px 18px;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+        }
+
+        td {
+            padding: 13px 18px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+            line-height: 1.5;
+            font-size: 13.5px;
+        }
+
+        td.crit { font-weight: 600; color: var(--fg); }
+        td.muted-cell { color: var(--muted); }
+
+        tr:last-child td { border-bottom: none; }
+
+        /* ── List items ── */
+        .list-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .list-item:last-child { border-bottom: none; }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            margin-top: 8px;
+            flex-shrink: 0;
+        }
+
+        .results-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 8px 24px;
+            margin-top: 16px;
+        }
+
+        /* ── Logos ── */
+        .logo-platform-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 8px 12px;
+            margin-bottom: 32px;
+        }
+
+        .logo-platform-img-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            outline: 1px solid rgba(245,184,0,0.45);
+            box-shadow: 0 0 16px rgba(245,184,0,0.28);
+        }
+
+        .logo-platform-img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .logo-platform-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent);
+            text-shadow: 0 0 8px rgba(245,184,0,0.4);
+        }
+
+        .logo-platform-braille {
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            color: rgba(245,184,0,0.8);
+            user-select: none;
+        }
+
+        .header-title-row {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 10px;
+        }
+
+        .logo-vera {
+            height: 96px;
+            width: 96px;
+            border-radius: 50%;
+            border: 2px solid rgba(245, 184, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+            border-bottom: 1px solid rgba(245, 184, 0, 0.3);
+            transition: border-color 0.15s;
+        }
+
+        a:hover { border-color: var(--accent); }
+
+        /* ── Footer ── */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding-top: 24px;
+            margin-top: 64px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer span { font-size: 13px; color: var(--muted); }
+
+        /* ── Responsive ── */
+        @media (max-width: 620px) {
+            h1 { font-size: 24px; }
+            .meta { gap: 20px; }
+            table, thead, tbody, th, td, tr { display: block; }
+            thead { display: none; }
+            tr { border-bottom: 2px solid var(--border); padding: 10px 0; }
+            td { border-bottom: none; padding: 4px 18px; }
+            td::before {
+                content: attr(data-label);
+                display: block;
+                font-size: 10px;
+                font-weight: 700;
+                color: var(--accent);
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin-bottom: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Header -->
+    <header class="header">
+        <div class="logo-platform-wrap">
+            <span class="logo-platform-img-wrap">
+                <img src="frontend/public/logo.png" alt="" class="logo-platform-img">
+            </span>
+            <span class="logo-platform-name">Работа для всех</span>
+            <span class="logo-platform-braille">⠗⠁⠃⠕⠞⠁⠀⠙⠇⠫⠀⠺⠎⠑⠓</span>
+        </div>
+        <div class="tag">Критерии приёмки</div>
+        <div class="header-title-row">
+            <img src="frontend/public/logo_ai_assistant.png" alt="Вера" class="logo-vera">
+            <div>
+                <h1>Критерии приёмки и Definition of Done — <span>Итерация 1</span></h1>
+                <p class="short-name">Ассистент Вера · базовая консультационная функциональность (kb_search)</p>
+            </div>
+        </div>
+        <div class="meta">
+            <div class="meta-item">
+                <span class="meta-label">Проджект-менеджер</span>
+                <span class="meta-value">Барабанщиков Кирилл Сергеевич</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Итерация</span>
+                <span class="meta-value">1 — доступ без регистрации, только kb_search</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Приёмка</span>
+                <span class="meta-value">Заказчик, по итогам UAT-демонстрации</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Статус</span>
+                <span class="meta-value"><span class="status-badge">Проект документа</span></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 0. Назначение документа -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-number">0</div>
+            <h2>Назначение документа</h2>
+        </div>
+        <p>Документ переводит цели итерации 1 (паспорт проекта, раздел 5) в проверяемые критерии приёмки: что именно проверяется, каким методом, кто отвечает за измерение и какой результат считается успешным. Каждый критерий помечен приоритетом по шкале MoSCoW в части Must/Should — недостижение Must-критерия означает отказ в приёмке итерации, недостижение Should — условную приёмку с фиксацией доработки.</p>
+        <div class="legend">
+            <div class="legend-item"><span class="legend-dot must"></span>Must — обязателен для приёмки</div>
+            <div class="legend-item"><span class="legend-dot should"></span>Should — целевой ориентир, условная приёмка</div>
+        </div>
+    </section>
+
+    <!-- 1. Функциональные критерии -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-number">1</div>
+            <h2>Функциональные критерии</h2>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 28%;">Критерий</th>
+                        <th style="width: 32%;">Метод проверки</th>
+                        <th style="width: 25%;">Порог / результат</th>
+                        <th style="width: 15%;">Приоритет</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Ответ агента содержит ссылку на источник из базы знаний</td>
+                        <td data-label="Метод проверки">Ручная проверка на тестовом наборе вопросов (PM + тестировщик)</td>
+                        <td data-label="Порог">100% ответов — с указанием источника, либо явный отказ</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Корректный отказ на вопросы вне тематики БЗ</td>
+                        <td data-label="Метод проверки">Тестовый набор «вне домена» (10–15 вопросов), ручная проверка</td>
+                        <td data-label="Порог">Нет «выдуманных» ответов — агент сообщает об отсутствии информации</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Доступ к чату без регистрации</td>
+                        <td data-label="Метод проверки">Прогон сценария от анонимного пользователя</td>
+                        <td data-label="Порог">Полный цикл «вопрос → ответ» без авторизации</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Потоковая передача ответа (SSE)</td>
+                        <td data-label="Метод проверки">Визуальная проверка появления токенов «на лету»</td>
+                        <td data-label="Порог">Токены отображаются постепенно, не одним блоком</td>
+                        <td data-label="Приоритет"><span class="badge should">Should</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Корректная деградация при пустом результате поиска</td>
+                        <td data-label="Метод проверки">Сценарий с заведомо отсутствующим в БЗ запросом</td>
+                        <td data-label="Порог">Понятное сообщение пользователю, без зависания/ошибки 500</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 2. Качество и точность ответов -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-number">2</div>
+            <h2>Качество и точность ответов</h2>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 28%;">Критерий</th>
+                        <th style="width: 32%;">Метод проверки</th>
+                        <th style="width: 25%;">Порог / результат</th>
+                        <th style="width: 15%;">Приоритет</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Релевантность ответов на фиксированном тестовом наборе</td>
+                        <td data-label="Метод проверки">Заранее согласованный с заказчиком набор из 50–100 вопросов; бинарная разметка «релевантно / нет» силами PM + контент-эксперта</td>
+                        <td data-label="Порог">≥ 80% релевантных ответов</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Юридическая достоверность контента базы знаний</td>
+                        <td data-label="Метод проверки">Подписанный протокол проверки контент-экспертом (юристом) с указанием версий/редакций НПА</td>
+                        <td data-label="Порог">Протокол подписан, действующие редакции ТК РФ и ФЗ-181 подтверждены</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Покрытие базы знаний</td>
+                        <td data-label="Метод проверки">Сверка перечня загруженных документов со списком в ТЗ</td>
+                        <td data-label="Порог">ТК РФ + ФЗ-181 + не менее 5 авторских статей, проиндексированы и доступны поиску</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Согласованность ответов на близкие переформулировки вопроса</td>
+                        <td data-label="Метод проверки">3–5 пар переформулированных вопросов из тестового набора</td>
+                        <td data-label="Порог">Источник и суть ответа совпадают для одного и того же вопроса</td>
+                        <td data-label="Приоритет"><span class="badge should">Should</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 3. Нефункциональные критерии -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-number">3</div>
+            <h2>Нефункциональные критерии</h2>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 28%;">Критерий</th>
+                        <th style="width: 32%;">Метод проверки</th>
+                        <th style="width: 25%;">Порог / результат</th>
+                        <th style="width: 15%;">Приоритет</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Время до первого токена ответа (TTFT)</td>
+                        <td data-label="Метод проверки">Замер на тестовом наборе вопросов в приёмочном окне</td>
+                        <td data-label="Порог">≤ 5 секунд (медиана по набору)</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Доступность сервисов во время приёмочного теста</td>
+                        <td data-label="Метод проверки">Мониторинг (Phoenix) за фиксированное окно приёмки (например 5 рабочих дней)</td>
+                        <td data-label="Порог">100% uptime трёх сервисов в окне приёмки</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Контролируемая деградация при сбое инфраструктуры</td>
+                        <td data-label="Метод проверки">Контролируемое отключение RabbitMQ/Qdrant в тестовой среде</td>
+                        <td data-label="Порог">Понятная ошибка пользователю, retry/dead-letter работает, нет потери сообщений</td>
+                        <td data-label="Приоритет"><span class="badge should">Should</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 4. Доступность -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-number">4</div>
+            <h2>Доступность интерфейса чата</h2>
+        </div>
+        <p>Целевая аудитория платформы — пользователи скринридеров, поэтому интерфейс чата проверяется отдельно от общего дизайна сайта.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 28%;">Критерий</th>
+                        <th style="width: 32%;">Метод проверки</th>
+                        <th style="width: 25%;">Порог / результат</th>
+                        <th style="width: 15%;">Приоритет</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Соответствие WCAG 2.2 AA для виджета чата</td>
+                        <td data-label="Метод проверки">Автоматический аудит (axe/Lighthouse) + ручная проверка</td>
+                        <td data-label="Порог">Нет критичных нарушений уровня AA</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Работа со скринридером</td>
+                        <td data-label="Метод проверки">Ручное прохождение сценария «вопрос → ответ» с NVDA или JAWS</td>
+                        <td data-label="Порог">Вопрос, статус загрузки и ответ корректно озвучиваются, фокус управляется предсказуемо</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                    <tr>
+                        <td class="crit" data-label="Критерий">Управление с клавиатуры</td>
+                        <td data-label="Метод проверки">Прохождение сценария без мыши</td>
+                        <td data-label="Порог">Все элементы виджета доступны по Tab, видимый фокус</td>
+                        <td data-label="Приоритет"><span class="badge must">Must</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 5. Процедура приёмки -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-number">5</div>
+            <h2>Процедура приёмки (UAT-гейт)</h2>
+        </div>
+        <div class="results-card">
+            <div class="list-item"><span class="dot"></span><span>Тестовый набор вопросов и протокол релевантности согласуются с заказчиком до начала приёмочного тестирования (а не постфактум)</span></div>
+            <div class="list-item"><span class="dot"></span><span>Демонстрация проводится живьём в присутствии заказчика на согласованном наборе — не только по отчёту</span></div>
+            <div class="list-item"><span class="dot"></span><span>Переход к фазе «Запуск» возможен только при выполнении всех Must-критериев данного документа</span></div>
+            <div class="list-item"><span class="dot"></span><span>При выполнении Must, но недостижении одного или нескольких Should — допускается условная приёмка с фиксированным сроком доработки</span></div>
+            <div class="list-item"><span class="dot"></span><span>Результаты проверки по каждому критерию прикладываются к акту приёмки как обязательное приложение</span></div>
+        </div>
+        <div class="highlight">
+            <p>Акт приёмки итерации 1 подписывается заказчиком только при наличии заполненной таблицы по всем разделам 1–4 с фактическими значениями против целевых.</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <span>Работа для всех · Агент Вера · Критерии приёмки · Итерация 1</span>
+        <span>Июнь 2026</span>
+    </footer>
+
+</div>
+</body>
+</html>

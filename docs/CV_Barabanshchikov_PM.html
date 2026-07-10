@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Барабанщиков Кирилл Сергеевич — Project Manager в IT</title>
+    <style>
+        :root {
+            --bg:      #0A0A0A;
+            --fg:      #F0F0F0;
+            --accent:  #F5B800;
+            --surface: #1A1A1A;
+            --border:  #2D2D2D;
+            --muted:   #999999;
+        }
+
+        @media print {
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            @page { margin: 18mm 14mm; size: A4; }
+            body { padding: 0; }
+            .container { max-width: 100%; }
+            .section { break-inside: avoid-page; padding-top: 12px; }
+            .section-header { break-after: avoid; }
+            .project-card, .skill-card, .edu-card,
+            .summary-box, .extra-card { break-inside: avoid; }
+            .skills-grid, .edu-grid { break-inside: avoid; }
+            h2, h3 { break-after: avoid; }
+            .header { padding-bottom: 24px; margin-bottom: 32px; }
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--fg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.7;
+            padding: 48px 24px;
+        }
+
+        .container { max-width: 880px; margin: 0 auto; }
+
+        /* ── Header ── */
+        .header {
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 32px;
+            margin-bottom: 48px;
+        }
+
+        .name-row {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+
+        h1 {
+            font-size: 36px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+        }
+
+        .open-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(245, 184, 0, 0.10);
+            color: var(--accent);
+            border: 1px solid rgba(245, 184, 0, 0.30);
+            letter-spacing: 0.3px;
+            vertical-align: middle;
+        }
+
+        .job-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 20px;
+        }
+
+        .contacts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 0;
+            align-items: center;
+            font-size: 13.5px;
+            color: var(--muted);
+        }
+
+        .contacts a {
+            color: var(--muted);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+
+        .contacts a:hover { color: var(--fg); }
+
+        .sep {
+            margin: 0 10px;
+            color: var(--border);
+            font-size: 11px;
+        }
+
+        /* ── Sections ── */
+        .section { margin-bottom: 48px; }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .section-num {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #0A0A0A;
+            font-weight: 800;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        h2 { font-size: 19px; font-weight: 700; }
+
+        /* ── Summary ── */
+        .summary-box {
+            background: rgba(245, 184, 0, 0.05);
+            border: 1px solid rgba(245, 184, 0, 0.20);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 10px 10px 0;
+            padding: 18px 22px;
+        }
+
+        .summary-box p {
+            font-size: 14.5px;
+            line-height: 1.75;
+            color: var(--fg);
+        }
+
+        /* ── Project Cards ── */
+        .project-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 12px 12px 0;
+            padding: 22px 24px;
+            margin-bottom: 16px;
+        }
+
+        .card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--fg);
+            line-height: 1.3;
+        }
+
+        .card-meta {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            white-space: nowrap;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+        .card-org {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .card-desc {
+            font-size: 13.5px;
+            color: var(--muted);
+            margin-bottom: 14px;
+            line-height: 1.6;
+        }
+
+        .bullet-list { list-style: none; }
+
+        .bullet-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13.5px;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(45, 45, 45, 0.7);
+            line-height: 1.55;
+        }
+
+        .bullet-list li:last-child { border-bottom: none; }
+
+        .dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--accent);
+            margin-top: 8px;
+            flex-shrink: 0;
+        }
+
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 2px 9px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(245, 184, 0, 0.09);
+            color: var(--accent);
+            border: 1px solid rgba(245, 184, 0, 0.25);
+            letter-spacing: 0.2px;
+        }
+
+        .tag-muted {
+            background: rgba(255,255,255,0.04);
+            color: var(--muted);
+            border-color: var(--border);
+        }
+
+        /* ── Skills ── */
+        .skills-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .skill-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 22px;
+        }
+
+        .skill-card h3 {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1.1px;
+            margin-bottom: 14px;
+        }
+
+        .skill-group { margin-bottom: 10px; }
+        .skill-group:last-child { margin-bottom: 0; }
+
+        .skill-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            margin-bottom: 3px;
+        }
+
+        .skill-value {
+            font-size: 13px;
+            color: var(--fg);
+            line-height: 1.6;
+        }
+
+        /* ── Education ── */
+        .edu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .edu-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 22px;
+        }
+
+        .edu-type {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .edu-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--fg);
+            margin-bottom: 2px;
+            line-height: 1.35;
+        }
+
+        .edu-org {
+            font-size: 12px;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+
+        .edu-period {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .edu-desc {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        /* ── Extra ── */
+        .extra-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 22px;
+        }
+
+        .extra-card p {
+            font-size: 13.5px;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+        .extra-card strong { color: var(--fg); }
+
+        /* ── Footer ── */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding-top: 22px;
+            margin-top: 56px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .footer span { font-size: 12px; color: var(--muted); }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            h1 { font-size: 26px; }
+            .job-title { font-size: 15px; }
+            .skills-grid, .edu-grid { grid-template-columns: 1fr; }
+            .card-head { flex-direction: column; gap: 4px; }
+            .contacts { gap: 4px 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Header -->
+    <header class="header">
+        <div class="name-row">
+            <h1>Барабанщиков Кирилл Сергеевич</h1>
+            <span class="open-badge">Открыт к предложениям</span>
+        </div>
+        <div class="job-title">Project Manager в IT</div>
+        <div class="contacts">
+            <a href="tel:+79124646606">+7 (912) 464-66-06</a>
+            <span class="sep">·</span>
+            <a href="mailto:azimut.org@gmail.com">azimut.org@gmail.com</a>
+            <span class="sep">·</span>
+            <a href="https://t.me/Kirill_Barabanshchikov" target="_blank">Telegram: @Kirill_Barabanshchikov</a>
+            <span class="sep">·</span>
+            <a href="https://github.com/BKSLab" target="_blank">GitHub: BKSLab</a>
+            <span class="sep">·</span>
+            <a href="https://work-for-everyone.ru" target="_blank">work-for-everyone.ru</a>
+        </div>
+    </header>
+
+    <!-- 1. О себе -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-num">1</div>
+            <h2>О себе</h2>
+        </div>
+        <div class="summary-box">
+            <p>Разрабатываю и поддерживаю продукт — платформу агрегации вакансий для людей с инвалидностью «Работа для всех». Окончил программу <strong>«Проджект-менеджер» в Нетологии</strong> и применил полученные методологии на реальном AI-проекте, пройдя полный жизненный цикл от инициации до запуска. Технический бэкграунд (Python, FastAPI, LLM, RAG) помогает точно сформулировать требования, перевести бизнес-задачи в технические и говорить с командой разработки на одном языке.</p>
+        </div>
+    </section>
+
+    <!-- 2. Проектный опыт -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-num">2</div>
+            <h2>Проектный опыт</h2>
+        </div>
+
+        <!-- Card 1: Agent Vera — PM role -->
+        <div class="project-card">
+            <div class="card-head">
+                <div class="card-title">Project Manager · Внедрение AI-ассистента «Вера»</div>
+                <div class="card-meta">Июнь 2026 — Август 2026</div>
+            </div>
+            <div class="card-org">Платформа «Работа для всех» · 11 недель · кросс-функциональная команда 9 ролей</div>
+            <div class="card-desc">Пилотный проект по внедрению генеративного AI: консультант по правам людей с инвалидностью в сфере трудоустройства. База знаний на ТК РФ и ФЗ-181, RAG-архитектура, три микросервиса. Итерационный подход: пилот → масштабирование (Итерация 2+).</div>
+            <ul class="bullet-list">
+                <li>
+                    <span class="dot"></span>
+                    <span>Провёл сбор и формализацию требований совместно со стейкхолдерами — перевёл бизнес-задачи в технические требования и ТЗ для кросс-функциональной команды разработки</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Подготовил полный пакет проектной документации: паспорт проекта, описание проекта, ИСР/WBS (7 фаз, 39 задач, контрольные точки), дорожная карта Gantt (11 недель), матрица стейкхолдеров, критерии приёмки</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Сформировал кросс-функциональную команду из 9 ролей (Backend, Frontend, UX-R, UX-D, QA, BA, MKT, Контент-эксперт) и распределил зоны ответственности по ИСР</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Провёл анализ стейкхолдеров по модели Менделоу — 4 квадранта, разработал коммуникационные стратегии для каждой группы (внешние и внутренние)</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Определил KPI и метрики успеха — data-driven подход: проектный уровень (uptime, latency, покрытие БЗ) и продуктовый (DAU, вовлечённость, конверсия в регистрацию)</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Составил критерии приёмки по MoSCoW — Must/Should с методами верификации, пороговыми значениями, сценариями управления рисками деградации и UAT-процедурой</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Описал архитектуру системы из 3 сервисов и жизненный цикл AI-решения — от пилота до промышленной эксплуатации с планом масштабирования на следующие итерации</span>
+                </li>
+            </ul>
+            <div class="tags">
+                <span class="tag">Внедрение AI</span>
+                <span class="tag">Пилотный проект</span>
+                <span class="tag">WBS / ИСР</span>
+                <span class="tag">Gantt</span>
+                <span class="tag">Матрица Менделоу</span>
+                <span class="tag">MoSCoW</span>
+                <span class="tag">KPI</span>
+                <span class="tag">Управление рисками</span>
+                <span class="tag">UAT</span>
+                <span class="tag">RAG</span>
+                <span class="tag">LLM</span>
+                <span class="tag">Масштабирование</span>
+            </div>
+        </div>
+
+        <!-- Card 2: Platform dev -->
+        <div class="project-card">
+            <div class="card-head">
+                <div class="card-title">Владелец продукта + разработчик · Платформа «Работа для всех»</div>
+                <div class="card-meta">2024 — н.в.</div>
+            </div>
+            <div class="card-org">Собственный продукт в продакшне · work-for-everyone.ru</div>
+            <div class="card-desc">Самостоятельно выявил незакрытую потребность: люди с инвалидностью ищут работу на разрозненных платформах без единого инструмента и помощи в подготовке документов. Сформулировал концепцию B2C-продукта, определил MVP и прошёл полный цикл от идеи до вывода на рынок.</div>
+            <ul class="bullet-list">
+                <li>
+                    <span class="dot"></span>
+                    <span>Провёл product discovery: выявил проблему, сформулировал продуктовую гипотезу, определил целевую аудиторию и ключевые пользовательские сценарии</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Принял архитектурные решения с прицелом на масштабирование: три независимых сервиса (агрегатор вакансий, аутентификация, фронтенд) — каждый развёртывается и масштабируется отдельно</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Сформулировал требования к AI-ассистенту «Вера»: два режима работы (быстрый и персонализированный с анкетой), сценарии пользовательского опыта (UX), этические ограничения, знание трудового законодательства в части инвалидности</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Заложил расширяемость на уровне продукта: система API-ключей позволяет подключать новых клиентов (Telegram-бот, партнёрские интеграции) без изменений кода; блог на Markdown — публикация материалов без участия разработчика</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Обеспечил соответствие WCAG 2.2 AA — ключевое требование для целевой B2C-аудитории; вывел продукт на рынок и занялся продвижением платформы</span>
+                </li>
+            </ul>
+            <div class="tags">
+                <span class="tag tag-muted">Product Discovery</span>
+                <span class="tag tag-muted">B2C</span>
+                <span class="tag tag-muted">Управление продуктом</span>
+                <span class="tag tag-muted">MVP</span>
+                <span class="tag tag-muted">AI-ассистент</span>
+                <span class="tag tag-muted">WCAG 2.2 AA</span>
+                <span class="tag tag-muted">Python · FastAPI</span>
+                <span class="tag tag-muted">Next.js · TypeScript</span>
+                <span class="tag tag-muted">Docker</span>
+            </div>
+        </div>
+
+        <!-- Card 3: Bitrix24 -->
+        <div class="project-card">
+            <div class="card-head">
+                <div class="card-title">Аналитик / разработчик · Внедрение Битрикс24 и управление AI-агентами</div>
+                <div class="card-meta">Июнь 2024 — н.в.</div>
+            </div>
+            <div class="card-org">Коммерческий B2B-проект · команда разработки</div>
+            <div class="card-desc">В команде выполнял роль на стыке аналитика и разработчика: формулировал бизнес-логику, управлял беклогом задач, принимал реализацию и собирал обратную связь от пользователей для уточнения требований.</div>
+            <ul class="bullet-list">
+                <li>
+                    <span class="dot"></span>
+                    <span>Провёл бизнес-анализ процессов и сформулировал требования к интеграции с Битрикс24: маршрутизация событий через RabbitMQ, управление сделками и лидами, открытые линии (Telegram и почта → единый CRM-интерфейс)</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Спроектировал смарт-процесс проверки контрагентов: определил бизнес-логику, требования к интеграциям (DaData, API безопасности) и сценарий AI-анализа с генерацией PDF-отчёта — реализовал самостоятельно</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Настроил смарт-процессы и роботов Битрикс24 для автоматической смены стадий сделок — повысил операционную эффективность, сократив объём ручных операций менеджеров; собирал обратную связь и формулировал задачи на доработку в беклог</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>После ухода ключевого сотрудника принял самостоятельное решение в условиях неопределённости — взял полную ответственность за три AI-агента в продакшне (клиентский, менеджерский, диспетчерский): сформулировал требования к инструментам, расставил приоритеты в беклоге, принял реализацию</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>Выстроил процесс контроля качества AI-агентов: регулярный анализ трейсов в Arize Phoenix, выявление отклонений, формирование задач на доработку системных промптов и инструкций</span>
+                </li>
+                <li>
+                    <span class="dot"></span>
+                    <span>По собственной инициативе спроектировал и реализовал сервис аудита диспетчерского агента: LLM-оценка каждого запуска по 8 направлениям, версионирование промптов — закрыл потребность в систематическом разборе инцидентов</span>
+                </li>
+            </ul>
+            <div class="tags">
+                <span class="tag tag-muted">B2B</span>
+                <span class="tag tag-muted">Бизнес-анализ</span>
+                <span class="tag tag-muted">Беклог / приоритизация</span>
+                <span class="tag tag-muted">Внедрение Битрикс24</span>
+                <span class="tag tag-muted">Операционная эффективность</span>
+                <span class="tag tag-muted">Управление AI-агентами</span>
+                <span class="tag tag-muted">Контроль качества</span>
+                <span class="tag tag-muted">Arize Phoenix</span>
+                <span class="tag tag-muted">Python · FastAPI</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Навыки -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-num">3</div>
+            <h2>Навыки</h2>
+        </div>
+        <div class="skills-grid">
+            <div class="skill-card">
+                <h3>PM-инструменты</h3>
+                <div class="skill-group">
+                    <div class="skill-label">Планирование</div>
+                    <div class="skill-value">Жизненный цикл проекта, WBS / ИСР, Gantt, дорожная карта, контрольные точки</div>
+                </div>
+                <div class="skill-group">
+                    <div class="skill-label">Требования и документация</div>
+                    <div class="skill-value">Сбор и формализация требований, ТЗ, паспорт проекта, критерии приёмки, Definition of Done</div>
+                </div>
+                <div class="skill-group">
+                    <div class="skill-label">Стейкхолдеры</div>
+                    <div class="skill-value">Матрица Менделоу, коммуникационный план, управление изменениями</div>
+                </div>
+                <div class="skill-group">
+                    <div class="skill-label">Приоритизация задач</div>
+                    <div class="skill-value">MoSCoW</div>
+                </div>
+                <div class="skill-group">
+                    <div class="skill-label">Метрики и риски</div>
+                    <div class="skill-value">KPI, data-driven подход, управление рисками, UAT-процедура</div>
+                </div>
+            </div>
+            <div class="skill-card">
+                <h3>Технический стек</h3>
+                <div class="skill-group">
+                    <div class="skill-label">Backend</div>
+                    <div class="skill-value">Python 3.12, FastAPI, SQLAlchemy, Alembic, PostgreSQL, Redis, RabbitMQ</div>
+                </div>
+                <div class="skill-group">
+                    <div class="skill-label">Frontend</div>
+                    <div class="skill-value">Next.js 16, React 19, TypeScript, Tailwind CSS 4</div>
+                </div>
+                <div class="skill-group">
+                    <div class="skill-label">AI / Генеративный ИИ</div>
+                    <div class="skill-value">LLM, RAG (Qdrant), MCP / FastMCP, LangGraph, жизненный цикл AI-проекта, Arize Phoenix, OpenTelemetry</div>
+                </div>
+                <div class="skill-group">
+                    <div class="skill-label">Интеграции и DevOps</div>
+                    <div class="skill-value">REST API, Bitrix24, hh.ru, DaData, Docker Compose, Nginx, CI/CD</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. Образование -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-num">4</div>
+            <h2>Образование</h2>
+        </div>
+        <div class="edu-grid">
+            <div class="edu-card">
+                <div class="edu-type">Профессиональная программа</div>
+                <div class="edu-name">Проджект-менеджер</div>
+                <div class="edu-org">Нетология</div>
+                <div class="edu-period">2025 — 2026 · Окончил</div>
+                <div class="edu-desc">Изучил управление проектами полного цикла: инициация, планирование, исполнение, мониторинг, закрытие. Стейкхолдеры, риски, бюджет, командная динамика.</div>
+            </div>
+            <div class="edu-card">
+                <div class="edu-type">Self-study</div>
+                <div class="edu-name">Программирование и разработка</div>
+                <div class="edu-org">Самостоятельное изучение</div>
+                <div class="edu-period">2022 — н.в.</div>
+                <div class="edu-desc">Python, веб-разработка, AI/LLM-интеграции. Практика на реальных продуктах в продакшне.</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. Дополнительно -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-num">5</div>
+            <h2>Дополнительно</h2>
+        </div>
+        <div class="extra-card">
+            <p><strong>Преподаватель ударных инструментов, 2008–2019</strong> — более 10 лет системной работы с людьми разного уровня. Сформировал навык объяснять сложное понятным языком и адаптировать подачу под аудиторию — полезно при работе с командой, заказчиком и пользователями.</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <span>Барабанщиков К.С. · Project Manager в IT</span>
+        <span>Июнь 2026</span>
+    </footer>
+
+</div>
+</body>
+</html>
