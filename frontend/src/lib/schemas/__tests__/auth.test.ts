@@ -40,21 +40,21 @@ describe("loginSchema", () => {
 });
 
 describe("registerSchema", () => {
-    const valid = { username: "testuser", email: "test@example.com", password: "password123" };
+    const valid = { first_name: "Test", last_name: "User", email: "test@example.com", password: "password123" };
 
     it("accepts valid data", () => {
         expect(registerSchema.safeParse(valid).success).toBe(true);
     });
 
-    it("rejects username shorter than 4 chars", () => {
+    it("rejects an empty first name", () => {
         expect(
-            registerSchema.safeParse({ ...valid, username: "abc" }).success
+            registerSchema.safeParse({ ...valid, first_name: "" }).success
         ).toBe(false);
     });
 
-    it("rejects username over 255 chars", () => {
+    it("rejects a first name over 100 chars", () => {
         expect(
-            registerSchema.safeParse({ ...valid, username: "a".repeat(256) }).success
+            registerSchema.safeParse({ ...valid, first_name: "a".repeat(101) }).success
         ).toBe(false);
     });
 

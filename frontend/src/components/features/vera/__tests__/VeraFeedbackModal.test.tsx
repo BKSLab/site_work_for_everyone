@@ -105,7 +105,7 @@ describe("VeraFeedbackModal", () => {
             screen.getByRole("dialog", { name: "Спасибо за отзыв" }),
         ).toBeInTheDocument();
         expect(screen.getByRole("status")).toHaveTextContent(
-            "Спасибо за отзыв! Он сохранён вместе с текущей сессией диалога.",
+            "Спасибо за отзыв об Ассистенте Вере! Он сохранён вместе с текущей сессией диалога.",
         );
         expect(
             screen.queryByText(/Ответьте только на те вопросы/i),
