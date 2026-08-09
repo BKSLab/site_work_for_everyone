@@ -319,15 +319,15 @@ Browser -> Next.js BFF -> FastAPI backend сайта
 
 **Критерий готовности.** Событие `done` отправляется только после успешного commit `completed`. При неустранимой ошибке persistence клиент получает terminal `error`, а не `done`. Characterization-тест на отказ БД между стримингом и терминальным событием проходит.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `vera_agent_service/app/messaging/consumer.py`, `app/services/chat_persistence.py`, `app/repositories/chat_turn.py`, `app/db/models/chat_turn.py`, `app/db/alembic/versions/20260809_2110_add_turn_delivery_state.py`, `app/core/settings.py`, `app/main.py`, `app/observability/request_trace.py`, `app/clients/mcp_client.py`, `tests/unit/messaging/test_delivery_state_machine.py`, `tests/integration/repositories/test_turn_lease.py`, а также приведённые к новому контракту `tests/unit/messaging/test_consumer.py`, `tests/unit/services/test_chat_persistence.py`, `tests/integration/test_chat_persistence.py`.
+- **Суть изменения:** `done` отправляется только после подтверждённого durable commit. `_complete_persistence` больше не глотает ошибку, а возвращает признак успеха и повторяет сохранение ограниченное число раз, не переигрывая граф. Если сохранить не удалось, пользователь получает терминальный `error`, а реплика — статус `delivery_unconfirmed` с уже сформированным ответом, а не остаётся `processing`. Коммит Agent Service — `30328af`.
+- **Миграции Alembic:** требуется и выполнена — `20260809_2110_add_turn_delivery_state.py`: поля `lease_until`, `attempt_count`, `worker_id`, `terminal_detail` и перенос существующих `failed` в `generation_failed`. `downgrade` схлопывает новые статусы обратно в `failed` и снимает поля. Цикл `upgrade` → `downgrade` → `upgrade` проверен на живом PostgreSQL в контейнере, все три шага завершились кодом 0.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены `tests/unit/messaging/test_delivery_state_machine.py` (14 тестов, по одному на строку таблицы исходов) и `tests/integration/repositories/test_turn_lease.py` (5 тестов на реальном PostgreSQL). Команда `venv/Scripts/python.exe -m pytest` — 220 passed, 0 failed; интеграционные выполнялись реально на поднятом Docker. Ключевые для этой карточки: `test_done_is_sent_only_after_successful_commit` и `test_failed_commit_reports_error_instead_of_done`.
+- **Отклонения от предложенного решения и причина:** реализовано одним коммитом на все четыре карточки, как и предписано заданием: порядок commit и `done`, аренда, гарантия ack/nack и воспроизведение исхода держат друг друга и раздельно не разделяются.
+- **Осталось / связанные карточки:** Outbox для восстановления несохранённого ответа не вводился: при недоступности БД исход честно фиксируется как неопределённый. Оценка ответа по-прежнему разрешена только для `completed`, что теперь согласовано с отправляемым событием.
 
 ### VERA-005 — PostgreSQL history и Redis memory имеют разный жизненный цикл
 
@@ -640,15 +640,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Turn с просроченным lease безопасно переобрабатывается, со свежим — признаётся дубликатом. После рестарта процесса запрос не остаётся в `processing` навсегда. Мутирующий инструмент получает idempotency key на основе `request_id`.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `vera_agent_service/app/messaging/consumer.py`, `app/services/chat_persistence.py`, `app/repositories/chat_turn.py`, `app/db/models/chat_turn.py`, `app/db/alembic/versions/20260809_2110_add_turn_delivery_state.py`, `app/core/settings.py`, `app/main.py`, `app/observability/request_trace.py`, `app/clients/mcp_client.py`, `tests/unit/messaging/test_delivery_state_machine.py`, `tests/integration/repositories/test_turn_lease.py`, а также приведённые к новому контракту `tests/unit/messaging/test_consumer.py`, `tests/unit/services/test_chat_persistence.py`, `tests/integration/test_chat_persistence.py`.
+- **Суть изменения:** введена аренда реплики: `lease_until`, `attempt_count`, `worker_id`. Захват выполняется одним атомарным `UPDATE ... WHERE lease_until < now()`, поэтому проверка и захват не разъезжаются между двумя обработчиками. Живая аренда означает настоящий дубликат, просроченная — безопасную повторную обработку. При старте сервиса брошенные реплики закрываются как `delivery_unconfirmed`, с запасом по времени, чтобы очистка не обгоняла штатную повторную доставку. В мутирующий MCP-вызов добавлен `X-Idempotency-Key` на основе `request_id`. Коммит Agent Service — `30328af`.
+- **Миграции Alembic:** требуется и выполнена — `20260809_2110_add_turn_delivery_state.py`: поля `lease_until`, `attempt_count`, `worker_id`, `terminal_detail` и перенос существующих `failed` в `generation_failed`. `downgrade` схлопывает новые статусы обратно в `failed` и снимает поля. Цикл `upgrade` → `downgrade` → `upgrade` проверен на живом PostgreSQL в контейнере, все три шага завершились кодом 0.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены `tests/unit/messaging/test_delivery_state_machine.py` (14 тестов, по одному на строку таблицы исходов) и `tests/integration/repositories/test_turn_lease.py` (5 тестов на реальном PostgreSQL). Команда `venv/Scripts/python.exe -m pytest` — 220 passed, 0 failed; интеграционные выполнялись реально на поднятом Docker. Ключевые для этой карточки — пять интеграционных тестов на живом PostgreSQL: перезахват просроченной аренды, отказ при живой, победа только одного worker при конкурентном захвате, закрытие брошенной реплики и защита свежей от преждевременного закрытия.
+- **Отклонения от предложенного решения и причина:** реализовано одним коммитом на все четыре карточки, как и предписано заданием: порядок commit и `done`, аренда, гарантия ack/nack и воспроизведение исхода держат друг друга и раздельно не разделяются. Дедупликация по idempotency key выполняется на стороне `vera_mcp_service`; здесь гарантируется только стабильность ключа — изменение контракта MCP-инструмента вне скоупа.
+- **Осталось / связанные карточки:** Срок аренды подобран так, чтобы превышать самый долгий инструмент (900 секунд против 360 у отправки консультации). Продление аренды в ходе обработки не реализовано и понадобится, если появятся более долгие операции.
 
 ### VERA-015 — Consumer failure paths не имеют единой ACK/NACK/retry-политики
 
@@ -666,15 +666,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Каждый delivery завершается ровно одним `ack` или `nack`, каждый адресуемый валидный запрос — ровно одним терминальным SSE-событием. Transient-ошибка persistence на старте ретраится, а не уходит сразу в DLQ. `CancelledError` не скрывается.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `vera_agent_service/app/messaging/consumer.py`, `app/services/chat_persistence.py`, `app/repositories/chat_turn.py`, `app/db/models/chat_turn.py`, `app/db/alembic/versions/20260809_2110_add_turn_delivery_state.py`, `app/core/settings.py`, `app/main.py`, `app/observability/request_trace.py`, `app/clients/mcp_client.py`, `tests/unit/messaging/test_delivery_state_machine.py`, `tests/integration/repositories/test_turn_lease.py`, а также приведённые к новому контракту `tests/unit/messaging/test_consumer.py`, `tests/unit/services/test_chat_persistence.py`, `tests/integration/test_chat_persistence.py`.
+- **Суть изменения:** введён объект доставки с явными инвариантами: ровно один `ack`/`nack` и ровно одно терминальное SSE-событие. Внешний `try/finally` страхует оба инварианта на любом пути, включая непредусмотренное исключение — раньше такое исключение уходило наверх, оставляя delivery неподтверждённой и при `prefetch_count=1` останавливая весь чат. Временный сбой сохранения на старте теперь ретраится с backoff вместо немедленного DLQ. `CancelledError` не проглатывается: исход фиксируется как неопределённый, отмена пробрасывается дальше. Коммит Agent Service — `30328af`.
+- **Миграции Alembic:** требуется и выполнена — `20260809_2110_add_turn_delivery_state.py`: поля `lease_until`, `attempt_count`, `worker_id`, `terminal_detail` и перенос существующих `failed` в `generation_failed`. `downgrade` схлопывает новые статусы обратно в `failed` и снимает поля. Цикл `upgrade` → `downgrade` → `upgrade` проверен на живом PostgreSQL в контейнере, все три шага завершились кодом 0.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены `tests/unit/messaging/test_delivery_state_machine.py` (14 тестов, по одному на строку таблицы исходов) и `tests/integration/repositories/test_turn_lease.py` (5 тестов на реальном PostgreSQL). Команда `venv/Scripts/python.exe -m pytest` — 220 passed, 0 failed; интеграционные выполнялись реально на поднятом Docker. Ключевые для этой карточки: `test_unexpected_error_still_sends_terminal_event_and_settles`, `test_transient_start_persistence_error_is_retried`, `test_shutdown_records_unconfirmed_outcome_and_propagates`. Инвариант «ровно одно подтверждение» проверяется в каждом тесте файла.
+- **Отклонения от предложенного решения и причина:** реализовано одним коммитом на все четыре карточки, как и предписано заданием: порядок commit и `done`, аренда, гарантия ack/nack и воспроизведение исхода держат друг друга и раздельно не разделяются.
+- **Осталось / связанные карточки:** Сбой самого token sink отдельно не обрабатывается — при текущем in-memory `SessionBus` публикация не отказывает. Это станет актуальным после выноса событий во внешний брокер (VERA-013).
 
 ### VERA-016 — Невалидный Rabbit payload уходит в DLQ без terminal SSE
 
@@ -693,15 +693,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Поведение при невалидном payload зафиксировано и реализовано: клиент не ждёт свой timeout без причины, наружу не уходят детали ошибки, завершить чужой поток невозможно.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `vera_agent_service/app/messaging/consumer.py`, `app/services/chat_persistence.py`, `app/repositories/chat_turn.py`, `app/db/models/chat_turn.py`, `app/db/alembic/versions/20260809_2110_add_turn_delivery_state.py`, `app/core/settings.py`, `app/main.py`, `app/observability/request_trace.py`, `app/clients/mcp_client.py`, `tests/unit/messaging/test_delivery_state_machine.py`, `tests/integration/repositories/test_turn_lease.py`, а также приведённые к новому контракту `tests/unit/messaging/test_consumer.py`, `tests/unit/services/test_chat_persistence.py`, `tests/integration/test_chat_persistence.py`.
+- **Суть изменения:** решение карточки закреплено, а не изменено: невалидный payload уходит в DLQ без терминального SSE-события. Отправка `error` по `request_id`, взятому из непроверенного сообщения, позволила бы завершить чужой поток, поэтому поведение сохранено намеренно и снабжено комментарием в коде с объяснением причины. Добавлен тест, фиксирующий контракт. Коммит Agent Service — `30328af`.
+- **Миграции Alembic:** требуется и выполнена — `20260809_2110_add_turn_delivery_state.py`: поля `lease_until`, `attempt_count`, `worker_id`, `terminal_detail` и перенос существующих `failed` в `generation_failed`. `downgrade` схлопывает новые статусы обратно в `failed` и снимает поля. Цикл `upgrade` → `downgrade` → `upgrade` проверен на живом PostgreSQL в контейнере, все три шага завершились кодом 0.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены `tests/unit/messaging/test_delivery_state_machine.py` (14 тестов, по одному на строку таблицы исходов) и `tests/integration/repositories/test_turn_lease.py` (5 тестов на реальном PostgreSQL). Команда `venv/Scripts/python.exe -m pytest` — 220 passed, 0 failed; интеграционные выполнялись реально на поднятом Docker. Ключевой для этой карточки: `test_invalid_payload_goes_to_dlq_without_terminal_event` — проверяет, что наружу не уходит ни одного события и доставка подтверждается ровно один раз.
+- **Отклонения от предложенного решения и причина:** двухступенчатый разбор payload не вводился: он имеет смысл только вместе с защищённой correlation-схемой, которой пока нет. До неё безопаснее оставить DLQ, как и рекомендует сама карточка.
+- **Осталось / связанные карточки:** Восстановление исхода через request-status endpoint не реализовано — он относится к VERA-011/025 и требует нового HTTP-контракта.
 
 ### VERA-017 — Явная отмена отсутствует; SSE disconnect не является cancel
 
@@ -748,15 +748,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Пустой stream LLM считается ошибкой контента: повтор допустим только до выдачи первого токена, после исчерпания попыток отправляется terminal `error`, а не `done` с пустым ответом.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `vera_agent_service/app/messaging/consumer.py`, `app/services/chat_persistence.py`, `app/repositories/chat_turn.py`, `app/db/models/chat_turn.py`, `app/db/alembic/versions/20260809_2110_add_turn_delivery_state.py`, `app/core/settings.py`, `app/main.py`, `app/observability/request_trace.py`, `app/clients/mcp_client.py`, `tests/unit/messaging/test_delivery_state_machine.py`, `tests/integration/repositories/test_turn_lease.py`, а также приведённые к новому контракту `tests/unit/messaging/test_consumer.py`, `tests/unit/services/test_chat_persistence.py`, `tests/integration/test_chat_persistence.py`.
+- **Суть изменения:** пустой поток модели больше не считается успехом. Отсутствие содержимого поднимает `EmptyLlmStreamError` до отправки терминального события, поэтому повтор допустим (первый токен ещё не отдан), а после исчерпания попыток пользователь получает `error`, а реплика — статус `generation_failed`. Раньше сохранялся пустой `completed` и отправлялся `done`, что для пользователя выглядело как полученная консультация. Коммит Agent Service — `30328af`.
+- **Миграции Alembic:** требуется и выполнена — `20260809_2110_add_turn_delivery_state.py`: поля `lease_until`, `attempt_count`, `worker_id`, `terminal_detail` и перенос существующих `failed` в `generation_failed`. `downgrade` схлопывает новые статусы обратно в `failed` и снимает поля. Цикл `upgrade` → `downgrade` → `upgrade` проверен на живом PostgreSQL в контейнере, все три шага завершились кодом 0.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены `tests/unit/messaging/test_delivery_state_machine.py` (14 тестов, по одному на строку таблицы исходов) и `tests/integration/repositories/test_turn_lease.py` (5 тестов на реальном PostgreSQL). Команда `venv/Scripts/python.exe -m pytest` — 220 passed, 0 failed; интеграционные выполнялись реально на поднятом Docker. Ключевой для этой карточки: `test_empty_stream_is_content_error_not_done` — проверяет и отсутствие `done`, и итоговый статус, и уход сообщения в DLQ.
+- **Отклонения от предложенного решения и причина:** карточка планировалась отдельным коммитом, но её ветка — часть терминальной логики, переписанной пакетом: раздельная правка означала бы конфликт в тех же строках. Сама логика соответствует предложенному в карточке решению.
+- **Осталось / связанные карточки:** Различение «модель вернула пустой ответ» и «модель недоступна» на уровне текста для пользователя не вводилось — оба случая дают одинаковое сообщение о временной недоступности.
 
 ### VERA-019 — Retry графа использует тот же checkpoint после частичного сбоя
 
@@ -1242,15 +1242,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Duplicate replay воспроизводит сохранённый terminal outcome. Ни один статус, кроме `completed`, не маскируется под `done`. Feedback доступен ровно тогда, когда это допускает сохранённый статус.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `vera_agent_service/app/messaging/consumer.py`, `app/services/chat_persistence.py`, `app/repositories/chat_turn.py`, `app/db/models/chat_turn.py`, `app/db/alembic/versions/20260809_2110_add_turn_delivery_state.py`, `app/core/settings.py`, `app/main.py`, `app/observability/request_trace.py`, `app/clients/mcp_client.py`, `tests/unit/messaging/test_delivery_state_machine.py`, `tests/integration/repositories/test_turn_lease.py`, а также приведённые к новому контракту `tests/unit/messaging/test_consumer.py`, `tests/unit/services/test_chat_persistence.py`, `tests/integration/test_chat_persistence.py`.
+- **Суть изменения:** повторная доставка воспроизводит сохранённый исход. Успехом считается только `completed`: для него реплеится сохранённый ответ и `done`. Любой другой терминальный статус воспроизводит `error` с сохранённым текстом — для этого добавлено поле `terminal_detail`, хранящее ровно тот текст, который ушёл пользователю. Раньше `delivery_unconfirmed` реплеился как `token` + `done`, превращая зафиксированную ошибку в успех и открывая оценку ответа, запрещённую по статусу. Коммит Agent Service — `30328af`.
+- **Миграции Alembic:** требуется и выполнена — `20260809_2110_add_turn_delivery_state.py`: поля `lease_until`, `attempt_count`, `worker_id`, `terminal_detail` и перенос существующих `failed` в `generation_failed`. `downgrade` схлопывает новые статусы обратно в `failed` и снимает поля. Цикл `upgrade` → `downgrade` → `upgrade` проверен на живом PostgreSQL в контейнере, все три шага завершились кодом 0.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены `tests/unit/messaging/test_delivery_state_machine.py` (14 тестов, по одному на строку таблицы исходов) и `tests/integration/repositories/test_turn_lease.py` (5 тестов на реальном PostgreSQL). Команда `venv/Scripts/python.exe -m pytest` — 220 passed, 0 failed; интеграционные выполнялись реально на поднятом Docker. Ключевые для этой карточки: `test_duplicate_delivery_unconfirmed_replays_error_not_done` и `test_duplicate_completed_replays_saved_answer_and_done`.
+- **Отклонения от предложенного решения и причина:** реализовано одним коммитом на все четыре карточки, как и предписано заданием: порядок commit и `done`, аренда, гарантия ack/nack и воспроизведение исхода держат друг друга и раздельно не разделяются. Текст терминального события сохраняется отдельным полем, а не собирается заново по статусу: разные причины дают один статус `delivery_unconfirmed`, и восстановление по статусу исказило бы исходное сообщение.
+- **Осталось / связанные карточки:** Статус `cancelled` заведён в номенклатуре, но выставляется только при остановке сервиса — пользовательская отмена относится к VERA-017.
 
 ### VERA-035 — Создание turn и sequence number не атомарны для concurrency
 
