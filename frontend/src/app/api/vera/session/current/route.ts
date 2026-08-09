@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/utils/logger";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
-import { getVeraOwnerHeaders } from "@/lib/utils/vera-owner-headers";
+import {
+    applyVeraOwnerCookies,
+    getVeraOwnerHeaders,
+} from "@/lib/utils/vera-owner-headers";
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
 const currentSessionLimiter = createRateLimiter({
@@ -75,13 +78,16 @@ export async function GET(request: NextRequest) {
                 error: error instanceof Error ? error.message : String(error),
             },
         );
-        return NextResponse.json(
-            {
-                detail: isAbort
-                    ? "Сервер не отвечает. Попробуйте позже."
-                    : "Ошибка соединения с сервером.",
-            },
-            { status: isAbort ? 504 : 502 },
+        return applyVeraOwnerCookies(
+            NextResponse.json(
+                {
+                    detail: isAbort
+                        ? "Сервер не отвечает. Попробуйте позже."
+                        : "Ошибка соединения с сервером.",
+                },
+                { status: isAbort ? 504 : 502 },
+            ),
+            owner,
         );
     } finally {
         clearTimeout(timeoutId);
@@ -101,5 +107,5 @@ export async function GET(request: NextRequest) {
 
     const result = NextResponse.json(data, { status: response.status });
     result.headers.set("X-Request-ID", requestId);
-    return result;
+    return applyVeraOwnerCookies(result, owner);
 }

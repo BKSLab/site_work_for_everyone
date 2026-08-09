@@ -257,15 +257,15 @@ Browser -> Next.js BFF -> FastAPI backend сайта
 
 **Критерий исправления.** Открытая более часа вкладка продолжает тот же auth-диалог без `403`, ротации session ID и повторного входа.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `frontend/src/lib/utils/auth-session.ts`, `frontend/src/lib/utils/__tests__/auth-session.test.ts`, `frontend/src/app/api/auth/[...path]/route.ts`, `frontend/src/lib/utils/vera-owner-headers.ts`, `frontend/src/lib/utils/vera-feedback-proxy.ts`, `frontend/src/app/api/vera/chat/route.ts`, `frontend/src/app/api/vera/history/[sessionId]/route.ts`, `frontend/src/app/api/vera/session/current/route.ts`, `frontend/src/lib/utils/__tests__/vera-feedback-proxy.test.ts`, `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** общий server helper проверяет срок access JWT и до Vera upstream выполняет ротацию по refresh-token; один Promise на значение refresh-token дедуплицирует параллельные запросы в процессе Next.js. `/api/auth/me` использует тот же helper, а Vera routes отправляют обновлённый Bearer и возвращают новые HttpOnly cookies даже при последующей upstream-ошибке. Исчерпанная auth-сессия получает контролируемый `401` и очистку auth cookies; настоящий ownership `403` не повторяется.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлен `frontend/src/lib/utils/__tests__/auth-session.test.ts`, дополнен `frontend/src/lib/utils/__tests__/vera-feedback-proxy.test.ts`; `npm test -- src/lib/utils/__tests__/auth-session.test.ts src/lib/utils/__tests__/vera-feedback-proxy.test.ts` — 11/11 passed; `npm test` — 89 passed, 2 failed: `src/lib/schemas/__tests__/auth.test.ts > registerSchema > accepts valid data` и `src/components/features/vera/__tests__/VeraFeedbackModal.test.tsx > VeraFeedbackModal > allows sending an empty questionnaire with the session id` — оба падения существовали до правки, вне скоупа карточки; `npm run lint` — успешно, 0 errors, 26 warnings; `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** выбран общий server-side auth helper, а не client `veraFetch`: refresh выполняется до проксирования и поэтому закрывает также текущие `200 + null` и `202` сценарии, в которых клиент не получает исходный auth `401`. Публичные backend-коды и схемы не менялись.
+- **Осталось / связанные карточки:** непросроченный, но криптографически отвергнутый backend-ом access JWT по-прежнему нельзя отличить от anonymous без канонического backend auth-status; это межсервисное продолжение вне однорепного скоупа. Дедупликация process-local и при нескольких Next.js репликах потребует общего coordination mechanism.
 
 ### VERA-003 — Несогласованная максимальная длина `user_id`
 

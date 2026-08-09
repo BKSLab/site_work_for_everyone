@@ -62,6 +62,17 @@ function createBackendResponse(status = 200, detail = "ok"): Response {
     });
 }
 
+function createAccessToken(exp = Math.floor(Date.now() / 1000) + 3600): string {
+    const encode = (value: unknown) =>
+        Buffer.from(JSON.stringify(value)).toString("base64url");
+    return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
+        sub: "user@example.com",
+        first_name: "Иван",
+        last_name: "Иванов",
+        exp,
+    })}.signature`;
+}
+
 describe("proxyVeraFeedback", () => {
     let proxyVeraFeedback: typeof import("../vera-feedback-proxy").proxyVeraFeedback;
 
@@ -84,8 +95,9 @@ describe("proxyVeraFeedback", () => {
     });
 
     it("forwards Authorization and the existing session token for auth feedback", async () => {
+        const accessToken = createAccessToken();
         useCookies({
-            access_token: "access-token",
+            access_token: accessToken,
             vera_session_authsession: "session-token",
         });
         const fetchMock = vi
@@ -107,7 +119,7 @@ describe("proxyVeraFeedback", () => {
 
         const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
         const headers = new Headers(init.headers);
-        expect(headers.get("Authorization")).toBe("Bearer access-token");
+        expect(headers.get("Authorization")).toBe(`Bearer ${accessToken}`);
         expect(headers.get("X-Vera-Session-Token")).toBe("session-token");
         expect(response.status).toBe(200);
         expect(response.headers.get("set-cookie")).toBeNull();
@@ -173,7 +185,7 @@ describe("proxyVeraFeedback", () => {
 
     it("preserves an upstream ownership rejection", async () => {
         useCookies({
-            access_token: "access-token",
+            access_token: createAccessToken(),
             vera_session_foreignsession: "session-token",
         });
         vi.stubGlobal(
@@ -244,5 +256,56 @@ describe("proxyVeraFeedback", () => {
 
         expect(response.status).toBe(503);
         expect(response.headers.get("X-Request-ID")).toBe("test-request-id");
+    });
+
+    it("refreshes an expired access token before forwarding feedback", async () => {
+        const refreshedAccessToken = createAccessToken();
+        useCookies({
+            access_token: createAccessToken(
+                Math.floor(Date.now() / 1000) - 1,
+            ),
+            refresh_token: "refresh-token",
+            vera_session_authsession: "session-token",
+        });
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        access_token: refreshedAccessToken,
+                        refresh_token: "rotated-refresh-token",
+                    }),
+                    {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+            )
+            .mockResolvedValueOnce(createBackendResponse());
+        vi.stubGlobal("fetch", fetchMock);
+
+        const response = await proxyVeraFeedback({
+            request: makeRequest("POST", {
+                session_id: "auth-session",
+                submission_id: "submission-1",
+                usefulness: 5,
+            }),
+            method: "POST",
+            backendPath: "/api/vera/feedback/session",
+            schema: veraFeedbackSchema,
+            limiter,
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const feedbackInit = fetchMock.mock.calls[1]?.[1] as RequestInit;
+        expect(new Headers(feedbackInit.headers).get("Authorization")).toBe(
+            `Bearer ${refreshedAccessToken}`,
+        );
+        expect(response.headers.get("set-cookie")).toContain(
+            `access_token=${refreshedAccessToken}`,
+        );
+        expect(response.headers.get("set-cookie")).toContain(
+            "refresh_token=rotated-refresh-token",
+        );
     });
 });

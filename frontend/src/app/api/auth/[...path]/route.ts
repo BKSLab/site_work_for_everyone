@@ -7,6 +7,12 @@ import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
 import { logger } from "@/lib/utils/logger";
 import {
+    clearAuthCookies,
+    getAuthUserFromAccessToken,
+    resolveAuthSession,
+    setAuthCookies,
+} from "@/lib/utils/auth-session";
+import {
     loginSchema,
     registerSchema,
     verifyEmailSchema,
@@ -18,32 +24,11 @@ import {
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
 
-// Конфигурация cookies
-const COOKIE_OPTIONS = {
-    httpOnly: true,
-    secure: process.env.COOKIE_SECURE === "true",
-    sameSite: "lax" as const,
-    path: "/",
-};
-
-// Время жизни cookies должно совпадать с настройками бэкенда
-// Бэкенд: jwt_expire_seconds = 3600 (1 час), jwt_refresh_expire_days = 30
-const ACCESS_TOKEN_MAX_AGE = 60 * 60; // 1 час
-const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60; // 30 дней
-
 // Эндпоинты, которые возвращают токены в ответе
 const TOKEN_ENDPOINTS = ["login", "verify-email", "refresh"];
 
 function isTokenEndpoint(path: string): boolean {
     return TOKEN_ENDPOINTS.includes(path);
-}
-
-// Декодирование JWT payload без криптографической верификации
-// (верификация уже выполнена бэкендом при создании токена)
-function decodeJwtPayload(token: string): Record<string, unknown> {
-    const base64Payload = token.split(".")[1];
-    const jsonPayload = Buffer.from(base64Payload, "base64").toString("utf-8");
-    return JSON.parse(jsonPayload);
 }
 
 // === Rate limiters для auth эндпоинтов ===
@@ -203,8 +188,7 @@ async function proxyAuthRequest(request: NextRequest, path: string) {
     // === Обработка logout: очищаем cookies ===
     if (path === "logout" && (response.status === 204 || response.ok)) {
         const res = new NextResponse(null, { status: 204 });
-        res.cookies.set("access_token", "", { ...COOKIE_OPTIONS, maxAge: 0 });
-        res.cookies.set("refresh_token", "", { ...COOKIE_OPTIONS, maxAge: 0 });
+        clearAuthCookies(res);
         return res;
     }
 
@@ -231,21 +215,8 @@ async function proxyAuthRequest(request: NextRequest, path: string) {
         const { access_token, refresh_token } = data;
 
         // Безопасное декодирование JWT — если токен невалиден, возвращаем 502
-        let payload: Record<string, unknown>;
-        try {
-            payload = decodeJwtPayload(access_token);
-        } catch {
-            return NextResponse.json(
-                { detail: "Authentication error. Please try again." },
-                { status: 502 }
-            );
-        }
-
-        const email = payload.sub as string | undefined;
-        const first_name = payload.first_name as string | undefined;
-        const last_name = payload.last_name as string | undefined;
-
-        if (!email || !first_name || !last_name) {
+        const user = getAuthUserFromAccessToken(access_token);
+        if (!user) {
             return NextResponse.json(
                 { detail: "Authentication error. Please try again." },
                 { status: 502 }
@@ -253,18 +224,13 @@ async function proxyAuthRequest(request: NextRequest, path: string) {
         }
 
         const res = NextResponse.json(
-            { user: { email, first_name, last_name } },
+            { user },
             { status: response.status }
         );
         res.headers.set("X-Request-ID", requestId);
-
-        res.cookies.set("access_token", access_token, {
-            ...COOKIE_OPTIONS,
-            maxAge: ACCESS_TOKEN_MAX_AGE,
-        });
-        res.cookies.set("refresh_token", refresh_token, {
-            ...COOKIE_OPTIONS,
-            maxAge: REFRESH_TOKEN_MAX_AGE,
+        setAuthCookies(res, {
+            accessToken: access_token,
+            refreshToken: refresh_token,
         });
 
         return res;
@@ -290,78 +256,23 @@ export async function GET(
         const accessToken = cookieStore.get("access_token")?.value;
         const refreshToken = cookieStore.get("refresh_token")?.value;
 
-        // 1. Пробуем access_token — быстрый путь, без обращения к бэкенду
-        if (accessToken) {
-            try {
-                const payload = decodeJwtPayload(accessToken);
-                const exp = payload.exp as number;
-                if (exp * 1000 >= Date.now()) {
-                    const res = NextResponse.json({
-                        user: {
-                            email: payload.sub as string,
-                            first_name: payload.first_name as string,
-                            last_name: payload.last_name as string,
-                        },
-                    });
-                    res.headers.set("X-Request-ID", requestId);
-                    return res;
-                }
-                // Токен есть, но истёк — падаем в refresh ниже
-            } catch {
-                // Невалидный JWT — падаем в refresh ниже
+        const authSession = await resolveAuthSession({
+            accessToken,
+            refreshToken,
+            authApiUrl: AUTH_API_URL,
+        });
+        if (authSession.status === "authenticated") {
+            const res = NextResponse.json({ user: authSession.user });
+            res.headers.set("X-Request-ID", requestId);
+            if (authSession.refreshedTokens) {
+                setAuthCookies(res, authSession.refreshedTokens);
             }
-        }
-
-        // 2. access_token отсутствует или истёк — пробуем обновить через refresh_token
-        if (refreshToken && AUTH_API_URL) {
-            try {
-                const refreshUrl = new URL("/api/auth/refresh", AUTH_API_URL);
-                const refreshRes = await fetch(refreshUrl.toString(), {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ refresh_token: refreshToken }),
-                });
-
-                if (refreshRes.ok) {
-                    const data = await refreshRes.json();
-                    const { access_token, refresh_token: newRefreshToken } = data;
-
-                    let payload: Record<string, unknown>;
-                    try {
-                        payload = decodeJwtPayload(access_token);
-                    } catch {
-                        return NextResponse.json(null, { status: 401 });
-                    }
-
-                    const email = payload.sub as string;
-                    const first_name = payload.first_name as string;
-                    const last_name = payload.last_name as string;
-                    if (!email || !first_name || !last_name) {
-                        return NextResponse.json(null, { status: 401 });
-                    }
-
-                    // Возвращаем пользователя и обновляем cookies
-                    const res = NextResponse.json({ user: { email, first_name, last_name } });
-                    res.headers.set("X-Request-ID", requestId);
-                    res.cookies.set("access_token", access_token, {
-                        ...COOKIE_OPTIONS,
-                        maxAge: ACCESS_TOKEN_MAX_AGE,
-                    });
-                    res.cookies.set("refresh_token", newRefreshToken, {
-                        ...COOKIE_OPTIONS,
-                        maxAge: REFRESH_TOKEN_MAX_AGE,
-                    });
-                    return res;
-                }
-            } catch {
-                // Сеть недоступна или бэкенд упал — возвращаем 401
-            }
+            return res;
         }
 
         // Сессия невалидна — очищаем cookies, чтобы proxy не блокировал /auth/login
         const unauthRes = NextResponse.json(null, { status: 401 });
-        unauthRes.cookies.set("access_token", "", { ...COOKIE_OPTIONS, maxAge: 0 });
-        unauthRes.cookies.set("refresh_token", "", { ...COOKIE_OPTIONS, maxAge: 0 });
+        clearAuthCookies(unauthRes);
         return unauthRes;
     }
 

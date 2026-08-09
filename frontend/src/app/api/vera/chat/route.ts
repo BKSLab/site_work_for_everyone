@@ -5,7 +5,7 @@ import { getRequestId } from "@/lib/utils/request-id";
 import { logger } from "@/lib/utils/logger";
 import { veraChatSchema } from "@/lib/schemas/vera";
 import {
-    applyVeraSessionCookie,
+    applyVeraOwnerCookies,
     getVeraOwnerHeaders,
     getVeraOwnerUpstreamError,
 } from "@/lib/utils/vera-owner-headers";
@@ -116,9 +116,12 @@ export async function POST(request: NextRequest) {
                 requestId,
                 durationMs: Date.now() - startTime,
             });
-            return NextResponse.json(
-                { detail: "Сервер не отвечает. Попробуйте позже." },
-                { status: 504 },
+            return applyVeraOwnerCookies(
+                NextResponse.json(
+                    { detail: "Сервер не отвечает. Попробуйте позже." },
+                    { status: 504 },
+                ),
+                owner,
             );
         }
         logger.error("Vera chat proxy connection error", {
@@ -126,9 +129,12 @@ export async function POST(request: NextRequest) {
             durationMs: Date.now() - startTime,
             error: error instanceof Error ? error.message : String(error),
         });
-        return NextResponse.json(
-            { detail: "Ошибка соединения с сервером." },
-            { status: 502 },
+        return applyVeraOwnerCookies(
+            NextResponse.json(
+                { detail: "Ошибка соединения с сервером." },
+                { status: 502 },
+            ),
+            owner,
         );
     } finally {
         clearTimeout(timeoutId);
@@ -157,10 +163,9 @@ export async function POST(request: NextRequest) {
         data,
         requestId,
     );
-    if (ownerError) return ownerError;
+    if (ownerError) return applyVeraOwnerCookies(ownerError, owner);
 
     const res = NextResponse.json(data, { status: response.status });
     res.headers.set("X-Request-ID", requestId);
-    applyVeraSessionCookie(res, owner.sessionCookie);
-    return res;
+    return applyVeraOwnerCookies(res, owner);
 }

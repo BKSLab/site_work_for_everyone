@@ -5,7 +5,7 @@ import { logger } from "@/lib/utils/logger";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
 import {
-    applyVeraSessionCookie,
+    applyVeraOwnerCookies,
     getVeraOwnerHeaders,
     getVeraOwnerUpstreamError,
 } from "@/lib/utils/vera-owner-headers";
@@ -100,13 +100,16 @@ export async function GET(
                 error: error instanceof Error ? error.message : String(error),
             },
         );
-        return NextResponse.json(
-            {
-                detail: isAbort
-                    ? "Сервер не отвечает. Попробуйте позже."
-                    : "Ошибка соединения с сервером.",
-            },
-            { status: isAbort ? 504 : 502 },
+        return applyVeraOwnerCookies(
+            NextResponse.json(
+                {
+                    detail: isAbort
+                        ? "Сервер не отвечает. Попробуйте позже."
+                        : "Ошибка соединения с сервером.",
+                },
+                { status: isAbort ? 504 : 502 },
+            ),
+            owner,
         );
     } finally {
         clearTimeout(timeoutId);
@@ -129,10 +132,9 @@ export async function GET(
         data,
         requestId,
     );
-    if (ownerError) return ownerError;
+    if (ownerError) return applyVeraOwnerCookies(ownerError, owner);
 
     const result = NextResponse.json(data, { status: response.status });
     result.headers.set("X-Request-ID", requestId);
-    applyVeraSessionCookie(result, owner.sessionCookie);
-    return result;
+    return applyVeraOwnerCookies(result, owner);
 }

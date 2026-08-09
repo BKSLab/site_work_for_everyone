@@ -1,6 +1,12 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import {
+    clearAuthCookies,
+    resolveAuthSession,
+    setAuthCookies,
+    type AuthTokens,
+} from "@/lib/utils/auth-session";
 import { logger } from "@/lib/utils/logger";
 import {
     assertVeraSessionSigningKey,
@@ -17,10 +23,11 @@ interface VeraSessionCookie {
     value: string;
 }
 
-interface VeraOwnerHeadersSuccess {
+export interface VeraOwnerHeadersSuccess {
     ok: true;
     headers: Record<string, string>;
     sessionCookie: VeraSessionCookie | null;
+    refreshedTokens: AuthTokens | null;
 }
 
 interface VeraOwnerHeadersFailure {
@@ -38,6 +45,16 @@ function createConfigurationErrorResponse(requestId: string): NextResponse {
         { status: 503 },
     );
     response.headers.set("X-Request-ID", requestId);
+    return response;
+}
+
+function createAuthExpiredResponse(requestId: string): NextResponse {
+    const response = NextResponse.json(
+        { detail: "Сессия авторизации истекла. Войдите снова." },
+        { status: 401 },
+    );
+    response.headers.set("X-Request-ID", requestId);
+    clearAuthCookies(response);
     return response;
 }
 
@@ -61,12 +78,33 @@ export async function getVeraOwnerHeaders(
     const cookieStore = await cookies();
     const headers: Record<string, string> = {};
     const accessToken = cookieStore.get("access_token")?.value;
-    if (accessToken) {
-        headers["Authorization"] = `Bearer ${accessToken}`;
+    const refreshToken = cookieStore.get("refresh_token")?.value;
+    const authSession = await resolveAuthSession({
+        accessToken,
+        refreshToken,
+        authApiUrl: process.env.AUTH_API_URL,
+    });
+    if (authSession.status === "expired") {
+        logger.warn("Vera request has an expired auth session", { requestId });
+        return {
+            ok: false,
+            response: createAuthExpiredResponse(requestId),
+        };
+    }
+    if (authSession.status === "authenticated") {
+        headers["Authorization"] = `Bearer ${authSession.accessToken}`;
     }
 
     if (!sessionId) {
-        return { ok: true, headers, sessionCookie: null };
+        return {
+            ok: true,
+            headers,
+            sessionCookie: null,
+            refreshedTokens:
+                authSession.status === "authenticated"
+                    ? authSession.refreshedTokens
+                    : null,
+        };
     }
 
     const sessionCookieName = getVeraSessionCookieName(sessionId);
@@ -78,6 +116,10 @@ export async function getVeraOwnerHeaders(
     return {
         ok: true,
         headers,
+        refreshedTokens:
+            authSession.status === "authenticated"
+                ? authSession.refreshedTokens
+                : null,
         sessionCookie: existingSessionToken
             ? null
             : { name: sessionCookieName, value: sessionToken },
@@ -103,14 +145,19 @@ export function getVeraOwnerUpstreamError(
     return createConfigurationErrorResponse(requestId);
 }
 
-export function applyVeraSessionCookie(
+export function applyVeraOwnerCookies(
     response: NextResponse,
-    sessionCookie: VeraSessionCookie | null,
-): void {
-    if (!sessionCookie) return;
-    response.cookies.set(
-        sessionCookie.name,
-        sessionCookie.value,
-        VERA_SESSION_COOKIE_OPTIONS,
-    );
+    owner: VeraOwnerHeadersSuccess,
+): NextResponse {
+    if (owner.refreshedTokens) {
+        setAuthCookies(response, owner.refreshedTokens);
+    }
+    if (owner.sessionCookie) {
+        response.cookies.set(
+            owner.sessionCookie.name,
+            owner.sessionCookie.value,
+            VERA_SESSION_COOKIE_OPTIONS,
+        );
+    }
+    return response;
 }
