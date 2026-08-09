@@ -1119,15 +1119,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Коллизия имён cookie невозможна: используется либо одна стабильная серверная cookie анонимного principal, либо hash полного `session_id` в имени. Устаревшие cookie удаляются, а не только истекают.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `frontend/src/lib/utils/vera-session-token.ts`, `frontend/src/lib/utils/vera-owner-headers.ts`, `frontend/src/lib/utils/__tests__/vera-session-token.test.ts`, `frontend/src/lib/utils/__tests__/vera-feedback-proxy.test.ts`, `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** имя per-session cookie теперь содержит полный SHA-256 hash исходного `session_id`, поэтому ранее совпадавшие после очистки идентификаторы получают разные имена. Общий owner-helper проверяет подпись/`exp` токенов, переиспользует только токен нужной сессии и через все существующие Vera route handlers удаляет с правильным `Path=/api/vera` просроченные, повреждённые и legacy-cookie; активные cookies других вкладок сохраняются.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены 3 проверки hash/signature/expiry cleanup и обновлены ожидания существующих proxy-сценариев на новые имена cookie. Точечный `npm test -- src/lib/utils/__tests__/vera-session-token.test.ts src/lib/utils/__tests__/vera-feedback-proxy.test.ts` — `10 passed`; полный `npm test` — `104 passed`; `npm run lint` — успешно, 0 errors, 26 warnings; `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** реализована явно предписанная в прогоне меньшая альтернатива с per-session cookies; единый anonymous principal и registry сессий не вводились.
+- **Осталось / связанные карточки:** переработка семантики anonymous principal остаётся за VERA-005/029; в рамках VERA-030 работ не осталось.
 
 ## 9. Дополнительный backend/Agent hardening
 

@@ -12,7 +12,9 @@ import {
     assertVeraSessionSigningKey,
     createVeraSessionToken,
     getVeraSessionCookieName,
+    readVeraSessionToken,
     VeraSessionConfigurationError,
+    VERA_SESSION_COOKIE_PREFIX,
     VERA_SESSION_COOKIE_OPTIONS,
 } from "@/lib/utils/vera-session-token";
 
@@ -27,6 +29,7 @@ export interface VeraOwnerHeadersSuccess {
     ok: true;
     headers: Record<string, string>;
     sessionCookie: VeraSessionCookie | null;
+    sessionCookiesToDelete: string[];
     refreshedTokens: AuthTokens | null;
 }
 
@@ -76,6 +79,19 @@ export async function getVeraOwnerHeaders(
     }
 
     const cookieStore = await cookies();
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const sessionCookiesToDelete = cookieStore
+        .getAll()
+        .filter(({ name }) => name.startsWith(VERA_SESSION_COOKIE_PREFIX))
+        .filter(({ name, value }) => {
+            const payload = readVeraSessionToken(value);
+            return (
+                payload === null ||
+                payload.exp <= nowSeconds ||
+                name !== getVeraSessionCookieName(payload.session_id)
+            );
+        })
+        .map(({ name }) => name);
     const headers: Record<string, string> = {};
     const accessToken = cookieStore.get("access_token")?.value;
     const refreshToken = cookieStore.get("refresh_token")?.value;
@@ -100,6 +116,7 @@ export async function getVeraOwnerHeaders(
             ok: true,
             headers,
             sessionCookie: null,
+            sessionCookiesToDelete,
             refreshedTokens:
                 authSession.status === "authenticated"
                     ? authSession.refreshedTokens
@@ -109,18 +126,29 @@ export async function getVeraOwnerHeaders(
 
     const sessionCookieName = getVeraSessionCookieName(sessionId);
     const existingSessionToken = cookieStore.get(sessionCookieName)?.value;
+    const existingSessionPayload = existingSessionToken
+        ? readVeraSessionToken(existingSessionToken)
+        : null;
+    const canReuseExistingSessionToken =
+        existingSessionPayload?.session_id === sessionId &&
+        existingSessionPayload.exp > nowSeconds;
     const sessionToken =
-        existingSessionToken ?? createVeraSessionToken(sessionId);
+        canReuseExistingSessionToken && existingSessionToken
+            ? existingSessionToken
+            : createVeraSessionToken(sessionId);
     headers["X-Vera-Session-Token"] = sessionToken;
 
     return {
         ok: true,
         headers,
+        sessionCookiesToDelete: sessionCookiesToDelete.filter(
+            (name) => name !== sessionCookieName,
+        ),
         refreshedTokens:
             authSession.status === "authenticated"
                 ? authSession.refreshedTokens
                 : null,
-        sessionCookie: existingSessionToken
+        sessionCookie: canReuseExistingSessionToken
             ? null
             : { name: sessionCookieName, value: sessionToken },
     };
@@ -149,6 +177,12 @@ export function applyVeraOwnerCookies(
     response: NextResponse,
     owner: VeraOwnerHeadersSuccess,
 ): NextResponse {
+    for (const cookieName of owner.sessionCookiesToDelete) {
+        response.cookies.set(cookieName, "", {
+            ...VERA_SESSION_COOKIE_OPTIONS,
+            maxAge: 0,
+        });
+    }
     if (owner.refreshedTokens) {
         setAuthCookies(response, owner.refreshedTokens);
     }

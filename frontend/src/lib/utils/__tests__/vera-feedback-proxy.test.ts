@@ -14,6 +14,10 @@ import {
     veraFeedbackSchema,
     veraMessageFeedbackSchema,
 } from "@/lib/schemas/vera";
+import {
+    createVeraSessionToken,
+    getVeraSessionCookieName,
+} from "@/lib/utils/vera-session-token";
 
 const cookiesMock = vi.hoisted(() => vi.fn());
 const loggerMock = vi.hoisted(() => ({
@@ -52,7 +56,16 @@ function useCookies(values: Record<string, string>): void {
             const value = cookieValues.get(name);
             return value === undefined ? undefined : { value };
         },
+        getAll: () =>
+            [...cookieValues].map(([name, value]) => ({ name, value })),
     });
+}
+
+function sessionCookie(sessionId: string): Record<string, string> {
+    return {
+        [getVeraSessionCookieName(sessionId)]:
+            createVeraSessionToken(sessionId),
+    };
 }
 
 function createBackendResponse(status = 200, detail = "ok"): Response {
@@ -86,6 +99,7 @@ describe("proxyVeraFeedback", () => {
     });
 
     afterEach(() => {
+        vi.useRealTimers();
         vi.clearAllMocks();
         vi.unstubAllGlobals();
     });
@@ -96,9 +110,10 @@ describe("proxyVeraFeedback", () => {
 
     it("forwards Authorization and the existing session token for auth feedback", async () => {
         const accessToken = createAccessToken();
+        const authSessionCookie = sessionCookie("auth-session");
         useCookies({
             access_token: accessToken,
-            vera_session_authsession: "session-token",
+            ...authSessionCookie,
         });
         const fetchMock = vi
             .fn()
@@ -120,7 +135,9 @@ describe("proxyVeraFeedback", () => {
         const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
         const headers = new Headers(init.headers);
         expect(headers.get("Authorization")).toBe(`Bearer ${accessToken}`);
-        expect(headers.get("X-Vera-Session-Token")).toBe("session-token");
+        expect(headers.get("X-Vera-Session-Token")).toBe(
+            Object.values(authSessionCookie)[0],
+        );
         expect(response.status).toBe(200);
         expect(response.headers.get("set-cookie")).toBeNull();
     });
@@ -149,12 +166,12 @@ describe("proxyVeraFeedback", () => {
         expect(headers.has("Authorization")).toBe(false);
         expect(headers.get("X-Vera-Session-Token")).toContain(".");
         expect(response.headers.get("set-cookie")).toContain(
-            "vera_session_anonymoussession=",
+            `${getVeraSessionCookieName("anonymous-session")}=`,
         );
     });
 
     it("forwards an up to down feedback change without altering the payload", async () => {
-        useCookies({ vera_session_anonymoussession: "session-token" });
+        useCookies(sessionCookie("anonymous-session"));
         const fetchMock = vi
             .fn()
             .mockImplementation(() => Promise.resolve(createBackendResponse()));
@@ -186,7 +203,7 @@ describe("proxyVeraFeedback", () => {
     it("preserves an upstream ownership rejection", async () => {
         useCookies({
             access_token: createAccessToken(),
-            vera_session_foreignsession: "session-token",
+            ...sessionCookie("foreign-session"),
         });
         vi.stubGlobal(
             "fetch",
@@ -232,7 +249,7 @@ describe("proxyVeraFeedback", () => {
     });
 
     it("returns a controlled 503 when backend rejects the signed token", async () => {
-        useCookies({ vera_session_anonymoussession: "session-token" });
+        useCookies(sessionCookie("anonymous-session"));
         vi.stubGlobal(
             "fetch",
             vi
@@ -265,7 +282,7 @@ describe("proxyVeraFeedback", () => {
                 Math.floor(Date.now() / 1000) - 1,
             ),
             refresh_token: "refresh-token",
-            vera_session_authsession: "session-token",
+            ...sessionCookie("auth-session"),
         });
         const fetchMock = vi
             .fn()
@@ -306,6 +323,39 @@ describe("proxyVeraFeedback", () => {
         );
         expect(response.headers.get("set-cookie")).toContain(
             "refresh_token=rotated-refresh-token",
+        );
+    });
+
+    it("deletes an expired per-session cookie while creating the current one", async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date("2026-08-09T00:00:00Z"));
+        const expiredSessionId = "expired-session";
+        const expiredCookieName = getVeraSessionCookieName(expiredSessionId);
+        const expiredToken = createVeraSessionToken(expiredSessionId);
+        vi.setSystemTime(new Date("2026-08-10T00:00:01Z"));
+        useCookies({ [expiredCookieName]: expiredToken });
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue(createBackendResponse()),
+        );
+
+        const response = await proxyVeraFeedback({
+            request: makeRequest("PUT", {
+                session_id: "current-session",
+                request_id: "turn-1",
+                value: "up",
+            }),
+            method: "PUT",
+            backendPath: "/api/vera/feedback/message",
+            schema: veraMessageFeedbackSchema,
+            limiter,
+        });
+
+        const setCookie = response.headers.get("set-cookie");
+        expect(setCookie).toContain(`${expiredCookieName}=;`);
+        expect(setCookie).toContain("Max-Age=0");
+        expect(setCookie).toContain(
+            `${getVeraSessionCookieName("current-session")}=`,
         );
     });
 });

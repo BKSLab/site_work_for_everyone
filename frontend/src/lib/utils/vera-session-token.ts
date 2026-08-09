@@ -1,6 +1,17 @@
-import { createHmac, randomUUID } from "node:crypto";
+import {
+    createHash,
+    createHmac,
+    randomUUID,
+    timingSafeEqual,
+} from "node:crypto";
 
 const SESSION_TOKEN_TTL_SECONDS = 24 * 60 * 60;
+export const VERA_SESSION_COOKIE_PREFIX = "vera_session_";
+
+interface VeraSessionTokenPayload {
+    session_id: string;
+    exp: number;
+}
 
 export class VeraSessionConfigurationError extends Error {
     constructor() {
@@ -18,7 +29,10 @@ export const VERA_SESSION_COOKIE_OPTIONS = {
 };
 
 export function getVeraSessionCookieName(sessionId: string): string {
-    return `vera_session_${sessionId.replace(/[^a-zA-Z0-9]/g, "")}`;
+    const sessionHash = createHash("sha256")
+        .update(sessionId, "utf8")
+        .digest("hex");
+    return `${VERA_SESSION_COOKIE_PREFIX}${sessionHash}`;
 }
 
 function getVeraSessionSigningKey(): string {
@@ -46,4 +60,44 @@ export function createVeraSessionToken(sessionId: string): string {
         .update(payload)
         .digest("base64url");
     return `${payload}.${signature}`;
+}
+
+export function readVeraSessionToken(
+    token: string,
+): VeraSessionTokenPayload | null {
+    const [payload, signature, extra] = token.split(".");
+    if (!payload || !signature || extra) return null;
+
+    const secret = getVeraSessionSigningKey();
+    const expectedSignature = createHmac("sha256", secret)
+        .update(payload)
+        .digest();
+
+    let actualSignature: Buffer;
+    try {
+        actualSignature = Buffer.from(signature, "base64url");
+    } catch {
+        return null;
+    }
+    if (
+        actualSignature.length !== expectedSignature.length ||
+        !timingSafeEqual(actualSignature, expectedSignature)
+    ) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(
+            Buffer.from(payload, "base64url").toString("utf8"),
+        ) as Partial<VeraSessionTokenPayload>;
+        if (
+            typeof parsed.session_id !== "string" ||
+            typeof parsed.exp !== "number"
+        ) {
+            return null;
+        }
+        return { session_id: parsed.session_id, exp: parsed.exp };
+    } catch {
+        return null;
+    }
 }
