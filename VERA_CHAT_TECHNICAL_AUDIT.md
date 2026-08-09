@@ -1035,15 +1035,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Валидация выполняется до optimistic append. У textarea есть `maxLength` и счётчик символов. При однозначном отказе черновик восстанавливается. При неизвестном исходе выполняется reconciliation, а не отправка нового `request_id`.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `frontend/src/lib/schemas/vera.ts`; `frontend/src/hooks/useVeraChat.ts`; `frontend/src/components/features/vera/ChatWindow.tsx`; `frontend/src/components/features/vera/ChatMessage.tsx`; `frontend/src/hooks/__tests__/useVeraChat.test.ts`; `frontend/src/components/features/vera/__tests__/ChatWindow.test.tsx`; `frontend/src/components/features/vera/__tests__/ChatMessage.test.tsx`; `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** лимит сообщения вынесен в общую константу, а payload проверяется существующей Zod-схемой до открытия SSE и optimistic append. Composer получил `maxLength=4000`, счётчик символов и восстановление очищенного черновика при однозначных ответах `422/429`. User bubble теперь явно показывает состояния `sending`, `sent`, `rejected` и `unknown`; неоднозначная транспортная ошибка сохраняет сообщение со статусом `unknown` и не создаёт новый `request_id`.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** дополнены тесты hook, composer и user bubble для предварительной валидации, статусов доставки, счётчика и восстановления черновика. `npm test -- src/hooks/__tests__/useVeraChat.test.ts src/components/features/vera/__tests__/ChatWindow.test.tsx src/components/features/vera/__tests__/ChatMessage.test.tsx` — 32 passed. `npm test` — 97 passed, 2 failed: `src/lib/schemas/__tests__/auth.test.ts > registerSchema > accepts valid data` — существовало до правки, вне скоупа карточки; `src/components/features/vera/__tests__/VeraFeedbackModal.test.tsx > VeraFeedbackModal > allows sending an empty questionnaire with the session id` — существовало до правки, вне скоупа карточки. `npm run lint` — успешно, 0 errors и 26 warnings. `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** reconciliation при `unknown` не реализован по прямому ограничению `PROMPT_RUN_2.md`: для него нужен серверный endpoint и работы VERA-011/VERA-025, которые не входят в текущий прогон. При `unknown` черновик автоматически не восстанавливается, повторная отправка с новым ID не запускается.
+- **Осталось / связанные карточки:** серверная reconciliation по исходному `request_id` заблокирована до реализации VERA-011/VERA-025.
 
 ### VERA-028 — Per-token render и автоскролл ухудшают длинный диалог
 

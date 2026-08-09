@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { useVeraChatMock } = vi.hoisted(() => ({
@@ -59,8 +59,10 @@ describe("ChatWindow accessibility", () => {
         );
         expect(composer).toHaveAttribute(
             "aria-describedby",
-            "vera-chat-input-hint",
+            "vera-chat-input-hint vera-chat-input-counter",
         );
+        expect(composer).toHaveAttribute("maxLength", "4000");
+        expect(screen.getByText("0 / 4000")).toBeInTheDocument();
         expect(
             screen.getByText(/консультацию можно отправить на почту/i),
         ).toBeInTheDocument();
@@ -125,6 +127,43 @@ describe("ChatWindow accessibility", () => {
         );
 
         expect(screen.getByRole("button", { name: "Отправить" })).toBeEnabled();
+        expect(screen.getByText("20 / 4000")).toBeInTheDocument();
+    });
+
+    it("restores the draft after a definitely rejected message", async () => {
+        const sendMessage = vi.fn().mockResolvedValue({
+            outcome: "rejected",
+            restoreDraft: true,
+        });
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [],
+            sendMessage,
+            status: "idle",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        const composer = screen.getByLabelText(
+            "Сообщение для Ассистента Веры",
+        );
+        fireEvent.change(composer, {
+            target: { value: "Расскажите об отпуске." },
+        });
+        fireEvent.submit(
+            screen.getByRole("form", {
+                name: "Отправка сообщения Ассистенту Вере",
+            }),
+        );
+
+        await waitFor(() => {
+            expect(composer).toHaveValue("Расскажите об отпуске.");
+        });
+        expect(composer).toHaveFocus();
     });
 
     it("moves a suggested question into the composer and focuses it", () => {

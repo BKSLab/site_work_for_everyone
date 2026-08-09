@@ -45,6 +45,27 @@ describe("ChatMessage accessibility", () => {
         ).toBeInTheDocument();
     });
 
+    it.each([
+        ["sending", "Отправляется…"],
+        ["sent", "Отправлено"],
+        ["rejected", "Не отправлено"],
+        ["unknown", "Статус отправки неизвестен"],
+    ] as const)("shows the %s delivery state for a user message", (status, label) => {
+        render(
+            <ChatMessage
+                sessionId="session-1"
+                message={{
+                    id: "user-1",
+                    role: "user",
+                    content: "Какая продолжительность отпуска?",
+                    deliveryStatus: status,
+                }}
+            />,
+        );
+
+        expect(screen.getByText(label)).toBeInTheDocument();
+    });
+
     it("exposes one accessible sender label for Vera", () => {
         render(
             <ChatMessage

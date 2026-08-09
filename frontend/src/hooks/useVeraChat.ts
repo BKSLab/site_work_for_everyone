@@ -12,6 +12,7 @@ import type {
     VeraChatHistoryTurn,
 } from "@/lib/api/vera";
 import { veraApi } from "@/lib/api/vera";
+import { veraChatSchema } from "@/lib/schemas/vera";
 import { useAuthStore } from "@/stores/auth";
 
 const SESSION_STORAGE_KEY = "vera_session_id";
@@ -41,6 +42,13 @@ export interface VeraChatMessage {
     feedbackEligible?: boolean;
     /** ранее сохранённая оценка ответа */
     feedbackValue?: "up" | "down";
+    /** состояние доставки исходного сообщения пользователя */
+    deliveryStatus?: "sending" | "sent" | "rejected" | "unknown";
+}
+
+export interface VeraSendMessageResult {
+    outcome: "accepted" | "rejected" | "unknown";
+    restoreDraft: boolean;
 }
 
 type ChatStatus = "idle" | "waiting" | "streaming" | "unavailable";
@@ -91,6 +99,7 @@ function historyTurnToMessages(turn: VeraChatHistoryTurn): VeraChatMessage[] {
             id: `${turn.request_id}:user`,
             role: "user",
             content: turn.question,
+            deliveryStatus: "sent",
         },
     ];
     const isProcessing = turn.status === "processing";
@@ -350,12 +359,26 @@ export function useVeraChat() {
     }, [historyCursor, isOlderHistoryLoading, sessionId]);
 
     const sendMessage = useCallback(
-        async (text: string) => {
+        async (text: string): Promise<VeraSendMessageResult> => {
             if (!sessionId) {
                 setError(
                     "Чат ещё загружается. Попробуйте отправить сообщение ещё раз.",
                 );
-                return;
+                return { outcome: "rejected", restoreDraft: true };
+            }
+
+            const requestId = crypto.randomUUID();
+            const payload = veraChatSchema.safeParse({
+                session_id: sessionId,
+                request_id: requestId,
+                message: text,
+            });
+            if (!payload.success) {
+                setError(
+                    payload.error.issues[0]?.message ??
+                        "Не удалось проверить сообщение.",
+                );
+                return { outcome: "rejected", restoreDraft: true };
             }
 
             setError(null);
@@ -363,11 +386,16 @@ export function useVeraChat() {
             setAnnouncement("Ассистент Вера готовит ответ.");
             messagesRevisionRef.current += 1;
 
-            const requestId = crypto.randomUUID();
+            const userMessageId = crypto.randomUUID();
             const assistantMessageId = crypto.randomUUID();
             setMessages((prev) => [
                 ...prev,
-                { id: crypto.randomUUID(), role: "user", content: text },
+                {
+                    id: userMessageId,
+                    role: "user",
+                    content: payload.data.message,
+                    deliveryStatus: "sending",
+                },
                 {
                     id: assistantMessageId,
                     role: "assistant",
@@ -468,32 +496,60 @@ export function useVeraChat() {
 
             try {
                 await veraApi.sendMessage({
-                    session_id: sessionId,
-                    request_id: requestId,
-                    message: text,
+                    session_id: payload.data.session_id,
+                    request_id: payload.data.request_id,
+                    message: payload.data.message,
                 });
+                setMessages((prev) =>
+                    prev.map((message) =>
+                        message.id === userMessageId
+                            ? { ...message, deliveryStatus: "sent" }
+                            : message,
+                    ),
+                );
+                return { outcome: "accepted", restoreDraft: false };
             } catch (err) {
                 closeStream();
                 setStatus("idle");
+                const isApiError = err instanceof ApiRequestError;
+                const isDefinitelyRejected =
+                    isApiError && (err.status === 422 || err.status === 429);
+                const deliveryStatus =
+                    isApiError &&
+                    (err.status === 401 ||
+                        err.status === 403 ||
+                        isDefinitelyRejected)
+                        ? "rejected"
+                        : "unknown";
                 setMessages((prev) =>
-                    prev.filter((m) => m.id !== assistantMessageId),
+                    prev
+                        .filter((message) => message.id !== assistantMessageId)
+                        .map((message) =>
+                            message.id === userMessageId
+                                ? { ...message, deliveryStatus }
+                                : message,
+                        ),
                 );
                 setAnnouncement("");
                 if (
-                    err instanceof ApiRequestError &&
+                    isApiError &&
                     (err.status === 401 || err.status === 403)
                 ) {
                     setSessionId(resetSessionId());
                     setError(
                         "Сессия чата обновлена. Отправьте сообщение ещё раз.",
                     );
-                    return;
+                    return { outcome: "rejected", restoreDraft: false };
                 }
                 setError(
                     err instanceof Error
                         ? err.message
                         : "Не удалось отправить сообщение.",
                 );
+                return {
+                    outcome: deliveryStatus,
+                    restoreDraft: isDefinitelyRejected,
+                };
             }
         },
         [sessionId, closeStream, finishAssistantMessageAfterError],

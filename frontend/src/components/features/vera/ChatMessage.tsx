@@ -11,6 +11,16 @@ interface ChatMessageProps {
 export function ChatMessage({ message, sessionId }: ChatMessageProps) {
     const isUser = message.role === "user";
     const isPreparing = !isUser && message.streaming && !message.content;
+    const deliveryLabel =
+        message.deliveryStatus === "sending"
+            ? "Отправляется…"
+            : message.deliveryStatus === "sent"
+              ? "Отправлено"
+              : message.deliveryStatus === "rejected"
+                ? "Не отправлено"
+                : message.deliveryStatus === "unknown"
+                  ? "Статус отправки неизвестен"
+                  : null;
     const canRate =
         !isUser &&
         message.feedbackEligible === true &&
@@ -79,6 +89,11 @@ export function ChatMessage({ message, sessionId }: ChatMessageProps) {
                         aria-hidden="true"
                         className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent align-middle"
                     />
+                )}
+                {isUser && deliveryLabel && (
+                    <span className="mt-1 block text-right text-xs text-muted">
+                        {deliveryLabel}
+                    </span>
                 )}
                 {canRate && (
                     <MessageFeedbackControls

@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { useVeraChat } from "@/hooks/useVeraChat";
+import { VERA_MESSAGE_MAX_LENGTH } from "@/lib/schemas/vera";
 import { ChatMessage } from "./ChatMessage";
 import { VeraFeedbackModal } from "./VeraFeedbackModal";
 
@@ -62,12 +63,16 @@ export function ChatWindow() {
 
     const isBusy = status === "waiting" || status === "streaming";
 
-    function handleSubmit(event: FormEvent) {
+    async function handleSubmit(event: FormEvent) {
         event.preventDefault();
         const text = input.trim();
         if (!text || isBusy || isHistoryLoading || !sessionId) return;
         setInput("");
-        void sendMessage(text);
+        const result = await sendMessage(text);
+        if (result?.restoreDraft) {
+            setInput((current) => current || text);
+            inputRef.current?.focus();
+        }
     }
 
     function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -232,8 +237,9 @@ export function ChatWindow() {
                             }
                             onKeyDown={handleInputKeyDown}
                             disabled={isHistoryLoading}
+                            maxLength={VERA_MESSAGE_MAX_LENGTH}
                             rows={1}
-                            aria-describedby="vera-chat-input-hint"
+                            aria-describedby="vera-chat-input-hint vera-chat-input-counter"
                             placeholder="Напишите вопрос Ассистенту Вере…"
                             className="max-h-36 min-h-7 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 [field-sizing:content]"
                         />
@@ -265,20 +271,25 @@ export function ChatWindow() {
                             </svg>
                         </Button>
                     </div>
-                    <p
-                        id="vera-chat-input-hint"
-                        className="break-words px-2 pt-2 text-xs leading-relaxed text-muted"
-                    >
-                        <span className="block">
-                            Enter — отправить, Shift+Enter — новая строка.
-                            Ассистент Вера может ошибаться — проверяйте важную
-                            информацию.
+                    <div className="flex items-start justify-between gap-3 px-2 pt-2 text-xs leading-relaxed text-muted">
+                        <p id="vera-chat-input-hint" className="break-words">
+                            <span className="block">
+                                Enter — отправить, Shift+Enter — новая строка.
+                                Ассистент Вера может ошибаться — проверяйте
+                                важную информацию.
+                            </span>
+                            <span className="mt-0.5 block">
+                                Консультацию можно отправить на почту —
+                                попросите об этом в сообщении и укажите адрес.
+                            </span>
+                        </p>
+                        <span
+                            id="vera-chat-input-counter"
+                            className="shrink-0 tabular-nums"
+                        >
+                            {input.length} / {VERA_MESSAGE_MAX_LENGTH}
                         </span>
-                        <span className="mt-0.5 block">
-                            Консультацию можно отправить на почту — попросите
-                            об этом в сообщении и укажите адрес.
-                        </span>
-                    </p>
+                    </div>
                 </form>
             </section>
 

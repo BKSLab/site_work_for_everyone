@@ -89,6 +89,88 @@ describe("useVeraChat", () => {
         expect(FakeEventSource.urls).toEqual([
             `/vera/sse/${encodeURIComponent(payload.request_id)}`,
         ]);
+        expect(result.current.messages[0]).toMatchObject({
+            role: "user",
+            content: "Расскажите об отпуске.",
+            deliveryStatus: "sent",
+        });
+
+        unmount();
+    });
+
+    it("validates a long message before optimistic append", async () => {
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+        let sendResult;
+        await act(async () => {
+            sendResult = await result.current.sendMessage("а".repeat(4001));
+        });
+
+        expect(sendResult).toEqual({
+            outcome: "rejected",
+            restoreDraft: true,
+        });
+        expect(result.current.error).toBe(
+            "Сообщение не должно превышать 4000 символов.",
+        );
+        expect(result.current.messages).toEqual([]);
+        expect(sendMessageMock).not.toHaveBeenCalled();
+        expect(FakeEventSource.instances).toEqual([]);
+
+        unmount();
+    });
+
+    it("marks a definitely rejected message and requests draft restoration", async () => {
+        sendMessageMock.mockRejectedValueOnce(
+            new ApiRequestError(422, "Сообщение отклонено."),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+        let sendResult;
+        await act(async () => {
+            sendResult = await result.current.sendMessage(
+                "Расскажите об отпуске.",
+            );
+        });
+
+        expect(sendResult).toEqual({
+            outcome: "rejected",
+            restoreDraft: true,
+        });
+        expect(result.current.messages).toHaveLength(1);
+        expect(result.current.messages[0]).toMatchObject({
+            role: "user",
+            content: "Расскажите об отпуске.",
+            deliveryStatus: "rejected",
+        });
+        expect(result.current.error).toBe("Сообщение отклонено.");
+
+        unmount();
+    });
+
+    it("keeps an ambiguous publication failure visible with unknown status", async () => {
+        sendMessageMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+        let sendResult;
+        await act(async () => {
+            sendResult = await result.current.sendMessage(
+                "Расскажите об отпуске.",
+            );
+        });
+
+        expect(sendResult).toEqual({
+            outcome: "unknown",
+            restoreDraft: false,
+        });
+        expect(result.current.messages).toHaveLength(1);
+        expect(result.current.messages[0]).toMatchObject({
+            role: "user",
+            deliveryStatus: "unknown",
+        });
 
         unmount();
     });
@@ -121,6 +203,7 @@ describe("useVeraChat", () => {
                 id: "request-1:user",
                 role: "user",
                 content: "Какая продолжительность отпуска?",
+                deliveryStatus: "sent",
             },
             {
                 id: "request-1:assistant",

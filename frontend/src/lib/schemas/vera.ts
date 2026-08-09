@@ -3,6 +3,8 @@ import { z } from "zod";
 // Лимиты зеркалят бэкенд (VeraChatRequestSchema) и agent_service
 // (MAX_MESSAGE_LENGTH в vera_agent_service/app/messaging/schemas.py).
 
+export const VERA_MESSAGE_MAX_LENGTH = 4000;
+
 export const veraChatSchema = z.object({
     session_id: z
         .string()
@@ -15,7 +17,10 @@ export const veraChatSchema = z.object({
     message: z
         .string()
         .min(1, "Введите сообщение.")
-        .max(4000, "Сообщение не должно превышать 4000 символов."),
+        .max(
+            VERA_MESSAGE_MAX_LENGTH,
+            "Сообщение не должно превышать 4000 символов.",
+        ),
 });
 
 export type VeraChatFormData = z.infer<typeof veraChatSchema>;
