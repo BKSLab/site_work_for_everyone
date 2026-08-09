@@ -390,15 +390,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** После недоступности RabbitMQ в момент старта publisher восстанавливается без рестарта процесса, и `/api/vera/chat` снова отвечает `202`. Состояние publisher отражено в health-проверке.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `backend/src/services/vera_publisher.py`, `backend/src/dependencies/vera.py`, `backend/main.py`, `backend/tests/test_vera_publisher_recovery.py`, `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** добавлен один lifespan-managed `VeraPublisherManager`: после неудачной стартовой попытки он выполняет конечный цикл reconnect с задержками `1/2/4/8/16/30` секунд, не создаёт параллельных задач и корректно отменяется при shutdown. После исчерпания бюджета следующий chat-запрос синхронизированно запускает новый bounded cycle; пока robust connection/channel не готовы, DI возвращает `None`, сохраняя контролируемый `503`, а после восстановления прежний endpoint снова отвечает `202`. `GET /health` различает `ok/ready` и `degraded/unavailable`. При ошибке passive declare уже открытое соединение закрывается; Rabbit payload и внешний chat response не изменялись.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлен `backend/tests/test_vera_publisher_recovery.py` — 6/6 passed: восстановление после первой ошибки, единичный reconnect при 10 параллельных обращениях, конечный backoff и повторный цикл, отмена ожидания при shutdown, health `degraded → ready`, прежний `202` после восстановления. Полный backend-набор запускался из `backend/` командами `$env:PYTHONPATH='.'; venv\Scripts\python.exe tests\test_vera_request_correlation.py`, `...test_vera_session_access.py`, `...test_vera_feedback_client.py`, `...test_vera_publisher_recovery.py` — 25 passed, 0 failed (10 + 4 + 5 + 6). На живом внешнем RabbitMQ passive declare существующей `agent.requests` успешно; passive declare случайной отсутствующей очереди корректно завершился `ChannelNotFoundEntity` и не создал очередь.
+- **Отклонения от предложенного решения и причина:** выбран bounded background reconnect с повторным запуском конечного цикла через синхронизированную DI-зависимость. Это сохраняет автоматическое восстановление в обычном окне сбоя, но не оставляет бесконечный retry и не создаёт connection storm после исчерпания бюджета. Общий RabbitMQ и очередь по-прежнему provisioned отдельно, как требует существующий контракт.
+- **Осталось / связанные карточки:** инфраструктурный provisioning очереди и deployment compatibility остаются в VERA-037; Agent Service и его контракты в этой карточке не менялись.
 
 ### VERA-007 — Rate limit за прокси становится глобальным
 

@@ -19,24 +19,19 @@ from src.core.limiter import limiter
 from src.core.settings import get_settings
 from src.db.session import async_session_factory, engine
 from src.services.vera_agent import VeraAgentClient
-from src.services.vera_publisher import VeraPublisher
+from src.services.vera_publisher import VeraPublisherManager
 from src.utils.check_db import check_db_connection
 
 
-async def _init_vera_publisher() -> VeraPublisher | None:
-    """Подключается к RabbitMQ агента «Вера». Недоступность RabbitMQ не
-    должна ронять весь backend (auth и остальные эндпоинты не зависят от
-    Веры) — при ошибке возвращает `None`, эндпоинт `/api/vera/chat`
-    в этом случае отвечает `503`."""
+async def _init_vera_publisher_manager() -> VeraPublisherManager:
+    """Запускает управляемое подключение к RabbitMQ агента «Вера»."""
     settings = get_settings().vera
-    try:
-        return await VeraPublisher.connect(
-            rabbitmq_url=settings.rabbitmq_url.get_secret_value(),
-            queue_name=settings.rabbitmq_queue,
-        )
-    except Exception as error:
-        logger.error("⚠️ Агент «Вера» недоступен — не удалось подключиться к RabbitMQ: %s", error)
-        return None
+    manager = VeraPublisherManager(
+        rabbitmq_url=settings.rabbitmq_url.get_secret_value(),
+        queue_name=settings.rabbitmq_queue,
+    )
+    await manager.start()
+    return manager
 
 
 def _init_vera_agent_client() -> VeraAgentClient | None:
@@ -68,14 +63,13 @@ async def lifespan(app: FastAPI):
         # Проверка подключения к БД. При ошибки поднимает исключение RuntimeError
         await check_db_connection(db_session=db_session)
 
-    app.state.vera_publisher = await _init_vera_publisher()
+    app.state.vera_publisher_manager = await _init_vera_publisher_manager()
     app.state.vera_agent_client = _init_vera_agent_client()
 
     logger.info("✅ Приложение успешно запущено.")
     yield
     logger.info("🛑 Приложение останавливается...")
-    if app.state.vera_publisher is not None:
-        await app.state.vera_publisher.close()
+    await app.state.vera_publisher_manager.close()
     if app.state.vera_agent_client is not None:
         await app.state.vera_agent_client.close()
 
@@ -83,6 +77,22 @@ app = FastAPI(lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 create_admin(app=app, engine=engine)
+
+
+@app.get(
+    "/health",
+    summary="Проверить состояние backend",
+    description="Возвращает состояние приложения и publisher агента «Вера».",
+    operation_id="getHealth",
+    response_description="Текущее состояние backend и RabbitMQ publisher.",
+)
+async def get_health(request: Request) -> dict[str, str]:
+    """Возвращает readiness необязательной интеграции с RabbitMQ."""
+    publisher_ready = request.app.state.vera_publisher_manager.is_ready
+    return {
+        "status": "ok" if publisher_ready else "degraded",
+        "vera_publisher": "ready" if publisher_ready else "unavailable",
+    }
 
 
 @app.exception_handler(RequestValidationError)
