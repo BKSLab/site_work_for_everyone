@@ -775,15 +775,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Есть integration-тест retry графа с реальным Redis-checkpointer. Повторный прогон не дублирует `HumanMessage` и не воскрешает промежуточный checkpoint.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`.
+- **Изменённые файлы:** `vera_agent_service/app/messaging/consumer.py`, `vera_agent_service/tests/unit/messaging/test_consumer.py`, `vera_agent_service/tests/integration/test_redis_checkpointer.py`; настоящий отчёт. Код Agent Service зафиксирован коммитом `69561d0`.
+- **Суть изменения:** входной `HumanMessage` получает стабильный `id=payload.request_id`. Предварительная проверка на живом Redis подтвердила исходную проблему: после сбоя и повторного запуска одного request в checkpoint были два одинаковых пользовательских сообщения с разными случайными ID. Интеграционные тесты теперь явно проверяют сохранённый после первого сбоя checkpoint, повтор того же request и отдельный повтор после реального перезахвата просроченной аренды в PostgreSQL; во всех случаях в истории остаётся ровно один исходный `HumanMessage`.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены unit-проверка ID и два integration-сценария с реальным Redis-checkpointer, один из них также использует живой PostgreSQL и реальный stale-lease reclaim. `.\venv\Scripts\python.exe -m pytest tests/integration/test_redis_checkpointer.py tests/unit/messaging/test_consumer.py -q` — `18 passed`, `6 warnings`; полный `.\venv\Scripts\python.exe -m pytest -q` — `224 passed`, `10 warnings`.
+- **Отклонения от предложенного решения и причина:** request-scoped checkpoint namespace и откат checkpoint не вводились: characterization-тест подтвердил, что стабильного message ID достаточно для дедупликации в текущей версии LangGraph.
+- **Осталось / связанные карточки:** дополнительных работ в рамках VERA-019 нет.
 
 ## 6. LangGraph, LLM и MCP
 
