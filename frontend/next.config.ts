@@ -1,8 +1,5 @@
 import type { NextConfig } from "next";
 import bundleAnalyzer from "@next/bundle-analyzer";
-import { assertVeraSessionSigningKey } from "./src/lib/utils/vera-session-token";
-
-assertVeraSessionSigningKey();
 
 const withBundleAnalyzer = bundleAnalyzer({
     enabled: process.env.ANALYZE === "true",
