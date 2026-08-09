@@ -59,13 +59,21 @@ class VeraPublisher:
             "anonymous_token_hash": anonymous_token_hash,
             "message": message,
         }
-        serialized_payload = json.dumps(payload, ensure_ascii=False)
-        body = serialized_payload.encode("utf-8")
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
+        # Payload целиком в лог не пишется: он содержит текст вопроса,
+        # email владельца (`user_id`) и хеш токена анонимной сессии.
+        # Диагностика строится на идентификаторах и размерах — их достаточно,
+        # чтобы связать запись с записью в PostgreSQL агента и с SSE-потоком.
         logger.info(
-            "Отправка запроса агенту «Вера» в RabbitMQ: queue=%s, payload=%s",
+            "Отправка запроса агенту «Вера» в RabbitMQ: "
+            "queue=%s, session_id=%s, request_id=%s, "
+            "authenticated=%s, message_length=%d",
             self._queue_name,
-            serialized_payload,
+            session_id,
+            request_id,
+            user_id is not None,
+            len(message),
         )
 
         try:

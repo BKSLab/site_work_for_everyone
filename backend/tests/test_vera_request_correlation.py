@@ -139,14 +139,51 @@ class VeraPublisherTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(channel.default_exchange.routing_key, "agent.requests")
         combined_logs = "\n".join(captured_logs.output)
-        self.assertIn('queue=agent.requests, payload={', combined_logs)
-        self.assertIn('"session_id": "conversation-1"', combined_logs)
-        self.assertIn('"request_id": "request-1"', combined_logs)
-        self.assertIn('"message": "Вопрос"', combined_logs)
+        self.assertIn("queue=agent.requests", combined_logs)
+        self.assertIn("session_id=conversation-1", combined_logs)
+        self.assertIn("request_id=request-1", combined_logs)
         self.assertIn(
             "Запрос агенту «Вера» опубликован в RabbitMQ",
             combined_logs,
         )
+
+    async def test_logs_do_not_contain_question_or_owner(self) -> None:
+        """Диагностика идёт по идентификаторам, персональные данные в логи
+        не попадают: текст вопроса, email владельца и хеш токена анонимной
+        сессии остаются только в payload очереди."""
+        channel = _FakeChannel()
+        publisher = VeraPublisher(
+            connection=_FakeConnection(),
+            channel=channel,
+            queue_name="agent.requests",
+        )
+        question = "Меня уволили из-за инвалидности, что делать?"
+        owner_email = "user@example.com"
+        token_hash = "b" * 64
+
+        with self.assertLogs(
+            "src.services.vera_publisher",
+            level="INFO",
+        ) as captured_logs:
+            await publisher.publish_agent_request(
+                session_id="conversation-1",
+                request_id="request-1",
+                user_id=owner_email,
+                anonymous_token_hash=token_hash,
+                message=question,
+            )
+
+        combined_logs = "\n".join(captured_logs.output)
+        self.assertNotIn(question, combined_logs)
+        self.assertNotIn(owner_email, combined_logs)
+        self.assertNotIn(token_hash, combined_logs)
+        self.assertIn("authenticated=True", combined_logs)
+        self.assertIn(f"message_length={len(question)}", combined_logs)
+
+        # Сам payload очереди не урезается — ограничение касается только логов.
+        payload = json.loads(channel.default_exchange.message.body)
+        self.assertEqual(payload["user_id"], owner_email)
+        self.assertEqual(payload["message"], question)
 
 
 if __name__ == "__main__":
