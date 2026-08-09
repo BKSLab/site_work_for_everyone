@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { validateOrigin } from "@/lib/utils/csrf";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
 import { logger } from "@/lib/utils/logger";
 import { veraChatSchema } from "@/lib/schemas/vera";
 import {
-    createVeraSessionToken,
-    getVeraSessionCookieName,
-    VERA_SESSION_COOKIE_OPTIONS,
-} from "@/lib/utils/vera-session-token";
+    applyVeraSessionCookie,
+    getVeraOwnerHeaders,
+} from "@/lib/utils/vera-owner-headers";
 
 // AUTH_API_URL уже указывает на backend этого репозитория (не на внешний
 // API_URL, используемый /api/v1/[...path] для вакансий hh.ru).
@@ -87,20 +85,12 @@ export async function POST(request: NextRequest) {
     // 4. Пробрасываем access_token cookie как Bearer — user_id для агента
     // определяется backend'ом из верифицированного JWT, не из тела запроса
     // (см. AGENT_VERA_ARCHITECTURE.md — user_id влияет на доступные тулы)
+    const owner = await getVeraOwnerHeaders(sessionId);
     const headers: HeadersInit = {
         "Content-Type": "application/json",
         "X-Request-ID": requestId,
+        ...owner.headers,
     };
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("access_token")?.value;
-    if (accessToken) {
-        headers["Authorization"] = `Bearer ${accessToken}`;
-    }
-    const sessionCookieName = getVeraSessionCookieName(sessionId);
-    const existingSessionToken = cookieStore.get(sessionCookieName)?.value;
-    const sessionToken =
-        existingSessionToken ?? createVeraSessionToken(sessionId);
-    headers["X-Vera-Session-Token"] = sessionToken;
 
     const url = new URL("/api/vera/chat", AUTH_API_URL);
 
@@ -162,12 +152,6 @@ export async function POST(request: NextRequest) {
 
     const res = NextResponse.json(data, { status: response.status });
     res.headers.set("X-Request-ID", requestId);
-    if (!existingSessionToken) {
-        res.cookies.set(
-            sessionCookieName,
-            sessionToken,
-            VERA_SESSION_COOKIE_OPTIONS,
-        );
-    }
+    applyVeraSessionCookie(res, owner.sessionCookie);
     return res;
 }

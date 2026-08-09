@@ -220,15 +220,15 @@ Browser -> Next.js BFF -> FastAPI backend сайта
 
 **Критерий исправления.** Оба feedback-маршрута успешно работают для anonymous- и auth-сессий, а чужая сессия по-прежнему получает `403`.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `frontend/src/lib/utils/vera-owner-headers.ts`, `frontend/src/lib/utils/vera-feedback-proxy.ts`, `frontend/src/app/api/vera/chat/route.ts`, `frontend/src/app/api/vera/history/[sessionId]/route.ts`, `frontend/src/app/api/vera/session/current/route.ts`, `frontend/src/lib/utils/__tests__/vera-feedback-proxy.test.ts`, `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** `proxyVeraFeedback` теперь получает `Authorization` из `access_token` и session-token через единый server helper; прежняя логика создания и установки anonymous session cookie сохранена. Общий helper `vera-owner-headers.ts` переиспользован в chat, history и session/current routes, поэтому production-дифф затрагивает не только feedback proxy: это выполнение пункта 2 предложенного решения, а не расширение скоупа. Ответ backend, включая ownership `403`, проксируется без изменения контракта.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлен `frontend/src/lib/utils/__tests__/vera-feedback-proxy.test.ts` — 4/4 passed; `npm test` — 82 passed, 2 failed: `src/lib/schemas/__tests__/auth.test.ts > registerSchema > accepts valid data` и `src/components/features/vera/__tests__/VeraFeedbackModal.test.tsx > VeraFeedbackModal > allows sending an empty questionnaire with the session id` — оба падения существовали до правки, вне скоупа карточки; `npm run lint` — успешно, 0 errors, 28 warnings; `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** нет.
+- **Осталось / связанные карточки:** контролируемая обработка отсутствующего `VERA_SESSION_SIGNING_KEY` выполняется отдельно в VERA-036; два существующих падения тестов остаются для отдельной задачи.
 
 ### VERA-002 — Vera API обходит общий механизм refresh access-токена
 

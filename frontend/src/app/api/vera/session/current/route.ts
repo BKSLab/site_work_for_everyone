@@ -1,9 +1,9 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 import { logger } from "@/lib/utils/logger";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
+import { getVeraOwnerHeaders } from "@/lib/utils/vera-owner-headers";
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
 const currentSessionLimiter = createRateLimiter({
@@ -43,14 +43,11 @@ export async function GET(request: NextRequest) {
     }
 
     const requestId = getRequestId(request);
+    const owner = await getVeraOwnerHeaders();
     const headers: HeadersInit = {
         "X-Request-ID": requestId,
+        ...owner.headers,
     };
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("access_token")?.value;
-    if (accessToken) {
-        headers["Authorization"] = `Bearer ${accessToken}`;
-    }
 
     const backendUrl = new URL("/api/vera/session/current", AUTH_API_URL);
     const startTime = Date.now();

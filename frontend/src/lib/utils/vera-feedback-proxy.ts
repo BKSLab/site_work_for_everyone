@@ -5,11 +5,9 @@ import { validateOrigin } from "@/lib/utils/csrf";
 import { logger } from "@/lib/utils/logger";
 import { getRequestId } from "@/lib/utils/request-id";
 import {
-    createVeraSessionToken,
-    getVeraSessionCookieName,
-    VERA_SESSION_COOKIE_OPTIONS,
-} from "@/lib/utils/vera-session-token";
-import { cookies } from "next/headers";
+    applyVeraSessionCookie,
+    getVeraOwnerHeaders,
+} from "@/lib/utils/vera-owner-headers";
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
 
@@ -103,11 +101,7 @@ export async function proxyVeraFeedback({
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15_000);
 
-    const cookieStore = await cookies();
-    const sessionCookieName = getVeraSessionCookieName(sessionId);
-    const existingSessionToken = cookieStore.get(sessionCookieName)?.value;
-    const sessionToken =
-        existingSessionToken ?? createVeraSessionToken(sessionId);
+    const owner = await getVeraOwnerHeaders(sessionId);
 
     let response: Response;
     try {
@@ -116,7 +110,7 @@ export async function proxyVeraFeedback({
             headers: {
                 "Content-Type": "application/json",
                 "X-Request-ID": requestId,
-                "X-Vera-Session-Token": sessionToken,
+                ...owner.headers,
             },
             body,
             signal: controller.signal,
@@ -163,12 +157,6 @@ export async function proxyVeraFeedback({
 
     const result = NextResponse.json(data, { status: response.status });
     result.headers.set("X-Request-ID", requestId);
-    if (!existingSessionToken) {
-        result.cookies.set(
-            sessionCookieName,
-            sessionToken,
-            VERA_SESSION_COOKIE_OPTIONS,
-        );
-    }
+    applyVeraSessionCookie(result, owner.sessionCookie);
     return result;
 }

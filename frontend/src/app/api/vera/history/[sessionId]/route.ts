@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -6,10 +5,9 @@ import { logger } from "@/lib/utils/logger";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
 import {
-    createVeraSessionToken,
-    getVeraSessionCookieName,
-    VERA_SESSION_COOKIE_OPTIONS,
-} from "@/lib/utils/vera-session-token";
+    applyVeraSessionCookie,
+    getVeraOwnerHeaders,
+} from "@/lib/utils/vera-owner-headers";
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
 const historyLimiter = createRateLimiter({
@@ -61,19 +59,11 @@ export async function GET(
     }
 
     const requestId = getRequestId(request);
+    const owner = await getVeraOwnerHeaders(parsedSessionId.data);
     const headers: HeadersInit = {
         "X-Request-ID": requestId,
+        ...owner.headers,
     };
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("access_token")?.value;
-    if (accessToken) {
-        headers["Authorization"] = `Bearer ${accessToken}`;
-    }
-    const sessionCookieName = getVeraSessionCookieName(parsedSessionId.data);
-    const existingSessionToken = cookieStore.get(sessionCookieName)?.value;
-    const sessionToken =
-        existingSessionToken ?? createVeraSessionToken(parsedSessionId.data);
-    headers["X-Vera-Session-Token"] = sessionToken;
 
     const backendUrl = new URL(
         `/api/vera/history/${encodeURIComponent(parsedSessionId.data)}`,
@@ -134,12 +124,6 @@ export async function GET(
 
     const result = NextResponse.json(data, { status: response.status });
     result.headers.set("X-Request-ID", requestId);
-    if (!existingSessionToken) {
-        result.cookies.set(
-            sessionCookieName,
-            sessionToken,
-            VERA_SESSION_COOKIE_OPTIONS,
-        );
-    }
+    applyVeraSessionCookie(result, owner.sessionCookie);
     return result;
 }
