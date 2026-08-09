@@ -289,15 +289,15 @@ Browser -> Next.js BFF -> FastAPI backend сайта
 
 **Критерий готовности.** Поле `user_id` в PostgreSQL Agent Service, Pydantic-схеме очереди и HTTP-заголовках принимает 255 символов. Есть contract-тесты на границах длины. Миграция Alembic имеет рабочий `downgrade`. Переход на opaque `uid` в эту карточку не входит.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `app/db/models/chat_session.py`, `app/db/models/chat_turn.py`, `app/messaging/schemas.py`, `app/api/v1/endpoints/chat_history.py`, `app/api/v1/endpoints/message_feedback.py`, `app/api/v1/endpoints/session_feedback.py`, `app/db/alembic/versions/20260809_1958_expand_user_id_to_255.py`, `tests/unit/messaging/test_schemas.py`, `tests/integration/repositories/test_user_id_length.py`, `tests/api/endpoints/test_chat_history_endpoint.py`, `tests/api/endpoints/test_feedback.py`.
+- **Суть изменения:** в Agent Service единый предел `user_id` поднят до 255 символов в обеих PostgreSQL-моделях (`ChatSession` и `ChatTurn`), Rabbit/Pydantic-контракте и всех owner headers history/feedback. Код и тесты зафиксированы отдельным коммитом Agent Service `52db988`.
+- **Миграции Alembic:** добавлена миграция `20260809_1958_expand_user_id_to_255.py`. На живом временном PostgreSQL выполнен явный цикл `alembic upgrade head` → `alembic downgrade -1` → `alembic upgrade head`; фактическая длина обеих колонок прошла `255 → 100 → 255`, цикл завершён успешно.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлено 23 проверки: границы Rabbit schema, HTTP headers и обеих PostgreSQL-таблиц; обязательные значения 99/100/101/255/256 проверены на живом PostgreSQL. Выборочный запуск `python -m pytest tests/unit/messaging/test_schemas.py tests/api/endpoints/test_chat_history_endpoint.py tests/api/endpoints/test_feedback.py tests/integration/repositories/test_user_id_length.py -q` — `32 passed` (все 23 новые проверки прошли). Полный `python -m pytest -q` на живых RabbitMQ, Redis и Testcontainers PostgreSQL — `175 passed, 10 failed, 7 warnings`. Все 10 падений находятся в `tests/unit/observability/test_tracing.py`, существуют на baseline `837ba88`; причина — глобальное состояние tracing, вне скоупа карточки.
+- **Отклонения от предложенного решения и причина:** переход на opaque `uid` осознанно не выполнялся — критерий карточки прямо исключает его из скоупа.
+- **Осталось / связанные карточки:** переход с email на неизменяемый opaque `uid` требует отдельной межсервисной карточки с миграцией/backfill и dual-read; owner invariant и остальные длины Rabbit payload закрываются в VERA-031.
 
 ### VERA-004 — SSE `done` не гарантирует сохранённую историю
 
@@ -1150,15 +1150,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Схема очереди запрещает одновременное отсутствие обоих механизмов владения. `session_id` ограничен 100 символами. `user_id` согласован с решением VERA-003.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `app/messaging/schemas.py`, `tests/unit/messaging/test_schemas.py`, `tests/integration/test_chat_persistence.py`, `tests/unit/messaging/test_consumer.py`, `tests/integration/test_consumer.py`, `tests/integration/test_consumer_sse_pipeline.py`, `tests/unit/observability/test_tracing.py`.
+- **Суть изменения:** Rabbit/Pydantic-схема теперь требует хотя бы один валидный owner mechanism, ограничивает `session_id` 100 символами и `user_id` 255 символами; одновременные `user_id + anonymous_token_hash` остаются разрешены. Валидные consumer/tracing fixtures приведены к новому обязательному контракту без изменения логики consumer или tracing. Код и тесты зафиксированы отдельным коммитом Agent Service `abd1ec7`.
+- **Миграции Alembic:** не требуются; длина PostgreSQL-полей уже синхронизирована миграцией VERA-003, чей цикл `upgrade → downgrade → upgrade` отдельно проверен и зафиксирован в отчёте VERA-003.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлено 10 проверок: 7 schema-cases для границ/owner invariant и 3 интеграционных persistence-cases для user-only, anonymous-only и совместного claim-варианта на живом PostgreSQL. Выборочный запуск `python -m pytest tests/unit/messaging/test_schemas.py tests/unit/messaging/test_consumer.py tests/integration/test_chat_persistence.py tests/integration/test_consumer.py tests/integration/test_consumer_sse_pipeline.py -q` — `29 passed`, все 10 новых проверок прошли. Полный `python -m pytest -q` на живых RabbitMQ, Redis и Testcontainers PostgreSQL — `185 passed, 10 failed, 7 warnings`. Все 10 падений находятся в `tests/unit/observability/test_tracing.py`, существуют на baseline `837ba88`; причина — глобальное состояние tracing, вне скоупа карточки.
+- **Отклонения от предложенного решения и причина:** нет; UUID-валидация намеренно не вводилась, promotion-поведение и delivery state machine не менялись.
+- **Осталось / связанные карточки:** формализация UUID либо иного canonical opaque ID возможна только отдельной контрактной задачей; в текущем контракте идентификаторы остаются opaque strings.
 
 ### VERA-032 — Resource cleanup и connection URL требуют hardening
 
@@ -1179,15 +1179,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** `httpx.AsyncClient` закрывается на shutdown, и вводящий в заблуждение комментарий в `app/clients/http_client.py` приведён в соответствие. URL подключений собираются с percent-encoding. Health-проверки имеют короткий собственный deadline.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `app/clients/http_client.py`, `app/main.py`, `app/core/settings.py`, `app/api/v1/endpoints/health.py`, `tests/unit/core/test_settings.py`, `tests/integration/test_main.py`.
+- **Суть изменения:** singleton `external_api_http_client` зарегистрирован в `AsyncExitStack` production lifespan и закрывается при shutdown; комментарий клиента приведён к фактическому lifecycle. Credentials, PostgreSQL database name и RabbitMQ vhost percent-encode-ятся как отдельные URL-компоненты. Redis и PostgreSQL health checks получили собственный deadline 1 секунда. Код и тесты зафиксированы отдельным коммитом Agent Service `edfa88f`.
+- **Миграции Alembic:** не требуются; схема данных не менялась.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлено 4 проверки: 3 unit-cases percent-encoding для PostgreSQL/RabbitMQ/Redis и 1 интеграционный сценарий полного startup/shutdown, который на реально поднятом приложении подтверждает закрытие `httpx.AsyncClient` и ограничение зависших Redis/DB health calls. Выборочный запуск `python -m pytest tests/unit/core/test_settings.py tests/integration/test_main.py -q` — `7 passed`, все 4 новые проверки прошли. Полный `python -m pytest -q` на живых RabbitMQ, Redis и Testcontainers PostgreSQL — `189 passed, 10 failed, 8 warnings`. Все 10 падений находятся в `tests/unit/observability/test_tracing.py`, существуют на baseline `837ba88`; причина — глобальное состояние tracing, вне скоупа карточки.
+- **Отклонения от предложенного решения и причина:** liveness/readiness не разделялись и новый startup-validation слой не вводился: это не входит в критерий готовности карточки и потребовало бы изменения операционного HTTP-контракта; обязательные settings уже валидируются Pydantic при старте.
+- **Осталось / связанные карточки:** отдельное разделение liveness/readiness возможно только после согласования операционного контракта мониторинга.
 
 ### VERA-033 — Сквозная observability-корреляция не проходит HTTP/RabbitMQ-границы
 
@@ -1362,15 +1362,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Технические metadata собираются только с authoritative graph events. Дублей tool names нет, `sources` берутся из единственного определённого узла. Есть integration-тест на реальном `astream_events`.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `app/messaging/consumer.py`, `tests/unit/messaging/test_consumer.py`, `tests/integration/test_graph.py`.
+- **Суть изменения:** реальный `astream_events` подтвердил, что один RAG-вызов публикует одинаковые `tool_calls`/`retrieved_chunks` сначала в `call_kb_search`, затем в корневом `LangGraph`; прежний `extend` создавал фактический дубль. `_stream_answer` теперь принимает metadata только из authoritative корневого `on_chain_end` с пустым `parent_ids`, а tool names сохраняет как ordered unique list. `_handle_message_body` и delivery state machine не менялись. Код и тесты зафиксированы отдельным коммитом Agent Service `08f89dd`.
+- **Миграции Alembic:** не требуются; схема данных не менялась.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены 2 проверки: unit-policy для игнорирования дочернего output/ordered deduplication и обязательный integration-тест production LangGraph через настоящий `graph.astream_events`, реальный MCP streamable-http test server и HTTP transport LLM. Выборочный запуск `python -m pytest tests/unit/messaging/test_consumer.py::test_stream_answer_uses_only_root_graph_metadata tests/integration/test_graph.py::test_consumer_collects_authoritative_metadata_from_real_graph_events -q` — `2 passed`; интеграционный тест подтвердил один `vera_rag_kb` без дубля и сохранение исходных chunks. Полный `python -m pytest -q` на живых RabbitMQ, Redis и Testcontainers PostgreSQL — `191 passed, 10 failed, 8 warnings`. Все 10 падений находятся в `tests/unit/observability/test_tracing.py`, существуют на baseline `837ba88`; причина — глобальное состояние tracing, вне скоупа карточки.
+- **Отклонения от предложенного решения и причина:** нет; authoritative источником выбран итоговый root graph output, а не output отдельного узла, поскольку фактический event stream подтверждает в нём полный финальный state.
+- **Осталось / связанные карточки:** отсутствует в рамках карточки; изменения root-span telemetry и delivery state machine намеренно не выполнялись.
 
 ## 10. Рекомендуемая целевая архитектура доставки
 
