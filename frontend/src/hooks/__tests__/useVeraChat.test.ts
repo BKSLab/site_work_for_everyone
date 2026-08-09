@@ -295,6 +295,25 @@ describe("useVeraChat", () => {
         unmount();
     });
 
+    it("treats an initial history 404 as an empty session without rotating it", async () => {
+        getHistoryMock.mockRejectedValueOnce(
+            new ApiRequestError(404, "Сессия не найдена."),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => {
+            expect(getHistoryMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        const requestedSessionId = getHistoryMock.mock.calls[0][0];
+        expect(result.current.sessionId).toBe(requestedSessionId);
+        expect(result.current.messages).toEqual([]);
+        expect(result.current.historyError).toBeNull();
+
+        unmount();
+    });
+
     it("rotates an unconfirmed session after a history 401", async () => {
         getHistoryMock
             .mockRejectedValueOnce(

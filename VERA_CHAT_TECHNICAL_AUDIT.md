@@ -452,15 +452,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Отсутствующая в PostgreSQL сессия возвращает `404`, существующая чужая — `403`, доступная — `200`. OpenAPI бэкенда, BFF и frontend согласованы между собой. Тест на неизвестный `session_id` проходит.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`.
+- **Изменённые файлы:** Agent Service: `vera_agent_service/app/services/chat_history.py`, `vera_agent_service/app/api/v1/endpoints/chat_history.py`, `vera_agent_service/tests/unit/services/test_chat_history_service.py`, `vera_agent_service/tests/api/endpoints/test_chat_history_endpoint.py`, `vera_agent_service/tests/integration/test_chat_history.py`; site: `backend/src/api/vera.py`, `backend/tests/test_vera_history_contract.py`, `frontend/src/app/api/vera/history/[sessionId]/route.test.ts`, `frontend/src/hooks/__tests__/useVeraChat.test.ts`; настоящий отчёт. Код Agent Service зафиксирован коммитом `52eed6e`.
+- **Суть изменения:** `ChatHistoryService` теперь поднимает существующий доменный `ChatSessionNotFoundError`, если `session_id` отсутствует в PostgreSQL; Agent endpoint документирует и отображает его в `404`. Контракт стал единым: missing — `404`, foreign — `403`, owned — `200`. Backend сайта и Next BFF уже прозрачно сохраняли status/detail, а `useVeraChat` уже трактовал initial `404` как пустой диалог без ошибки и ротации, поэтому их runtime не менялся. В site OpenAPI добавлено отсутствовавшее описание `403`, поведение границ закреплено regression-тестами.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** Agent: unit/API-тесты обновлены под `404`, добавлены три integration-теста `missing/foreign/owned` через реальный endpoint и живой Testcontainers PostgreSQL; `.\venv\Scripts\python.exe -m pytest tests/unit/services/test_chat_history_service.py tests/api/endpoints/test_chat_history_endpoint.py tests/integration/test_chat_history.py -q` — `17 passed`; полный `.\venv\Scripts\python.exe -m pytest -q` — `229 passed`, `10 warnings`; `ruff` изменённых файлов — `All checks passed`. Site backend: новый `test_vera_history_contract.py` проверяет сохранение status/detail для `403/404` и обе записи OpenAPI; целевой запуск — `3/3 OK`, полный прямой запуск пяти файлов `backend/tests/test_*.py` — `28/28 OK`. Frontend: BFF-тест проверяет `403/404`, контролируемое body и `X-Request-ID`, hook-тест — initial `404` без history error и смены session; целевой запуск — `19 passed`; `npm test` — `134 passed`; `npm run lint` — `0 errors`, `26` существующих warnings; `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** create/reserve-session и контракт `200 + empty` не вводились, как прямо предписано заданием; runtime Next BFF и hook не изменялись, поскольку уже соответствовали выбранному контракту.
+- **Осталось / связанные карточки:** дополнительных работ в VERA-008 нет; возможное предварительное резервирование новой сессии остаётся отдельной VERA-029.
 
 ### VERA-009 — Структурированные источники не доходят до frontend
 

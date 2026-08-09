@@ -156,6 +156,7 @@ async def send_message(
     ),
     response_model=VeraChatHistoryResponseSchema,
     responses={
+        403: {"description": "Сессия принадлежит другому владельцу."},
         404: {"description": "Сессия не найдена."},
         429: {"description": "Превышен лимит запросов."},
         502: {"description": "Ошибка соединения с Agent Service."},
