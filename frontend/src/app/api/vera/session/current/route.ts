@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
     }
 
     const requestId = getRequestId(request);
-    const owner = await getVeraOwnerHeaders();
+    const owner = await getVeraOwnerHeaders(requestId);
+    if (!owner.ok) return owner.response;
     const headers: HeadersInit = {
         "X-Request-ID": requestId,
         ...owner.headers,

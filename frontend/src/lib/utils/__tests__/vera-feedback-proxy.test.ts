@@ -1,4 +1,13 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+    afterAll,
+    afterEach,
+    beforeAll,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from "vitest";
 import type { NextRequest } from "next/server";
 
 import {
@@ -37,14 +46,17 @@ function makeRequest(
 }
 
 function useCookies(values: Record<string, string>): void {
+    const cookieValues = new Map(Object.entries(values));
     cookiesMock.mockResolvedValue({
-        get: (name: string) =>
-            values[name] === undefined ? undefined : { value: values[name] },
+        get: (name: string) => {
+            const value = cookieValues.get(name);
+            return value === undefined ? undefined : { value };
+        },
     });
 }
 
-function createBackendResponse(status = 200): Response {
-    return new Response(JSON.stringify({ detail: "ok" }), {
+function createBackendResponse(status = 200, detail = "ok"): Response {
+    return new Response(JSON.stringify({ detail }), {
         status,
         headers: { "Content-Type": "application/json" },
     });
@@ -55,8 +67,11 @@ describe("proxyVeraFeedback", () => {
 
     beforeAll(async () => {
         vi.stubEnv("AUTH_API_URL", "http://backend:8000");
-        vi.stubEnv("VERA_SESSION_SIGNING_KEY", "test-signing-key");
         ({ proxyVeraFeedback } = await import("../vera-feedback-proxy"));
+    });
+
+    beforeEach(() => {
+        vi.stubEnv("VERA_SESSION_SIGNING_KEY", "test-signing-key");
     });
 
     afterEach(() => {
@@ -179,5 +194,55 @@ describe("proxyVeraFeedback", () => {
         });
 
         expect(response.status).toBe(403);
+    });
+
+    it("returns a controlled 503 when the signing key is missing", async () => {
+        vi.stubEnv("VERA_SESSION_SIGNING_KEY", "");
+        useCookies({});
+        const fetchMock = vi.fn();
+        vi.stubGlobal("fetch", fetchMock);
+
+        const response = await proxyVeraFeedback({
+            request: makeRequest("PUT", {
+                session_id: "anonymous-session",
+                request_id: "turn-1",
+                value: "up",
+            }),
+            method: "PUT",
+            backendPath: "/api/vera/feedback/message",
+            schema: veraMessageFeedbackSchema,
+            limiter,
+        });
+
+        expect(response.status).toBe(503);
+        expect(response.headers.get("X-Request-ID")).toBe("test-request-id");
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("returns a controlled 503 when backend rejects the signed token", async () => {
+        useCookies({ vera_session_anonymoussession: "session-token" });
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn()
+                .mockResolvedValue(
+                    createBackendResponse(401, "Сессия чата не подтверждена."),
+                ),
+        );
+
+        const response = await proxyVeraFeedback({
+            request: makeRequest("PUT", {
+                session_id: "anonymous-session",
+                request_id: "turn-1",
+                value: "up",
+            }),
+            method: "PUT",
+            backendPath: "/api/vera/feedback/message",
+            schema: veraMessageFeedbackSchema,
+            limiter,
+        });
+
+        expect(response.status).toBe(503);
+        expect(response.headers.get("X-Request-ID")).toBe("test-request-id");
     });
 });

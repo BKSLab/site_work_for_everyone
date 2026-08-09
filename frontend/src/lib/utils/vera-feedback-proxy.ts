@@ -7,6 +7,7 @@ import { getRequestId } from "@/lib/utils/request-id";
 import {
     applyVeraSessionCookie,
     getVeraOwnerHeaders,
+    getVeraOwnerUpstreamError,
 } from "@/lib/utils/vera-owner-headers";
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
@@ -101,7 +102,8 @@ export async function proxyVeraFeedback({
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15_000);
 
-    const owner = await getVeraOwnerHeaders(sessionId);
+    const owner = await getVeraOwnerHeaders(requestId, sessionId);
+    if (!owner.ok) return owner.response;
 
     let response: Response;
     try {
@@ -154,6 +156,13 @@ export async function proxyVeraFeedback({
         status: response.status,
         durationMs: Date.now() - startTime,
     });
+
+    const ownerError = getVeraOwnerUpstreamError(
+        response.status,
+        data,
+        requestId,
+    );
+    if (ownerError) return ownerError;
 
     const result = NextResponse.json(data, { status: response.status });
     result.headers.set("X-Request-ID", requestId);

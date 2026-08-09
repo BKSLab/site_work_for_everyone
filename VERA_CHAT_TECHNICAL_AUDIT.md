@@ -1302,15 +1302,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Отсутствующий или несовпадающий `VERA_SESSION_SIGNING_KEY` даёт контролируемый `503` с correlation ID, а не неструктурированный `500`. Проверка выполняется на startup/readiness. Создание и чтение owner-токена вынесены в единый BFF-helper.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `frontend/next.config.ts`, `frontend/src/lib/utils/vera-session-token.ts`, `frontend/src/lib/utils/vera-owner-headers.ts`, `frontend/src/lib/utils/vera-feedback-proxy.ts`, `frontend/src/app/api/vera/chat/route.ts`, `frontend/src/app/api/vera/history/[sessionId]/route.ts`, `frontend/src/app/api/vera/session/current/route.ts`, `frontend/src/lib/utils/__tests__/vera-feedback-proxy.test.ts`, `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** обязательный signing key проверяется при загрузке Next.js config и повторно в общем owner-helper. Отсутствующий ключ и отказ backend с текущим признаком невалидного session-token возвращают контролируемый `503` с исходным `X-Request-ID`; другие upstream-ошибки, включая ownership `403`, не переклассифицируются. Все Vera BFF consumers используют единый результат helper, поэтому неструктурированное исключение больше не выходит из route handler.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** дополнен `frontend/src/lib/utils/__tests__/vera-feedback-proxy.test.ts`; `npm test -- src/lib/utils/__tests__/vera-feedback-proxy.test.ts` — 6/6 passed; `npm test` — 84 passed, 2 failed: `src/lib/schemas/__tests__/auth.test.ts > registerSchema > accepts valid data` и `src/components/features/vera/__tests__/VeraFeedbackModal.test.tsx > VeraFeedbackModal > allows sending an empty questionnaire with the session id` — оба падения существовали до правки, вне скоупа карточки; `npm run lint` — успешно, 0 errors, 26 warnings; `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** отдельный readiness endpoint не добавлялся, чтобы не расширять HTTP-контракт; вместо него применена fail-fast проверка при загрузке `next.config.ts` и runtime-защита BFF.
+- **Осталось / связанные карточки:** автоматическая проверка равенства ключей и overlap-ротация требуют deployment-level координации frontend/backend и остаются операционной задачей; backend в этой однорепной карточке не менялся.
 
 ### VERA-037 — Совместимость env и версий проверяется только вручную
 

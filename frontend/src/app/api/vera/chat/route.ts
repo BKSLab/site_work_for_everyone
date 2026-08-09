@@ -7,6 +7,7 @@ import { veraChatSchema } from "@/lib/schemas/vera";
 import {
     applyVeraSessionCookie,
     getVeraOwnerHeaders,
+    getVeraOwnerUpstreamError,
 } from "@/lib/utils/vera-owner-headers";
 
 // AUTH_API_URL уже указывает на backend этого репозитория (не на внешний
@@ -85,7 +86,8 @@ export async function POST(request: NextRequest) {
     // 4. Пробрасываем access_token cookie как Bearer — user_id для агента
     // определяется backend'ом из верифицированного JWT, не из тела запроса
     // (см. AGENT_VERA_ARCHITECTURE.md — user_id влияет на доступные тулы)
-    const owner = await getVeraOwnerHeaders(sessionId);
+    const owner = await getVeraOwnerHeaders(requestId, sessionId);
+    if (!owner.ok) return owner.response;
     const headers: HeadersInit = {
         "Content-Type": "application/json",
         "X-Request-ID": requestId,
@@ -149,6 +151,13 @@ export async function POST(request: NextRequest) {
             durationMs: Date.now() - startTime,
         });
     }
+
+    const ownerError = getVeraOwnerUpstreamError(
+        response.status,
+        data,
+        requestId,
+    );
+    if (ownerError) return ownerError;
 
     const res = NextResponse.json(data, { status: response.status });
     res.headers.set("X-Request-ID", requestId);
