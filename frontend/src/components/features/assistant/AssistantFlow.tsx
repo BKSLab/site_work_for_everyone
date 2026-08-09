@@ -33,7 +33,7 @@ const FEATURES: {
         id: "cover_letter",
         title: "Сопроводительное письмо",
         description:
-            "Вера подготовит письмо, которое привлечёт внимание работодателя к вашей кандидатуре",
+            "Ассистент Вера подготовит письмо, которое привлечёт внимание работодателя к вашей кандидатуре",
         icon: (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -45,7 +45,7 @@ const FEATURES: {
         id: "resume_tips",
         title: "Рекомендации по резюме",
         description:
-            "Вера подскажет как адаптировать резюме и на что сделать акцент для этой вакансии",
+            "Ассистент Вера подскажет, как адаптировать резюме и на что сделать акцент для этой вакансии",
         icon: (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -70,7 +70,7 @@ const MODES: {
         title: "Базовый",
         badge: "Быстро",
         description:
-            "Вера подготовит результат сразу, используя только данные вакансии. Никаких дополнительных вопросов.",
+            "Ассистент Вера подготовит результат сразу, используя только данные вакансии. Никаких дополнительных вопросов.",
         icon: (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -82,7 +82,7 @@ const MODES: {
         title: "Индивидуальный",
         badge: "Точнее",
         description:
-            "Вера задаст несколько вопросов о вас и подготовит персонализированный результат под конкретную вакансию.",
+            "Ассистент Вера задаст несколько вопросов о вас и подготовит персонализированный результат под конкретную вакансию.",
         icon: (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -114,7 +114,7 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
         <nav aria-label="Шаги мастера">
             <ol className="flex items-center justify-center">
 
-                {/* Аватар Веры */}
+                {/* Аватар Ассистента Веры */}
                 <li className="flex items-center" aria-hidden="true">
                     <div className="flex flex-col items-center gap-2">
                         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-accent/40 shadow-[0_0_20px_rgba(245,184,0,0.25)]">
@@ -127,7 +127,7 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
                             />
                         </span>
                         <span className="hidden text-xs font-semibold uppercase tracking-wider text-accent sm:block">
-                            Вера
+                            Ассистент Вера
                         </span>
                     </div>
                     {/* Линия от аватара к первому шагу */}
@@ -577,7 +577,7 @@ export function AssistantFlow() {
                     </div>
                     <div className="flex flex-col gap-2">
                         <p className="text-base font-semibold text-foreground">
-                            Войдите, чтобы начать работу с Верой
+                            Войдите, чтобы начать работу с Ассистентом Верой
                         </p>
                         <p className="max-w-sm text-sm leading-relaxed text-muted">
                             Ассистент работает с вашими избранными вакансиями. После входа вы сможете
@@ -684,7 +684,7 @@ export function AssistantFlow() {
                 <StepCard onBack={() => setStep("vacancy")}>
                     <div>
                         <h2 ref={stepHeadingRef} tabIndex={-1} id="feature-group-label" className="text-lg font-bold text-foreground focus:outline-none">Что подготовить?</h2>
-                        <p className="mt-1 text-sm text-muted">Выберите задачу для карьерного ассистента Веры</p>
+                        <p className="mt-1 text-sm text-muted">Выберите задачу для Ассистента Веры</p>
                     </div>
                     <div
                         role="radiogroup"
@@ -800,7 +800,7 @@ export function AssistantFlow() {
                     <div>
                         <h2 ref={stepHeadingRef} tabIndex={-1} className="text-lg font-bold text-foreground focus:outline-none">Персональная анкета</h2>
                         <p className="mt-1 text-sm text-muted">
-                            Ответьте на вопросы — Вера учтёт их при генерации
+                            Ответьте на вопросы — Ассистент Вера учтёт их при генерации
                         </p>
                     </div>
 

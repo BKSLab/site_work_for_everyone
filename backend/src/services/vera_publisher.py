@@ -45,10 +45,28 @@ class VeraPublisher:
         await self._connection.close()
 
     async def publish_agent_request(
-        self, session_id: str, user_id: str | None, message: str
+        self,
+        session_id: str,
+        request_id: str,
+        user_id: str | None,
+        anonymous_token_hash: str | None,
+        message: str,
     ) -> None:
-        payload = {"session_id": session_id, "user_id": user_id, "message": message}
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        payload = {
+            "session_id": session_id,
+            "request_id": request_id,
+            "user_id": user_id,
+            "anonymous_token_hash": anonymous_token_hash,
+            "message": message,
+        }
+        serialized_payload = json.dumps(payload, ensure_ascii=False)
+        body = serialized_payload.encode("utf-8")
+
+        logger.info(
+            "Отправка запроса агенту «Вера» в RabbitMQ: queue=%s, payload=%s",
+            self._queue_name,
+            serialized_payload,
+        )
 
         try:
             await self._channel.default_exchange.publish(
@@ -59,6 +77,13 @@ class VeraPublisher:
                     content_encoding="utf-8",
                 ),
                 routing_key=self._queue_name,
+            )
+            logger.info(
+                "Запрос агенту «Вера» опубликован в RabbitMQ: "
+                "queue=%s, session_id=%s, request_id=%s",
+                self._queue_name,
+                session_id,
+                request_id,
             )
         except Exception as err:
             raise VeraPublisherError(str(err)) from err

@@ -58,9 +58,20 @@ class DBSettings(SettingsBase):
 
 
 class VeraSettings(SettingsBase):
-    """Класс настроек для публикации сообщений агенту «Вера» (RabbitMQ)."""
+    """Настройки интеграции с Agent Service."""
     rabbitmq_url: SecretStr
     rabbitmq_queue: str = "agent.requests"
+    agent_api_url: str = Field(
+        default="http://91.218.115.104:8010",
+        validation_alias="VERA_AGENT_API_URL",
+    )
+    agent_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="VERA_AGENT_API_KEY",
+    )
+    session_signing_key: SecretStr = Field(
+        validation_alias="VERA_SESSION_SIGNING_KEY",
+    )
 
 
 class Settings(BaseSettings):

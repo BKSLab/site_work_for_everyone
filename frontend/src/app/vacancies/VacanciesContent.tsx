@@ -185,7 +185,7 @@ export function VacanciesContent() {
                 </div>
             )}
 
-            {/* Баннер-приглашение в чат с Верой — после результатов поиска */}
+            {/* Баннер в чат с Ассистентом Верой — после результатов поиска */}
             {data && <VeraChatBanner />}
 
             <VacancyFilters

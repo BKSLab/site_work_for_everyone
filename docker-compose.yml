@@ -29,6 +29,13 @@ services:
     env_file: ./backend/.env
     restart: always
     command: bash entrypoint.sh
+    # RABBITMQ_URL в backend/.env указывает на host.docker.internal —
+    # общий брокер (rabbitmq_service_prod) живёт в отдельном
+    # docker-compose на этом же хосте. extra_hosts нужен, чтобы
+    # host.docker.internal резолвился и на Linux-хосте (на Docker
+    # Desktop это и так работает нативно). См. rabbitmq_service_prod/README.md.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - wfe_network
     depends_on:

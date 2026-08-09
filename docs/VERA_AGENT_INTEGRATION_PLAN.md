@@ -23,9 +23,9 @@
 
 Подтверждённые контракты (из кода, не только доков):
 
-- Очередь `agent.requests`, payload `{"session_id": str, "user_id": str | None, "message": str}` (`vera_agent_service/app/messaging/schemas.py`), максимум 4000 символов, **без истории** (история — в Redis по `session_id`).
+- Очередь `agent.requests`, payload `{"session_id": str, "request_id": str, "user_id": str | None, "message": str}` (`vera_agent_service/app/messaging/schemas.py`), максимум 4000 символов, **без истории** (`session_id` — история в Redis, `request_id` — доставка ответа одного сообщения).
 - Очередь объявлена consumer'ом с `durable=True` и `arguments={'x-dead-letter-exchange': ...}` (`vera_agent_service/app/messaging/consumer.py:104-111`) — второй declare с другими аргументами уронит канал.
-- `GET /sse/{session_id}` (`vera_agent_service/app/streaming/sse.py`): события `token`/`done`/`error`, поток завершается сам; буфер позднего подключения 60с (`session_bus.py`).
+- `GET /sse/{request_id}` (`vera_agent_service/app/streaming/sse.py`): события `token`/`done`/`error` конкретного сообщения, поток завершается сам; буфер позднего подключения 60с (`session_bus.py`).
 - Порты dev: RabbitMQ `5672`/`15672`, Redis `6379`, Agent Service `8010→8000`.
 
 ---
@@ -36,7 +36,7 @@
 |---|---|---|
 | RabbitMQ publisher | В `backend` (FastAPI), не в Next.js | Backend — долгоживущий процесс, может держать persistent `aio_pika.connect_robust`; Next.js route handlers короткоживущие, открывать AMQP-коннект на каждый запрос — лишняя латентность |
 | `user_id` | Верифицированный JWT на `backend` (новая optional-auth зависимость), не декодирование в Node | `decodeJwtPayload` в Next.js не проверяет подпись; между Next.js и backend нет проверки внутреннего ключа — доверять непроверенному `user_id` от клиента небезопасно (влияет на доступные тулы в итерации 2) |
-| Доставка SSE | nginx проксирует `/vera/sse/{session_id}` напрямую на agent_service, минуя Next.js/backend | В репозитории уже есть паттерн per-location таймаутов в nginx; лишний хоп через Node держал бы процесс подключённым на всё время генерации |
+| Доставка SSE | nginx проксирует `/vera/sse/{request_id}` напрямую на agent_service, минуя Next.js/backend | В репозитории уже есть паттерн per-location таймаутов в nginx; лишний хоп через Node держал бы процесс подключённым на всё время генерации |
 | Публикация сообщения | Браузер → Next.js `/api/vera/chat` → backend `/api/vera/chat` → RabbitMQ | Next.js-прокси уже верифицирует Origin/rate-limit/cookie — переиспользуем как есть |
 | Новый UI | `frontend/src/app/assistant/chat/page.tsx`, отдельно от wizard'а | Wizard (`/assistant`, `/assistant/start`) — другая фича, не трогаем |
 | `session_id` | Генерируется в браузере (`crypto.randomUUID()`), `sessionStorage`, TTL 24ч (совпадает с Redis checkpointer) | Закрытие вкладки = конец разговора, согласуется с отсутствием персистентности истории в UI |
@@ -52,8 +52,8 @@
 - `backend/requirements.txt` — добавить `aio-pika==9.6.2` (та же версия, что в `vera_agent_service` и `bx_client_service_manager`).
 - `backend/.env` / `.env.example` — `RABBITMQ_URL`, `RABBITMQ_QUEUE=agent.requests`.
 - `backend/src/dependencies/jwt.py` — добавить `get_optional_user_payload`/`OptionalUserPayloadDep`: как `get_current_user_payload`, но `credentials is None` или невалидный/просроченный/заблокированный токен → `None`, не `HTTPException`.
-- `backend/src/schemas/vera.py` (новый) — `VeraChatRequestSchema`: `session_id` (1–100 симв.), `message` (1–4000 симв., синхронно с лимитом agent_service).
-- `backend/src/services/vera_publisher.py` (новый) — по образцу `queue_publisher.py`/`manager.py` из `bx_client_service_manager`, но упрощённо: один `aio_pika.connect_robust(rabbitmq_url)` + один канал (без пула), метод `publish_agent_request(session_id, user_id, message)` — сериализует в JSON, `channel.default_exchange.publish(..., delivery_mode=PERSISTENT)`, `routing_key=queue_name`. Перед первой публикацией — `channel.declare_queue(queue_name, passive=True)`, только проверка существования; если очереди нет (agent_service ещё не разворачивался) — исключение ловится, сервис переходит в деградированный режим (см. ниже), не роняя весь backend.
+- `backend/src/schemas/vera.py` (новый) — `VeraChatRequestSchema`: `session_id` и `request_id` (1–100 симв.), `message` (1–4000 симв., синхронно с лимитом agent_service).
+- `backend/src/services/vera_publisher.py` (новый) — по образцу `queue_publisher.py`/`manager.py` из `bx_client_service_manager`, но упрощённо: один `aio_pika.connect_robust(rabbitmq_url)` + один канал (без пула), метод `publish_agent_request(session_id, request_id, user_id, message)` — сериализует в JSON, `channel.default_exchange.publish(..., delivery_mode=PERSISTENT)`, `routing_key=queue_name`. Перед первой публикацией — `channel.declare_queue(queue_name, passive=True)`, только проверка существования; если очереди нет (agent_service ещё не разворачивался) — исключение ловится, сервис переходит в деградированный режим (см. ниже), не роняя весь backend.
 - `backend/src/dependencies/vera.py` (или добавить в `services.py`) — `VeraPublisherServiceDep`, читает готовый инстанс из `app.state.vera_publisher` (создан в lifespan), не создаёт новый коннект на каждый запрос.
 - `backend/src/api/vera.py` (новый) — `POST /vera/chat` (итоговый путь `/api/vera/chat` через `include_router(prefix='/api')`, по образцу `auth.py`): `@limiter.limit("20/minute")` (переиспользовать `backend/src/core/limiter.py`), `user_id = payload.get("sub") if payload else None`, если publisher недоступен → `503`, иначе публикует и возвращает `202 {"status": "queued"}`.
 - `backend/main.py` — в `lifespan`: `aio_pika.connect_robust(settings.vera.rabbitmq_url, client_properties={"connection_name": "wfe-backend"})` (именованное соединение — видно в RabbitMQ management UI, как в `bx_client_service_manager`) → `app.state.vera_publisher` (или `None` при ошибке подключения, без падения всего приложения), закрытие на shutdown; `app.include_router(vera_router, prefix='/api')`.

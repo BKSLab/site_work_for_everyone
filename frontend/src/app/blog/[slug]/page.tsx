@@ -166,15 +166,15 @@ export default async function BlogPostPage({
                     />
                 </article>
 
-                {/* ── CTA: карьерный ассистент Вера ──────────────────── */}
+                {/* ── CTA: Ассистент Вера ────────────────────────────── */}
                 <div className="mt-10 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
                     <p className="text-sm leading-relaxed text-muted/80">
-                        Используйте Вашего личного карьерного ассистента{" "}
+                        Используйте проект{" "}
                         <Link
                             href="/assistant"
                             className="font-semibold text-accent underline decoration-accent/40 hover:decoration-accent"
                         >
-                            Веру
+                            «Ассистент Вера»
                         </Link>
                         , чтобы подготовить сопроводительное письмо или рекомендации по составлению резюме под конкретную вакансию — это значительно увеличивает шансы на ответ от работодателя.
                     </p>

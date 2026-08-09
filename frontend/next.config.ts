@@ -5,6 +5,13 @@ const withBundleAnalyzer = bundleAnalyzer({
     enabled: process.env.ANALYZE === "true",
 });
 
+// Серверный upstream только для локального `next dev` без Nginx.
+// Не имеет NEXT_PUBLIC_ префикса и не попадает в браузерный bundle.
+const agentSseOrigin = (process.env.AGENT_SSE_ORIGIN ?? "http://127.0.0.1:8010").replace(
+    /\/$/,
+    ""
+);
+
 const securityHeaders = [
     {
         // Защита от clickjacking — запрет встраивания сайта в iframe
@@ -72,6 +79,19 @@ const nextConfig: NextConfig = {
             {
                 source: "/(.*)",
                 headers: securityHeaders,
+            },
+        ];
+    },
+    // В проде /vera/sse/* перехватывает nginx до Next.js (см.
+    // nginx/templates/default.conf.template, location /vera/sse/) — этот
+    // rewrite там никогда не срабатывает. Нужен только для `next dev` без
+    // nginx перед ним: имитирует то же самое проксирование напрямую на
+    // vera_agent_service.
+    async rewrites() {
+        return [
+            {
+                source: "/vera/sse/:requestId",
+                destination: `${agentSseOrigin}/sse/:requestId`,
             },
         ];
     },

@@ -29,6 +29,30 @@ body {
   color: var(--foreground);
 }
 
+.vera-chat-scrollbar {
+  scrollbar-color: color-mix(in srgb, var(--accent) 75%, transparent) var(--surface);
+  scrollbar-width: thin;
+}
+
+.vera-chat-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.vera-chat-scrollbar::-webkit-scrollbar-track {
+  background: var(--surface);
+  border-radius: 999px;
+}
+
+.vera-chat-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 75%, transparent);
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+}
+
+.vera-chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
 @keyframes braille-dot {
   0%, 100% {
     transform: scale(0.35);

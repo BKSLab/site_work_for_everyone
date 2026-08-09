@@ -5,6 +5,11 @@ import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
 import { logger } from "@/lib/utils/logger";
 import { veraChatSchema } from "@/lib/schemas/vera";
+import {
+    createVeraSessionToken,
+    getVeraSessionCookieName,
+    VERA_SESSION_COOKIE_OPTIONS,
+} from "@/lib/utils/vera-session-token";
 
 // AUTH_API_URL уже указывает на backend этого репозитория (не на внешний
 // API_URL, используемый /api/v1/[...path] для вакансий hh.ru).
@@ -30,20 +35,24 @@ export async function POST(request: NextRequest) {
     const rateResult = chatLimiter.check(ip);
     if (!rateResult.allowed) {
         return NextResponse.json(
-            { detail: "Слишком много сообщений. Подождите и попробуйте снова." },
+            {
+                detail: "Слишком много сообщений. Подождите и попробуйте снова.",
+            },
             {
                 status: 429,
                 headers: {
-                    "Retry-After": String(Math.ceil((rateResult.resetAt - Date.now()) / 1000)),
+                    "Retry-After": String(
+                        Math.ceil((rateResult.resetAt - Date.now()) / 1000),
+                    ),
                 },
-            }
+            },
         );
     }
 
     if (!AUTH_API_URL) {
         return NextResponse.json(
             { detail: "Сервер не настроен." },
-            { status: 503 }
+            { status: 503 },
         );
     }
 
@@ -53,20 +62,25 @@ export async function POST(request: NextRequest) {
     // 3. Валидация тела запроса (Zod) — второй рубеж, работает даже если
     // клиентская валидация обойдена
     let body: string;
+    let sessionId: string;
     try {
         const raw = await request.json();
         const result = veraChatSchema.safeParse(raw);
         if (!result.success) {
             return NextResponse.json(
-                { detail: result.error.issues[0]?.message ?? "Validation error" },
-                { status: 422 }
+                {
+                    detail:
+                        result.error.issues[0]?.message ?? "Validation error",
+                },
+                { status: 422 },
             );
         }
         body = JSON.stringify(result.data);
+        sessionId = result.data.session_id;
     } catch {
         return NextResponse.json(
             { detail: "Invalid request body" },
-            { status: 400 }
+            { status: 400 },
         );
     }
 
@@ -82,6 +96,11 @@ export async function POST(request: NextRequest) {
     if (accessToken) {
         headers["Authorization"] = `Bearer ${accessToken}`;
     }
+    const sessionCookieName = getVeraSessionCookieName(sessionId);
+    const existingSessionToken = cookieStore.get(sessionCookieName)?.value;
+    const sessionToken =
+        existingSessionToken ?? createVeraSessionToken(sessionId);
+    headers["X-Vera-Session-Token"] = sessionToken;
 
     const url = new URL("/api/vera/chat", AUTH_API_URL);
 
@@ -107,7 +126,7 @@ export async function POST(request: NextRequest) {
             });
             return NextResponse.json(
                 { detail: "Сервер не отвечает. Попробуйте позже." },
-                { status: 504 }
+                { status: 504 },
             );
         }
         logger.error("Vera chat proxy connection error", {
@@ -117,7 +136,7 @@ export async function POST(request: NextRequest) {
         });
         return NextResponse.json(
             { detail: "Ошибка соединения с сервером." },
-            { status: 502 }
+            { status: 502 },
         );
     } finally {
         clearTimeout(timeoutId);
@@ -143,5 +162,12 @@ export async function POST(request: NextRequest) {
 
     const res = NextResponse.json(data, { status: response.status });
     res.headers.set("X-Request-ID", requestId);
+    if (!existingSessionToken) {
+        res.cookies.set(
+            sessionCookieName,
+            sessionToken,
+            VERA_SESSION_COOKIE_OPTIONS,
+        );
+    }
     return res;
 }

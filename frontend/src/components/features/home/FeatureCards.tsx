@@ -57,7 +57,7 @@ const FEATURES: Feature[] = [
     },
     {
         title: "Сопроводительное письмо",
-        description: "ИИ напишет письмо под конкретную вакансию",
+        description: "Ассистент Вера подготовит письмо под конкретную вакансию",
         href: "/assistant",
         ai: true,
         icon: (
@@ -69,7 +69,7 @@ const FEATURES: Feature[] = [
     },
     {
         title: "Советы по резюме",
-        description: "Персональные рекомендации ИИ для каждой вакансии",
+        description: "Персональные рекомендации Ассистента Веры для каждой вакансии",
         href: "/assistant",
         ai: true,
         icon: (
@@ -123,7 +123,7 @@ function FeatureNode({ feature, index }: { feature: Feature; index: number }) {
             </span>
             {feature.ai && (
                 <span className="rounded-full border border-accent/30 bg-accent/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-accent/80">
-                    AI
+                    Ассистент Вера
                 </span>
             )}
         </div>
@@ -162,13 +162,13 @@ function OrbitalDiagram() {
             {/* Скрытый список для скринридеров — визуальная схема недоступна */}
             <ul aria-label="Возможности сервиса" className="sr-only">
                 <li>
-                    <a href="/assistant">Вера — карьерный консультант в центре системы</a>
+                    <a href="/assistant">Ассистент Вера — карьерный консультант в центре системы</a>
                 </li>
                 {FEATURES.map((f) => (
                     <li key={f.title}>
                         {f.href ? (
                             <a href={f.href}>
-                                {f.title}{f.ai ? " (AI)" : ""} — {f.description}
+                                {f.title}{f.ai ? " (Ассистент Вера)" : ""} — {f.description}
                             </a>
                         ) : (
                             <span>{f.title} — {f.description}</span>
@@ -231,7 +231,7 @@ function OrbitalDiagram() {
                 <circle cx="50" cy="50" r="1.2" fill="rgba(245,184,0,0.6)" />
             </svg>
 
-            {/* Центральный узел: Вера (aria-hidden — дублирует скрытый список) */}
+            {/* Центральный узел: Ассистент Вера (aria-hidden — дублирует скрытый список) */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" aria-hidden="true">
                 <Link
                     href="/assistant"
@@ -270,7 +270,7 @@ function OrbitalDiagram() {
                     {/* Подпись */}
                     <span className="flex flex-col items-center gap-1.5">
                         <span className="text-[clamp(16px,1.8vw,24px)] font-bold text-foreground tracking-wide">
-                            Вера
+                            Ассистент Вера
                         </span>
                         <span className="rounded-full border border-accent/35 bg-accent/10 px-4 py-1 text-[clamp(10px,1vw,14px)] font-semibold uppercase tracking-widest text-accent/90 backdrop-blur-sm">
                             Карьерный консультант
@@ -309,7 +309,7 @@ function MobileGrid() {
                     />
                 </span>
                 <div>
-                    <p className="text-sm font-bold text-accent">Вера — карьерный консультант</p>
+                    <p className="text-sm font-bold text-accent">Ассистент Вера — карьерный консультант</p>
                     <p className="text-xs text-muted">Сопроводительные письма и советы по резюме</p>
                 </div>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="ml-auto shrink-0 text-accent/60">
@@ -335,7 +335,7 @@ function MobileGrid() {
                             </div>
                             {feature.ai && (
                                 <span className="self-start rounded-full border border-accent/30 bg-accent/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-accent/80">
-                                    AI
+                                    Ассистент Вера
                                 </span>
                             )}
                         </>

@@ -61,10 +61,10 @@ export default function PrivacyPage() {
 
                     <section aria-labelledby="section-llm">
                         <h2 id="section-llm" className="mb-3 text-base font-semibold text-foreground">
-                            4. ИИ-ассистент и персональные данные
+                            4. Ассистент Вера и персональные данные
                         </h2>
                         <p className="mb-3">
-                            При использовании ИИ-ассистента Веры ваши персональные данные
+                            При использовании Ассистента Веры ваши персональные данные
                             (имя, email) <strong className="text-foreground">не передаются</strong> в языковую модель.
                         </p>
                         <p className="mb-2">В зависимости от режима работы ассистент получает:</p>

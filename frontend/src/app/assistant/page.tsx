@@ -54,7 +54,7 @@ export default function AssistantPage() {
 
                     <div className="flex flex-col gap-5">
                         <h1 ref={h1Ref} tabIndex={-1} className="text-3xl font-bold text-foreground sm:text-4xl focus:outline-none">
-                            {greeting} <span className="text-accent">Я Вера</span> —<br className="hidden sm:block" /> ваш карьерный ассистент
+                            {greeting} <span className="text-accent">Я — Ассистент Вера</span>,<br className="hidden sm:block" /> ваш карьерный консультант
                         </h1>
                         <p className="max-w-xl text-lg leading-relaxed text-muted">
                             Поиск работы — серьёзный шаг. Первое впечатление о кандидате
@@ -67,7 +67,7 @@ export default function AssistantPage() {
                                 href="/assistant/start"
                                 className="inline-flex items-center gap-2 rounded-xl border border-accent/50 bg-accent/[0.08] px-6 py-3 text-sm font-semibold text-accent transition-all hover:border-accent hover:bg-accent/[0.14] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                             >
-                                Начать работу с Верой
+                                Начать работу с Ассистентом Верой
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                     <path d="M5 12h14M12 5l7 7-7 7" />
                                 </svg>
@@ -76,10 +76,10 @@ export default function AssistantPage() {
                     </div>
                 </div>
 
-                {/* ── Вера умеет и консультировать по трудовым правам ──── */}
+                {/* ── Ассистент Вера консультирует по трудовым правам ──── */}
                 <VeraChatBanner
                     title="А если нужна не помощь с резюме, а консультация по правам?"
-                    description="Вера отвечает и на вопросы о квотах, льготах, защите от увольнения и трудоустройстве людей с инвалидностью — для соискателей, работников и работодателей."
+                    description="Ассистент Вера отвечает и на вопросы о квотах, льготах, защите от увольнения и трудоустройстве людей с инвалидностью — для соискателей, работников и работодателей."
                 />
 
                 {/* Разделитель */}
@@ -190,14 +190,14 @@ export default function AssistantPage() {
                                             Консультация по правам
                                         </h3>
                                         <p className="text-sm leading-relaxed text-muted">
-                                            Спросите у Веры про квоты, льготы, защиту от увольнения или
+                                            Спросите у Ассистента Веры про квоты, льготы, защиту от увольнения или
                                             трудоустройство людей с инвалидностью — отвечу на основе базы
                                             знаний, без регистрации.
                                         </p>
                                     </div>
                                 </div>
                                 <span className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-accent/50 bg-accent/[0.08] px-5 py-2.5 text-sm font-semibold text-accent transition-all group-hover:border-accent group-hover:bg-accent/[0.14]">
-                                    Спросить у Веры
+                                    Спросить у Ассистента Веры
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                         <path d="M5 12h14M12 5l7 7-7 7" />
                                     </svg>
@@ -289,7 +289,7 @@ export default function AssistantPage() {
                             </span>
                             <div className="flex flex-col gap-1">
                                 <p className="text-sm font-semibold text-foreground">
-                                    Хотите узнать, как работает Вера?
+                                    Хотите узнать, как работает Ассистент Вера?
                                 </p>
                                 <p className="text-sm leading-relaxed text-muted">
                                     Пошаговое руководство со скриншотами — от регистрации до получения готового письма.

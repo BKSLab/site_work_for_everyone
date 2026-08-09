@@ -18,6 +18,7 @@ from src.core.config_logger import logger
 from src.core.limiter import limiter
 from src.core.settings import get_settings
 from src.db.session import async_session_factory, engine
+from src.services.vera_agent import VeraAgentClient
 from src.services.vera_publisher import VeraPublisher
 from src.utils.check_db import check_db_connection
 
@@ -38,6 +39,26 @@ async def _init_vera_publisher() -> VeraPublisher | None:
         return None
 
 
+def _init_vera_agent_client() -> VeraAgentClient | None:
+    """Создаёт общий HTTP-клиент Agent Service, если задан API-ключ."""
+    settings = get_settings().vera
+    api_key = (
+        settings.agent_api_key.get_secret_value()
+        if settings.agent_api_key is not None
+        else ""
+    )
+    if not api_key:
+        logger.warning(
+            "⚠️ Server API Веры недоступен — не задан VERA_AGENT_API_KEY."
+        )
+        return None
+
+    return VeraAgentClient(
+        api_url=settings.agent_api_url,
+        api_key=api_key,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Функция управления жизненным циклом приложения."""
@@ -48,12 +69,15 @@ async def lifespan(app: FastAPI):
         await check_db_connection(db_session=db_session)
 
     app.state.vera_publisher = await _init_vera_publisher()
+    app.state.vera_agent_client = _init_vera_agent_client()
 
     logger.info("✅ Приложение успешно запущено.")
     yield
     logger.info("🛑 Приложение останавливается...")
     if app.state.vera_publisher is not None:
         await app.state.vera_publisher.close()
+    if app.state.vera_agent_client is not None:
+        await app.state.vera_agent_client.close()
 
 app = FastAPI(lifespan=lifespan)
 
