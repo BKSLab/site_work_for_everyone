@@ -1272,15 +1272,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Создание/claim сессии, выделение sequence number и сохранение turn атомарны. Constraint violations различаются по имени. Параллельные turns одной сессии не получают одинаковый sequence.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `vera_agent_service/app/repositories/chat_session.py`, `app/repositories/chat_turn.py`, `app/services/chat_persistence.py`, `tests/integration/test_chat_persistence.py`, `tests/unit/services/test_chat_persistence.py`; отчёт — `site_work_for_everyone/VERA_CHAT_TECHNICAL_AUDIT.md`. Коммит Agent Service — `c41159a`.
+- **Суть изменения:** для новой реплики repository выполняет PostgreSQL `INSERT ... ON CONFLICT DO NOTHING` по `session_id`, затем `SELECT ... FOR UPDATE` строки сессии. Owner-check/promotion, touch, чтение `max(sequence_number) + 1` и вставка `ChatTurn` проходят в том же `AsyncSession`; единственный commit выполняет `ChatTurnRepository.save`, поэтому сессия и реплика сохраняются атомарно, а одна `session_id` сериализована DB-lock. `IntegrityError` теперь разбирается по имени PostgreSQL constraint: только `uq_vera_chat_turns_request_id` превращается в `ChatTurnAlreadyExistsError`, конфликт `uq_vera_chat_turns_session_sequence` — в `ChatTurnRepositoryError`.
+- **Миграции Alembic:** не требуются — используются существующие именованные unique constraints и строковая блокировка PostgreSQL.
+- **Тесты** (добавленные, команда запуска, результат)**:** в `tests/integration/test_chat_persistence.py` добавлены 2 теста на реальном PostgreSQL: две конкурентные задачи с отдельными `AsyncSession` сохраняют обе реплики одной сессии с sequence `{1, 2}`; реальные request/sequence constraint violations получают разные исключения. `venv\Scripts\python.exe -m pytest tests/unit/services/test_chat_persistence.py -q` — 5 passed; затронутый persistence/delivery-набор — 41 passed; полный `venv\Scripts\python.exe -m pytest` — 222 passed, 0 failed, 8 warnings.
+- **Отклонения от предложенного решения и причина:** выбран предложенный вариант с `SELECT FOR UPDATE`, дополненный idempotent insert сессии через `ON CONFLICT DO NOTHING`, чтобы атомарно покрыть и одновременное создание первой сессии. Атомарный счётчик в модель не добавлялся: существующей строковой блокировки достаточно, миграция не нужна.
+- **Осталось / связанные карточки:** VERA-035 является только предусловием VERA-013. `prefetch_count=1`, один worker и in-memory `SessionBus` не менялись; включение concurrency остаётся отдельной карточкой VERA-013.
 
 ### VERA-036 — Ошибка `VERA_SESSION_SIGNING_KEY` не диагностируется контролируемо
 
