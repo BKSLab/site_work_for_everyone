@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { veraChatHistoryResponseSchema } from "@/lib/schemas/vera";
 import { logger } from "@/lib/utils/logger";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
@@ -9,6 +10,10 @@ import {
     getVeraOwnerHeaders,
     getVeraOwnerUpstreamError,
 } from "@/lib/utils/vera-owner-headers";
+import {
+    parseVeraHttpResponse,
+    VERA_RESPONSE_CONTRACT_ERROR,
+} from "@/lib/utils/vera-response";
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
 const historyLimiter = createRateLimiter({
@@ -115,7 +120,24 @@ export async function GET(
         clearTimeout(timeoutId);
     }
 
-    const data = await response.json();
+    const parsedResponse = await parseVeraHttpResponse(
+        response,
+        veraChatHistoryResponseSchema,
+    );
+    if (!parsedResponse.success) {
+        logger.error("Vera history proxy invalid response", {
+            requestId,
+            status: response.status,
+            durationMs: Date.now() - startTime,
+        });
+        const invalidResponse = NextResponse.json(
+            { detail: VERA_RESPONSE_CONTRACT_ERROR },
+            { status: 502 },
+        );
+        invalidResponse.headers.set("X-Request-ID", requestId);
+        return applyVeraOwnerCookies(invalidResponse, owner);
+    }
+    const data = parsedResponse.data;
     const logFn = response.ok
         ? logger.info
         : response.status >= 500

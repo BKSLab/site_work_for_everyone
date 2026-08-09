@@ -11,7 +11,9 @@ import {
 import type { NextRequest } from "next/server";
 
 import {
+    veraFeedbackResponseSchema,
     veraFeedbackSchema,
+    veraMessageFeedbackResponseSchema,
     veraMessageFeedbackSchema,
 } from "@/lib/schemas/vera";
 import {
@@ -68,11 +70,37 @@ function sessionCookie(sessionId: string): Record<string, string> {
     };
 }
 
-function createBackendResponse(status = 200, detail = "ok"): Response {
-    return new Response(JSON.stringify({ detail }), {
+function createBackendResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
         status,
         headers: { "Content-Type": "application/json" },
     });
+}
+
+function createSessionFeedbackResponse(): Response {
+    return createBackendResponse({
+        id: "feedback-1",
+        session_id: "auth-session",
+        submission_id: "submission-1",
+        review_status: "pending",
+        created_at: "2026-08-09T00:00:00Z",
+    });
+}
+
+function createMessageFeedbackResponse(): Response {
+    return createBackendResponse({
+        id: "feedback-1",
+        session_id: "anonymous-session",
+        request_id: "turn-1",
+        value: "up",
+        review_status: "pending",
+        created_at: "2026-08-09T00:00:00Z",
+        updated_at: "2026-08-09T00:00:00Z",
+    });
+}
+
+function createBackendErrorResponse(status: number, detail = "ok"): Response {
+    return createBackendResponse({ detail }, status);
 }
 
 function createAccessToken(exp = Math.floor(Date.now() / 1000) + 3600): string {
@@ -117,7 +145,7 @@ describe("proxyVeraFeedback", () => {
         });
         const fetchMock = vi
             .fn()
-            .mockResolvedValue(createBackendResponse());
+            .mockResolvedValue(createSessionFeedbackResponse());
         vi.stubGlobal("fetch", fetchMock);
 
         const response = await proxyVeraFeedback({
@@ -129,6 +157,7 @@ describe("proxyVeraFeedback", () => {
             method: "POST",
             backendPath: "/api/vera/feedback/session",
             schema: veraFeedbackSchema,
+            responseSchema: veraFeedbackResponseSchema,
             limiter,
         });
 
@@ -146,7 +175,7 @@ describe("proxyVeraFeedback", () => {
         useCookies({});
         const fetchMock = vi
             .fn()
-            .mockResolvedValue(createBackendResponse());
+            .mockResolvedValue(createMessageFeedbackResponse());
         vi.stubGlobal("fetch", fetchMock);
 
         const response = await proxyVeraFeedback({
@@ -158,6 +187,7 @@ describe("proxyVeraFeedback", () => {
             method: "PUT",
             backendPath: "/api/vera/feedback/message",
             schema: veraMessageFeedbackSchema,
+            responseSchema: veraMessageFeedbackResponseSchema,
             limiter,
         });
 
@@ -174,7 +204,9 @@ describe("proxyVeraFeedback", () => {
         useCookies(sessionCookie("anonymous-session"));
         const fetchMock = vi
             .fn()
-            .mockImplementation(() => Promise.resolve(createBackendResponse()));
+            .mockImplementation(() =>
+                Promise.resolve(createMessageFeedbackResponse()),
+            );
         vi.stubGlobal("fetch", fetchMock);
 
         for (const value of ["up", "down"] as const) {
@@ -187,6 +219,7 @@ describe("proxyVeraFeedback", () => {
                 method: "PUT",
                 backendPath: "/api/vera/feedback/message",
                 schema: veraMessageFeedbackSchema,
+                responseSchema: veraMessageFeedbackResponseSchema,
                 limiter,
             });
         }
@@ -207,7 +240,7 @@ describe("proxyVeraFeedback", () => {
         });
         vi.stubGlobal(
             "fetch",
-            vi.fn().mockResolvedValue(createBackendResponse(403)),
+            vi.fn().mockResolvedValue(createBackendErrorResponse(403)),
         );
 
         const response = await proxyVeraFeedback({
@@ -219,6 +252,7 @@ describe("proxyVeraFeedback", () => {
             method: "PUT",
             backendPath: "/api/vera/feedback/message",
             schema: veraMessageFeedbackSchema,
+            responseSchema: veraMessageFeedbackResponseSchema,
             limiter,
         });
 
@@ -240,6 +274,7 @@ describe("proxyVeraFeedback", () => {
             method: "PUT",
             backendPath: "/api/vera/feedback/message",
             schema: veraMessageFeedbackSchema,
+            responseSchema: veraMessageFeedbackResponseSchema,
             limiter,
         });
 
@@ -255,7 +290,10 @@ describe("proxyVeraFeedback", () => {
             vi
                 .fn()
                 .mockResolvedValue(
-                    createBackendResponse(401, "Сессия чата не подтверждена."),
+                    createBackendErrorResponse(
+                        401,
+                        "Сессия чата не подтверждена.",
+                    ),
                 ),
         );
 
@@ -268,6 +306,7 @@ describe("proxyVeraFeedback", () => {
             method: "PUT",
             backendPath: "/api/vera/feedback/message",
             schema: veraMessageFeedbackSchema,
+            responseSchema: veraMessageFeedbackResponseSchema,
             limiter,
         });
 
@@ -298,7 +337,7 @@ describe("proxyVeraFeedback", () => {
                     },
                 ),
             )
-            .mockResolvedValueOnce(createBackendResponse());
+            .mockResolvedValueOnce(createSessionFeedbackResponse());
         vi.stubGlobal("fetch", fetchMock);
 
         const response = await proxyVeraFeedback({
@@ -310,6 +349,7 @@ describe("proxyVeraFeedback", () => {
             method: "POST",
             backendPath: "/api/vera/feedback/session",
             schema: veraFeedbackSchema,
+            responseSchema: veraFeedbackResponseSchema,
             limiter,
         });
 
@@ -336,7 +376,7 @@ describe("proxyVeraFeedback", () => {
         useCookies({ [expiredCookieName]: expiredToken });
         vi.stubGlobal(
             "fetch",
-            vi.fn().mockResolvedValue(createBackendResponse()),
+            vi.fn().mockResolvedValue(createMessageFeedbackResponse()),
         );
 
         const response = await proxyVeraFeedback({
@@ -348,6 +388,7 @@ describe("proxyVeraFeedback", () => {
             method: "PUT",
             backendPath: "/api/vera/feedback/message",
             schema: veraMessageFeedbackSchema,
+            responseSchema: veraMessageFeedbackResponseSchema,
             limiter,
         });
 
@@ -357,5 +398,37 @@ describe("proxyVeraFeedback", () => {
         expect(setCookie).toContain(
             `${getVeraSessionCookieName("current-session")}=`,
         );
+    });
+
+    it("returns a controlled 502 for a non-JSON upstream response", async () => {
+        useCookies(sessionCookie("anonymous-session"));
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue(
+                new Response("Bad gateway", {
+                    status: 502,
+                    headers: { "Content-Type": "text/plain" },
+                }),
+            ),
+        );
+
+        const response = await proxyVeraFeedback({
+            request: makeRequest("PUT", {
+                session_id: "anonymous-session",
+                request_id: "turn-1",
+                value: "up",
+            }),
+            method: "PUT",
+            backendPath: "/api/vera/feedback/message",
+            schema: veraMessageFeedbackSchema,
+            responseSchema: veraMessageFeedbackResponseSchema,
+            limiter,
+        });
+
+        expect(response.status).toBe(502);
+        expect(response.headers.get("X-Request-ID")).toBe("test-request-id");
+        await expect(response.json()).resolves.toEqual({
+            detail: "Сервис вернул некорректный ответ. Попробуйте позже.",
+        });
     });
 });

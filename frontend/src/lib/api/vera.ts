@@ -1,46 +1,52 @@
-import type {
-    VeraChatFormData,
-    VeraFeedbackFormData,
-    VeraMessageFeedbackFormData,
+import {
+    type VeraChatHistoryResponse,
+    type VeraChatFormData,
+    veraChatHistoryResponseSchema,
+    type VeraChatResponse,
+    veraChatResponseSchema,
+    type VeraCurrentChatSessionResponse,
+    veraCurrentChatSessionResponseSchema,
+    type VeraFeedbackResponse,
+    type VeraFeedbackFormData,
+    veraFeedbackResponseSchema,
+    type VeraMessageFeedbackResponse,
+    type VeraMessageFeedbackFormData,
+    veraMessageFeedbackResponseSchema,
 } from "@/lib/schemas/vera";
+import {
+    getVeraErrorDetail,
+    parseVeraHttpResponse,
+    VERA_RESPONSE_CONTRACT_ERROR,
+} from "@/lib/utils/vera-response";
+import type { z } from "zod";
 import { ApiRequestError } from "./client";
 
 const VERA_BASE = "/api/vera";
 
-interface VeraMessageFeedbackResponse extends VeraMessageFeedbackFormData {
-    id: string;
-    review_status: string;
-    created_at: string;
-    updated_at: string;
-}
+export type {
+    VeraChatHistoryResponse,
+    VeraChatHistoryTurn,
+    VeraCurrentChatSessionResponse,
+} from "@/lib/schemas/vera";
 
-interface VeraFeedbackResponse {
-    id: string;
-    session_id: string;
-    submission_id: string;
-    review_status: string;
-    created_at: string;
-}
+async function readVeraResponse<T>(
+    response: Response,
+    successSchema: z.ZodType<T>,
+): Promise<T> {
+    const parsed = await parseVeraHttpResponse(response, successSchema);
 
-export interface VeraChatHistoryTurn {
-    request_id: string;
-    sequence_number: number;
-    question: string;
-    answer: string | null;
-    status: string;
-    feedback_value: "up" | "down" | null;
-    created_at: string;
-    completed_at: string | null;
-}
+    if (!parsed.success) {
+        throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
+    }
 
-export interface VeraChatHistoryResponse {
-    session_id: string;
-    turns: VeraChatHistoryTurn[];
-    next_before_sequence: number | null;
-}
+    if (parsed.kind === "error") {
+        throw new ApiRequestError(
+            response.status,
+            getVeraErrorDetail(parsed.data),
+        );
+    }
 
-export interface VeraCurrentChatSessionResponse {
-    session_id: string | null;
+    return parsed.data;
 }
 
 export const veraApi = {
@@ -53,37 +59,22 @@ export const veraApi = {
             cache: "no-store",
         });
 
-        const body = await response.json();
-
-        if (!response.ok) {
-            throw new ApiRequestError(
-                response.status,
-                body.detail ?? "Неизвестная ошибка",
-            );
-        }
-
-        return body;
+        return readVeraResponse(
+            response,
+            veraCurrentChatSessionResponseSchema,
+        );
     },
 
     sendMessage: async (
         data: VeraChatFormData,
-    ): Promise<{ status: string }> => {
+    ): Promise<VeraChatResponse> => {
         const response = await fetch(`${VERA_BASE}/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
         });
 
-        const body = await response.json();
-
-        if (!response.ok) {
-            throw new ApiRequestError(
-                response.status,
-                body.detail ?? "Неизвестная ошибка",
-            );
-        }
-
-        return body;
+        return readVeraResponse(response, veraChatResponseSchema);
     },
 
     getHistory: async (
@@ -107,16 +98,7 @@ export const veraApi = {
             },
         );
 
-        const body = await response.json();
-
-        if (!response.ok) {
-            throw new ApiRequestError(
-                response.status,
-                body.detail ?? "Неизвестная ошибка",
-            );
-        }
-
-        return body;
+        return readVeraResponse(response, veraChatHistoryResponseSchema);
     },
 
     sendFeedback: async (
@@ -128,16 +110,7 @@ export const veraApi = {
             body: JSON.stringify(data),
         });
 
-        const body = await response.json();
-
-        if (!response.ok) {
-            throw new ApiRequestError(
-                response.status,
-                body.detail ?? "Неизвестная ошибка",
-            );
-        }
-
-        return body;
+        return readVeraResponse(response, veraFeedbackResponseSchema);
     },
 
     sendMessageFeedback: async (
@@ -149,15 +122,9 @@ export const veraApi = {
             body: JSON.stringify(data),
         });
 
-        const body = await response.json();
-
-        if (!response.ok) {
-            throw new ApiRequestError(
-                response.status,
-                body.detail ?? "Неизвестная ошибка",
-            );
-        }
-
-        return body;
+        return readVeraResponse(
+            response,
+            veraMessageFeedbackResponseSchema,
+        );
     },
 };

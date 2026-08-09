@@ -3,12 +3,20 @@ import { validateOrigin } from "@/lib/utils/csrf";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
 import { logger } from "@/lib/utils/logger";
-import { veraChatSchema } from "@/lib/schemas/vera";
+import {
+    veraChatResponseSchema,
+    veraChatSchema,
+} from "@/lib/schemas/vera";
 import {
     applyVeraOwnerCookies,
     getVeraOwnerHeaders,
     getVeraOwnerUpstreamError,
 } from "@/lib/utils/vera-owner-headers";
+import {
+    getVeraErrorDetail,
+    parseVeraHttpResponse,
+    VERA_RESPONSE_CONTRACT_ERROR,
+} from "@/lib/utils/vera-response";
 
 // AUTH_API_URL уже указывает на backend этого репозитория (не на внешний
 // API_URL, используемый /api/v1/[...path] для вакансий hh.ru).
@@ -140,7 +148,24 @@ export async function POST(request: NextRequest) {
         clearTimeout(timeoutId);
     }
 
-    const data = await response.json();
+    const parsedResponse = await parseVeraHttpResponse(
+        response,
+        veraChatResponseSchema,
+    );
+    if (!parsedResponse.success) {
+        logger.error("Vera chat proxy invalid response", {
+            requestId,
+            status: response.status,
+            durationMs: Date.now() - startTime,
+        });
+        const invalidResponse = NextResponse.json(
+            { detail: VERA_RESPONSE_CONTRACT_ERROR },
+            { status: 502 },
+        );
+        invalidResponse.headers.set("X-Request-ID", requestId);
+        return applyVeraOwnerCookies(invalidResponse, owner);
+    }
+    const data = parsedResponse.data;
 
     if (!response.ok) {
         const logFn = response.status >= 500 ? logger.error : logger.warn;
@@ -148,7 +173,10 @@ export async function POST(request: NextRequest) {
             requestId,
             status: response.status,
             durationMs: Date.now() - startTime,
-            detail: data.detail,
+            detail:
+                parsedResponse.kind === "error"
+                    ? getVeraErrorDetail(parsedResponse.data)
+                    : undefined,
         });
     } else {
         logger.info("Vera chat proxy request", {

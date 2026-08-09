@@ -12,7 +12,10 @@ import type {
     VeraChatHistoryTurn,
 } from "@/lib/api/vera";
 import { veraApi } from "@/lib/api/vera";
-import { veraChatSchema } from "@/lib/schemas/vera";
+import {
+    veraChatSchema,
+    veraSseEventSchema,
+} from "@/lib/schemas/vera";
 import { useAuthStore } from "@/stores/auth";
 
 const SESSION_STORAGE_KEY = "vera_session_id";
@@ -52,11 +55,6 @@ export interface VeraSendMessageResult {
 }
 
 type ChatStatus = "idle" | "waiting" | "streaming" | "unavailable";
-
-type SseEvent =
-    | { type: "token"; content: string }
-    | { type: "done" }
-    | { type: "error"; detail?: string };
 
 function readOrCreateSessionId(): string {
     if (typeof window === "undefined") return "";
@@ -429,9 +427,9 @@ export function useVeraChat() {
                     timeoutRef.current = null;
                 }
 
-                let data: SseEvent;
+                let rawData: unknown;
                 try {
-                    data = JSON.parse(event.data) as SseEvent;
+                    rawData = JSON.parse(event.data);
                 } catch {
                     closeStream();
                     finishAssistantMessageAfterError(assistantMessageId);
@@ -442,6 +440,18 @@ export function useVeraChat() {
                     );
                     return;
                 }
+                const parsedEvent = veraSseEventSchema.safeParse(rawData);
+                if (!parsedEvent.success) {
+                    closeStream();
+                    finishAssistantMessageAfterError(assistantMessageId);
+                    setStatus("unavailable");
+                    setAnnouncement("");
+                    setError(
+                        "Не удалось обработать ответ Ассистента Веры. Попробуйте ещё раз.",
+                    );
+                    return;
+                }
+                const data = parsedEvent.data;
 
                 if (data.type === "token") {
                     setStatus("streaming");

@@ -9,6 +9,10 @@ import {
     getVeraOwnerHeaders,
     getVeraOwnerUpstreamError,
 } from "@/lib/utils/vera-owner-headers";
+import {
+    parseVeraHttpResponse,
+    VERA_RESPONSE_CONTRACT_ERROR,
+} from "@/lib/utils/vera-response";
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
 
@@ -24,6 +28,7 @@ interface VeraFeedbackProxyOptions {
     method: "POST" | "PUT";
     backendPath: string;
     schema: z.ZodType;
+    responseSchema: z.ZodType;
     limiter: RateLimiter;
 }
 
@@ -40,6 +45,7 @@ export async function proxyVeraFeedback({
     method,
     backendPath,
     schema,
+    responseSchema,
     limiter,
 }: VeraFeedbackProxyOptions) {
     const originError = validateOrigin(request);
@@ -146,7 +152,26 @@ export async function proxyVeraFeedback({
         clearTimeout(timeoutId);
     }
 
-    const data = await response.json();
+    const parsedResponse = await parseVeraHttpResponse(
+        response,
+        responseSchema,
+    );
+    if (!parsedResponse.success) {
+        logger.error("Vera feedback proxy invalid response", {
+            requestId,
+            backendPath,
+            method,
+            status: response.status,
+            durationMs: Date.now() - startTime,
+        });
+        const invalidResponse = NextResponse.json(
+            { detail: VERA_RESPONSE_CONTRACT_ERROR },
+            { status: 502 },
+        );
+        invalidResponse.headers.set("X-Request-ID", requestId);
+        return applyVeraOwnerCookies(invalidResponse, owner);
+    }
+    const data = parsedResponse.data;
     const logFn = response.ok
         ? logger.info
         : response.status >= 500

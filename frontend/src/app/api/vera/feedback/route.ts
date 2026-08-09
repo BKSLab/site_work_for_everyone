@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server";
 
 import { createRateLimiter } from "@/lib/utils/rate-limit";
-import { veraFeedbackSchema } from "@/lib/schemas/vera";
+import {
+    veraFeedbackResponseSchema,
+    veraFeedbackSchema,
+} from "@/lib/schemas/vera";
 import { proxyVeraFeedback } from "@/lib/utils/vera-feedback-proxy";
 
 const feedbackLimiter = createRateLimiter({
@@ -15,6 +18,7 @@ export async function POST(request: NextRequest) {
         method: "POST",
         backendPath: "/api/vera/feedback/session",
         schema: veraFeedbackSchema,
+        responseSchema: veraFeedbackResponseSchema,
         limiter: feedbackLimiter,
     });
 }

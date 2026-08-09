@@ -42,6 +42,10 @@ class FakeEventSource {
         this.onmessage?.({ data: JSON.stringify(data) } as MessageEvent);
     }
 
+    emitRaw(data: string) {
+        this.onmessage?.({ data } as MessageEvent);
+    }
+
     fail() {
         this.onerror?.();
     }
@@ -436,6 +440,32 @@ describe("useVeraChat", () => {
             feedbackEligible: false,
         });
         expect(result.current.announcement).toBe("");
+
+        unmount();
+    });
+
+    it.each([
+        ["malformed JSON", "{"],
+        ["an invalid event", JSON.stringify({ type: "token" })],
+    ])("handles %s from SSE as a controlled error", async (_name, data) => {
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+        await act(async () => {
+            await result.current.sendMessage("Расскажите о квотах.");
+        });
+
+        act(() => {
+            FakeEventSource.instances[0].emitRaw(data);
+        });
+
+        expect(FakeEventSource.instances[0].closed).toBe(true);
+        expect(result.current.status).toBe("unavailable");
+        expect(result.current.announcement).toBe("");
+        expect(result.current.error).toBe(
+            "Не удалось обработать ответ Ассистента Веры. Попробуйте ещё раз.",
+        );
+        expect(result.current.messages).toHaveLength(1);
 
         unmount();
     });

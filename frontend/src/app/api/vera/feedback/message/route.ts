@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 
-import { veraMessageFeedbackSchema } from "@/lib/schemas/vera";
+import {
+    veraMessageFeedbackResponseSchema,
+    veraMessageFeedbackSchema,
+} from "@/lib/schemas/vera";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { proxyVeraFeedback } from "@/lib/utils/vera-feedback-proxy";
 
@@ -15,6 +18,7 @@ export async function PUT(request: NextRequest) {
         method: "PUT",
         backendPath: "/api/vera/feedback/message",
         schema: veraMessageFeedbackSchema,
+        responseSchema: veraMessageFeedbackResponseSchema,
         limiter: messageFeedbackLimiter,
     });
 }

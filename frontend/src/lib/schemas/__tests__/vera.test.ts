@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+    veraChatHistoryResponseSchema,
+    veraChatResponseSchema,
     veraChatSchema,
+    veraCurrentChatSessionResponseSchema,
+    veraErrorResponseSchema,
+    veraFeedbackResponseSchema,
     veraFeedbackSchema,
+    veraMessageFeedbackResponseSchema,
     veraMessageFeedbackSchema,
+    veraSseEventSchema,
 } from "../vera";
 
 describe("veraChatSchema", () => {
@@ -105,5 +112,106 @@ describe("veraMessageFeedbackSchema", () => {
                 value: "down",
             }).success,
         ).toBe(true);
+    });
+});
+
+describe("Vera HTTP response schemas", () => {
+    const timestamp = "2026-08-09T12:00:00Z";
+
+    it("accepts every successful response variant", () => {
+        expect(
+            veraChatResponseSchema.safeParse({ status: "queued" }).success,
+        ).toBe(true);
+        expect(
+            veraCurrentChatSessionResponseSchema.safeParse({
+                session_id: null,
+            }).success,
+        ).toBe(true);
+        expect(
+            veraChatHistoryResponseSchema.safeParse({
+                session_id: "conversation-1",
+                turns: [
+                    {
+                        request_id: "request-1",
+                        sequence_number: 1,
+                        question: "Вопрос",
+                        answer: "Ответ",
+                        status: "completed",
+                        feedback_value: "up",
+                        created_at: timestamp,
+                        completed_at: timestamp,
+                    },
+                ],
+                next_before_sequence: null,
+            }).success,
+        ).toBe(true);
+        expect(
+            veraFeedbackResponseSchema.safeParse({
+                id: "feedback-1",
+                session_id: "conversation-1",
+                submission_id: "submission-1",
+                review_status: "pending",
+                created_at: timestamp,
+            }).success,
+        ).toBe(true);
+        expect(
+            veraMessageFeedbackResponseSchema.safeParse({
+                id: "feedback-1",
+                session_id: "conversation-1",
+                request_id: "request-1",
+                value: "down",
+                review_status: "pending",
+                created_at: timestamp,
+                updated_at: timestamp,
+            }).success,
+        ).toBe(true);
+    });
+
+    it("accepts string and validation-list error responses", () => {
+        expect(
+            veraErrorResponseSchema.safeParse({ detail: "Forbidden" })
+                .success,
+        ).toBe(true);
+        expect(
+            veraErrorResponseSchema.safeParse({
+                detail: [
+                    {
+                        loc: ["body", "message"],
+                        msg: "Field required",
+                        type: "missing",
+                    },
+                ],
+            }).success,
+        ).toBe(true);
+    });
+
+    it("rejects a response that does not match its endpoint contract", () => {
+        expect(
+            veraChatResponseSchema.safeParse({ status: "completed" }).success,
+        ).toBe(false);
+        expect(
+            veraCurrentChatSessionResponseSchema.safeParse({
+                session_id: 42,
+            }).success,
+        ).toBe(false);
+    });
+});
+
+describe("veraSseEventSchema", () => {
+    it.each([
+        { type: "token", content: "Фрагмент" },
+        { type: "done" },
+        { type: "error", detail: "Не удалось ответить" },
+    ])("accepts the $type event", (event) => {
+        expect(veraSseEventSchema.safeParse(event).success).toBe(true);
+    });
+
+    it.each([
+        { type: "token" },
+        { type: "heartbeat" },
+        null,
+        42,
+    ])("rejects an invalid event: %j", (event) => {
+        expect(veraSseEventSchema.safeParse(event).success).toBe(false);
     });
 });

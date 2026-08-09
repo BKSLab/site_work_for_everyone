@@ -1007,15 +1007,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Все HTTP-ответы и SSE-события разбираются через Zod-схемы. Пустой или не-JSON ответ не роняет обработчик. Несоответствие контракту отображается контролируемой ошибкой.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `frontend/src/lib/schemas/vera.ts`; `frontend/src/lib/utils/vera-response.ts`; `frontend/src/lib/api/vera.ts`; `frontend/src/app/api/vera/chat/route.ts`; `frontend/src/app/api/vera/history/[sessionId]/route.ts`; `frontend/src/app/api/vera/session/current/route.ts`; `frontend/src/lib/utils/vera-feedback-proxy.ts`; `frontend/src/app/api/vera/feedback/route.ts`; `frontend/src/app/api/vera/feedback/message/route.ts`; `frontend/src/hooks/useVeraChat.ts`; `frontend/src/lib/schemas/__tests__/vera.test.ts`; `frontend/src/lib/utils/__tests__/vera-response.test.ts`; `frontend/src/lib/utils/__tests__/vera-feedback-proxy.test.ts`; `frontend/src/hooks/__tests__/useVeraChat.test.ts`; `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** для пяти успешных HTTP-ответов, строкового/validation-list error response и трёх существующих SSE-событий определены Zod-схемы; TypeScript-типы ответов теперь выводятся из них. Общий parser проверяет JSON media type (`application/json` и `+json`), непустое тело, корректность JSON и соответствие схеме с учётом HTTP-статуса. Vera API client, chat/history/current и оба feedback BFF-маршрута используют этот parser; некорректный upstream превращается в контролируемый `502` с `X-Request-ID` и сохранением owner cookies. SSE payload после `JSON.parse` проходит `safeParse`, а нарушение контракта закрывает поток и показывает существующую контролируемую ошибку. HTTP response-схемы оставлены passthrough, поэтому BFF не удаляет дополнительные поля upstream и relay-контракт не меняется.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлен 21 сценарий: все HTTP/SSE variants, JSON с charset и `+json`, empty/non-JSON/malformed/schema-mismatch/status-mismatch, контролируемый `502` BFF и некорректный SSE. `npm test -- src/lib/schemas/__tests__/vera.test.ts src/lib/utils/__tests__/vera-response.test.ts src/lib/utils/__tests__/vera-feedback-proxy.test.ts src/hooks/__tests__/useVeraChat.test.ts` — 52 passed. `npm test` — 125 passed. `npm run lint` — успешно, 0 errors и 26 существующих warnings. `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** схемы описаны рядом с существующими frontend request-схемами, без генерации из OpenAPI: versioned codegen в проекте отсутствует, а его добавление потребовало бы нового инструментария вне скоупа карточки.
+- **Осталось / связанные карточки:** набор SSE-событий не расширялся; heartbeat и отдельная protocol-семантика неизвестных событий остаются в VERA-012/024.
 
 ### VERA-027 — Composer и optimistic flow не полностью отражают валидацию
 

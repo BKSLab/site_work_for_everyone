@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { veraCurrentChatSessionResponseSchema } from "@/lib/schemas/vera";
 import { logger } from "@/lib/utils/logger";
 import { createRateLimiter } from "@/lib/utils/rate-limit";
 import { getRequestId } from "@/lib/utils/request-id";
@@ -7,6 +8,10 @@ import {
     applyVeraOwnerCookies,
     getVeraOwnerHeaders,
 } from "@/lib/utils/vera-owner-headers";
+import {
+    parseVeraHttpResponse,
+    VERA_RESPONSE_CONTRACT_ERROR,
+} from "@/lib/utils/vera-response";
 
 const AUTH_API_URL = process.env.AUTH_API_URL;
 const currentSessionLimiter = createRateLimiter({
@@ -93,7 +98,24 @@ export async function GET(request: NextRequest) {
         clearTimeout(timeoutId);
     }
 
-    const data = await response.json();
+    const parsedResponse = await parseVeraHttpResponse(
+        response,
+        veraCurrentChatSessionResponseSchema,
+    );
+    if (!parsedResponse.success) {
+        logger.error("Vera current session proxy invalid response", {
+            requestId,
+            status: response.status,
+            durationMs: Date.now() - startTime,
+        });
+        const invalidResponse = NextResponse.json(
+            { detail: VERA_RESPONSE_CONTRACT_ERROR },
+            { status: 502 },
+        );
+        invalidResponse.headers.set("X-Request-ID", requestId);
+        return applyVeraOwnerCookies(invalidResponse, owner);
+    }
+    const data = parsedResponse.data;
     const logFn = response.ok
         ? logger.info
         : response.status >= 500
