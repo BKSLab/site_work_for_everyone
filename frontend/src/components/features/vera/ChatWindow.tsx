@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import {
+    memo,
     useEffect,
     useRef,
     useState,
@@ -10,7 +11,10 @@ import {
 } from "react";
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
-import { useVeraChat } from "@/hooks/useVeraChat";
+import {
+    type VeraChatMessage,
+    useVeraChat,
+} from "@/hooks/useVeraChat";
 import { VERA_MESSAGE_MAX_LENGTH } from "@/lib/schemas/vera";
 import { ChatMessage } from "./ChatMessage";
 import { VeraFeedbackModal } from "./VeraFeedbackModal";
@@ -21,6 +25,24 @@ const SUGGESTED_QUESTIONS = [
     "Какие льготы положены работнику?",
     "Что такое соглашение о трудоустройстве инвалидов?",
 ];
+
+const SCROLL_BOTTOM_THRESHOLD_PX = 80;
+
+const ChatMessageList = memo(function ChatMessageList({
+    messages,
+    sessionId,
+}: {
+    messages: VeraChatMessage[];
+    sessionId: string;
+}) {
+    return messages.map((message) => (
+        <ChatMessage
+            key={message.id}
+            message={message}
+            sessionId={sessionId}
+        />
+    ));
+});
 
 export function ChatWindow() {
     const {
@@ -37,26 +59,85 @@ export function ChatWindow() {
         loadOlderHistory,
     } = useVeraChat();
     const [input, setInput] = useState("");
+    const [isNearHistoryBottom, setIsNearHistoryBottom] = useState(true);
     const listRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const previousScrollHeightRef = useRef<number | null>(null);
+    const previousFirstMessageIdRef = useRef<string | null>(null);
+    const shouldAutoScrollRef = useRef(true);
 
     useEffect(() => {
-        if (listRef.current && previousScrollHeightRef.current !== null) {
-            listRef.current.scrollTop +=
-                listRef.current.scrollHeight - previousScrollHeightRef.current;
+        const list = listRef.current;
+        if (!list) return;
+
+        if (previousScrollHeightRef.current !== null) {
+            const previousFirstMessageId =
+                previousFirstMessageIdRef.current;
+            const firstMessageId = messages[0]?.id ?? null;
+            const didPrepend =
+                previousFirstMessageId === null
+                    ? messages.length > 0
+                    : firstMessageId !== previousFirstMessageId &&
+                      messages.some(
+                          (message) =>
+                              message.id === previousFirstMessageId,
+                      );
+
+            if (didPrepend) {
+                list.scrollTop +=
+                    list.scrollHeight - previousScrollHeightRef.current;
+                previousScrollHeightRef.current = null;
+                previousFirstMessageIdRef.current = null;
+                return;
+            }
+
+            if (isOlderHistoryLoading) {
+                // Append/stream update во время загрузки не должен съесть
+                // marker будущего prepend или попасть в его высоту.
+                previousScrollHeightRef.current = list.scrollHeight;
+                return;
+            }
+
             previousScrollHeightRef.current = null;
+            previousFirstMessageIdRef.current = null;
             return;
         }
-        listRef.current?.scrollTo({
-            top: listRef.current.scrollHeight,
-            behavior: "auto",
+
+        if (shouldAutoScrollRef.current) {
+            list.scrollTo({
+                top: list.scrollHeight,
+                behavior: "auto",
+            });
+        }
+    }, [isOlderHistoryLoading, messages]);
+
+    function handleHistoryScroll() {
+        const list = listRef.current;
+        if (!list) return;
+
+        const isNearBottom =
+            list.scrollHeight - list.scrollTop - list.clientHeight <=
+            SCROLL_BOTTOM_THRESHOLD_PX;
+        shouldAutoScrollRef.current = isNearBottom;
+        setIsNearHistoryBottom(isNearBottom);
+    }
+
+    function handleJumpToLatest() {
+        const list = listRef.current;
+        if (!list) return;
+
+        shouldAutoScrollRef.current = true;
+        setIsNearHistoryBottom(true);
+        list.scrollTo({
+            top: list.scrollHeight,
+            behavior: "smooth",
         });
-    }, [messages]);
+    }
 
     function handleLoadOlderHistory() {
         if (listRef.current) {
             previousScrollHeightRef.current = listRef.current.scrollHeight;
+            previousFirstMessageIdRef.current = messages[0]?.id ?? null;
         }
         void loadOlderHistory();
     }
@@ -131,75 +212,89 @@ export function ChatWindow() {
                     {announcement}
                 </div>
 
-                <div
-                    ref={listRef}
-                    role="region"
-                    aria-label="История переписки с Ассистентом Верой"
-                    aria-busy={isBusy || isHistoryLoading}
-                    className="vera-chat-scrollbar flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6"
-                >
-                    {hasOlderHistory && (
-                        <div className="flex justify-center">
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                disabled={isOlderHistoryLoading}
-                                onClick={handleLoadOlderHistory}
-                            >
-                                {isOlderHistoryLoading
-                                    ? "Загружаю…"
-                                    : "Показать предыдущие"}
-                            </Button>
-                        </div>
-                    )}
-                    {isHistoryLoading && messages.length === 0 && (
-                        <div className="m-auto flex items-center gap-2 text-sm text-muted">
-                            <span
-                                aria-hidden="true"
-                                className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-accent motion-reduce:animate-none"
-                            />
-                            <span>Восстанавливаю историю диалога…</span>
-                        </div>
-                    )}
-                    {!isHistoryLoading && messages.length === 0 && (
-                        <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-5 py-6 text-center">
-                            <div className="space-y-2">
-                                <h2 className="text-xl font-bold text-foreground sm:text-2xl">
-                                    Чем я могу помочь?
-                                </h2>
-                                <p className="mx-auto max-w-lg text-sm leading-relaxed text-muted">
-                                    Спросите о правах, льготах или
-                                    трудоустройстве. Ассистент Вера ответит на
-                                    основе базы знаний.
-                                </p>
+                <div className="relative min-h-0 flex-1">
+                    <div
+                        ref={listRef}
+                        id="vera-chat-history"
+                        role="region"
+                        aria-label="История переписки с Ассистентом Верой"
+                        aria-busy={isBusy || isHistoryLoading}
+                        onScroll={handleHistoryScroll}
+                        className="vera-chat-scrollbar flex h-full min-h-0 w-full flex-col gap-4 overflow-y-auto p-4 sm:p-6"
+                    >
+                        {hasOlderHistory && (
+                            <div className="flex justify-center">
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    disabled={isOlderHistoryLoading}
+                                    onClick={handleLoadOlderHistory}
+                                >
+                                    {isOlderHistoryLoading
+                                        ? "Загружаю…"
+                                        : "Показать предыдущие"}
+                                </Button>
                             </div>
-                            <div
-                                role="group"
-                                aria-label="Примеры вопросов"
-                                className="grid w-full gap-2 sm:grid-cols-2"
-                            >
-                                {SUGGESTED_QUESTIONS.map((question) => (
-                                    <button
-                                        key={question}
-                                        type="button"
-                                        onClick={() =>
-                                            selectSuggestedQuestion(question)
-                                        }
-                                        className="min-h-11 rounded-xl border border-border bg-white/[0.03] px-4 py-3 text-left text-sm leading-snug text-muted transition-colors hover:border-accent/50 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                                    >
-                                        {question}
-                                    </button>
-                                ))}
+                        )}
+                        {isHistoryLoading && messages.length === 0 && (
+                            <div className="m-auto flex items-center gap-2 text-sm text-muted">
+                                <span
+                                    aria-hidden="true"
+                                    className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-accent motion-reduce:animate-none"
+                                />
+                                <span>Восстанавливаю историю диалога…</span>
                             </div>
-                        </div>
-                    )}
-                    {messages.map((message) => (
-                        <ChatMessage
-                            key={message.id}
-                            message={message}
+                        )}
+                        {!isHistoryLoading && messages.length === 0 && (
+                            <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-5 py-6 text-center">
+                                <div className="space-y-2">
+                                    <h2 className="text-xl font-bold text-foreground sm:text-2xl">
+                                        Чем я могу помочь?
+                                    </h2>
+                                    <p className="mx-auto max-w-lg text-sm leading-relaxed text-muted">
+                                        Спросите о правах, льготах или
+                                        трудоустройстве. Ассистент Вера ответит
+                                        на основе базы знаний.
+                                    </p>
+                                </div>
+                                <div
+                                    role="group"
+                                    aria-label="Примеры вопросов"
+                                    className="grid w-full gap-2 sm:grid-cols-2"
+                                >
+                                    {SUGGESTED_QUESTIONS.map((question) => (
+                                        <button
+                                            key={question}
+                                            type="button"
+                                            onClick={() =>
+                                                selectSuggestedQuestion(
+                                                    question,
+                                                )
+                                            }
+                                            className="min-h-11 rounded-xl border border-border bg-white/[0.03] px-4 py-3 text-left text-sm leading-snug text-muted transition-colors hover:border-accent/50 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                        >
+                                            {question}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <ChatMessageList
+                            messages={messages}
                             sessionId={sessionId}
                         />
-                    ))}
+                    </div>
+                    {!isNearHistoryBottom && messages.length > 0 && (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            aria-controls="vera-chat-history"
+                            onClick={handleJumpToLatest}
+                            className="absolute bottom-3 right-3 shadow-lg"
+                        >
+                            К новому сообщению
+                        </Button>
+                    )}
                 </div>
 
                 {(error || historyError) && (

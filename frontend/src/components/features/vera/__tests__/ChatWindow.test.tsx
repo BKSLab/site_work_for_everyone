@@ -1,12 +1,20 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useVeraChatMock } = vi.hoisted(() => ({
+const { chatMessageRenderMock, useVeraChatMock } = vi.hoisted(() => ({
+    chatMessageRenderMock: vi.fn(),
     useVeraChatMock: vi.fn(),
 }));
 
 vi.mock("@/hooks/useVeraChat", () => ({
     useVeraChat: useVeraChatMock,
+}));
+
+vi.mock("../ChatMessage", () => ({
+    ChatMessage: (props: { message: { content: string } }) => {
+        chatMessageRenderMock(props);
+        return <div>{props.message.content}</div>;
+    },
 }));
 
 import { ChatWindow } from "../ChatWindow";
@@ -17,6 +25,7 @@ describe("ChatWindow accessibility", () => {
             configurable: true,
             value: vi.fn(),
         });
+        chatMessageRenderMock.mockReset();
         useVeraChatMock.mockReset();
     });
 
@@ -296,5 +305,313 @@ describe("ChatWindow accessibility", () => {
                 name: "История переписки с Ассистентом Верой",
             }),
         ).toHaveAttribute("aria-busy", "true");
+    });
+
+    it("does not rebuild the message list when only the composer changes", () => {
+        const messages = [
+            {
+                id: "message-1",
+                role: "assistant" as const,
+                content: "Ответ Ассистента Веры.",
+            },
+        ];
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages,
+            sendMessage: vi.fn(),
+            status: "idle",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+        const renderCount = chatMessageRenderMock.mock.calls.length;
+
+        fireEvent.change(
+            screen.getByLabelText("Сообщение для Ассистента Веры"),
+            { target: { value: "Новый вопрос" } },
+        );
+
+        expect(chatMessageRenderMock).toHaveBeenCalledTimes(renderCount);
+    });
+
+    it("keeps the reader position and offers a jump when new messages arrive", () => {
+        const firstMessages = [
+            {
+                id: "message-1",
+                role: "assistant" as const,
+                content: "Первый ответ.",
+            },
+        ];
+        const chatState = {
+            sessionId: "session-1",
+            messages: firstMessages,
+            sendMessage: vi.fn(),
+            status: "streaming",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        };
+        useVeraChatMock.mockReturnValue(chatState);
+
+        const { rerender } = render(<ChatWindow />);
+        const history = screen.getByRole("region", {
+            name: "История переписки с Ассистентом Верой",
+        });
+        Object.defineProperties(history, {
+            scrollHeight: { configurable: true, value: 1_000 },
+            clientHeight: { configurable: true, value: 500 },
+            scrollTop: { configurable: true, writable: true, value: 100 },
+        });
+        const scrollToMock = vi.mocked(history.scrollTo);
+        scrollToMock.mockClear();
+        fireEvent.scroll(history);
+
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            messages: [
+                ...firstMessages,
+                {
+                    id: "message-2",
+                    role: "assistant" as const,
+                    content: "Новый ответ.",
+                },
+            ],
+        });
+        rerender(<ChatWindow />);
+
+        expect(scrollToMock).not.toHaveBeenCalled();
+        const jumpButton = screen.getByRole("button", {
+            name: "К новому сообщению",
+        });
+        expect(jumpButton).toHaveAttribute(
+            "aria-controls",
+            "vera-chat-history",
+        );
+
+        fireEvent.click(jumpButton);
+
+        expect(scrollToMock).toHaveBeenCalledWith({
+            top: 1_000,
+            behavior: "smooth",
+        });
+        expect(
+            screen.queryByRole("button", { name: "К новому сообщению" }),
+        ).not.toBeInTheDocument();
+    });
+
+    it("continues automatic scrolling while the reader is near the bottom", () => {
+        const firstMessages = [
+            {
+                id: "message-1",
+                role: "assistant" as const,
+                content: "Первый ответ.",
+            },
+        ];
+        const chatState = {
+            sessionId: "session-1",
+            messages: firstMessages,
+            sendMessage: vi.fn(),
+            status: "streaming",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        };
+        useVeraChatMock.mockReturnValue(chatState);
+
+        const { rerender } = render(<ChatWindow />);
+        const history = screen.getByRole("region", {
+            name: "История переписки с Ассистентом Верой",
+        });
+        Object.defineProperties(history, {
+            scrollHeight: { configurable: true, value: 1_000 },
+            clientHeight: { configurable: true, value: 500 },
+            scrollTop: { configurable: true, writable: true, value: 430 },
+        });
+        const scrollToMock = vi.mocked(history.scrollTo);
+        scrollToMock.mockClear();
+        fireEvent.scroll(history);
+
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            messages: [
+                ...firstMessages,
+                {
+                    id: "message-2",
+                    role: "assistant" as const,
+                    content: "Новый ответ.",
+                },
+            ],
+        });
+        rerender(<ChatWindow />);
+
+        expect(scrollToMock).toHaveBeenCalledWith({
+            top: 1_000,
+            behavior: "auto",
+        });
+        expect(
+            screen.queryByRole("button", { name: "К новому сообщению" }),
+        ).not.toBeInTheDocument();
+    });
+
+    it("preserves the viewport when tokens arrive before history is prepended", () => {
+        const loadOlderHistory = vi.fn();
+        const currentMessages = [
+            {
+                id: "message-2",
+                role: "assistant" as const,
+                content: "Новый ответ.",
+            },
+        ];
+        const chatState = {
+            sessionId: "session-1",
+            messages: currentMessages,
+            sendMessage: vi.fn(),
+            status: "idle",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+            hasOlderHistory: true,
+            isOlderHistoryLoading: false,
+            loadOlderHistory,
+        };
+        useVeraChatMock.mockReturnValue(chatState);
+
+        const { rerender } = render(<ChatWindow />);
+        const history = screen.getByRole("region", {
+            name: "История переписки с Ассистентом Верой",
+        });
+        Object.defineProperties(history, {
+            scrollHeight: { configurable: true, value: 1_000 },
+            clientHeight: { configurable: true, value: 500 },
+            scrollTop: { configurable: true, writable: true, value: 200 },
+        });
+        const scrollToMock = vi.mocked(history.scrollTo);
+        scrollToMock.mockClear();
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Показать предыдущие" }),
+        );
+        expect(loadOlderHistory).toHaveBeenCalledOnce();
+
+        Object.defineProperty(history, "scrollHeight", {
+            configurable: true,
+            value: 1_200,
+        });
+        const appendedMessage = {
+            id: "message-3",
+            role: "assistant" as const,
+            content: "Параллельный ответ.",
+        };
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            isOlderHistoryLoading: true,
+            messages: [...currentMessages, appendedMessage],
+        });
+        rerender(<ChatWindow />);
+
+        expect(history.scrollTop).toBe(200);
+        expect(scrollToMock).not.toHaveBeenCalled();
+
+        Object.defineProperty(history, "scrollHeight", {
+            configurable: true,
+            value: 1_600,
+        });
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            hasOlderHistory: false,
+            messages: [
+                {
+                    id: "message-1",
+                    role: "assistant" as const,
+                    content: "Старый ответ.",
+                },
+                ...currentMessages,
+                appendedMessage,
+            ],
+        });
+        rerender(<ChatWindow />);
+
+        expect(history.scrollTop).toBe(600);
+        expect(scrollToMock).not.toHaveBeenCalled();
+    });
+
+    it("clears the history position marker when loading older messages fails", () => {
+        const currentMessages = [
+            {
+                id: "message-1",
+                role: "assistant" as const,
+                content: "Текущий ответ.",
+            },
+        ];
+        const chatState = {
+            sessionId: "session-1",
+            messages: currentMessages,
+            sendMessage: vi.fn(),
+            status: "idle",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+            hasOlderHistory: true,
+            isOlderHistoryLoading: false,
+            loadOlderHistory: vi.fn(),
+        };
+        useVeraChatMock.mockReturnValue(chatState);
+
+        const { rerender } = render(<ChatWindow />);
+        const history = screen.getByRole("region", {
+            name: "История переписки с Ассистентом Верой",
+        });
+        Object.defineProperties(history, {
+            scrollHeight: { configurable: true, value: 1_000 },
+            clientHeight: { configurable: true, value: 500 },
+            scrollTop: { configurable: true, writable: true, value: 200 },
+        });
+        const scrollToMock = vi.mocked(history.scrollTo);
+        scrollToMock.mockClear();
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Показать предыдущие" }),
+        );
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            isOlderHistoryLoading: true,
+        });
+        rerender(<ChatWindow />);
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            historyError: "Не удалось загрузить предыдущие сообщения.",
+        });
+        rerender(<ChatWindow />);
+
+        Object.defineProperty(history, "scrollHeight", {
+            configurable: true,
+            value: 1_100,
+        });
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            hasOlderHistory: false,
+            messages: [
+                ...currentMessages,
+                {
+                    id: "message-2",
+                    role: "assistant" as const,
+                    content: "Новый ответ.",
+                },
+            ],
+        });
+        rerender(<ChatWindow />);
+
+        expect(history.scrollTop).toBe(200);
+        expect(scrollToMock).toHaveBeenCalledWith({
+            top: 1_100,
+            behavior: "auto",
+        });
     });
 });

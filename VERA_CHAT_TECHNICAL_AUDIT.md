@@ -1062,15 +1062,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Токены применяются к UI пакетами, список сообщений мемоизирован. Автоскролл срабатывает только когда пользователь у нижнего края, иначе показывается кнопка перехода к новому сообщению.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`
+- **Изменённые файлы:** `frontend/src/hooks/useVeraChat.ts`; `frontend/src/components/features/vera/ChatWindow.tsx`; `frontend/src/components/features/vera/ChatMessage.tsx`; `frontend/src/hooks/__tests__/useVeraChat.test.ts`; `frontend/src/components/features/vera/__tests__/ChatWindow.test.tsx`; `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** SSE tokens накапливаются в ref-буфере и одним функциональным обновлением применяются к assistant message на ближайшем `requestAnimationFrame`; terminal `done/error`, transport/contract error принудительно flush-ят последний фрагмент, а отмена запроса и unmount очищают frame и buffer. Список сообщений и отдельные `ChatMessage` мемоизированы, поэтому изменение composer и обновление одного ответа не перерисовывают все bubbles. Scroll intent отслеживается с порогом 80 px: у нижнего края новые пакеты прокручиваются автоматически, выше него позиция пользователя сохраняется и доступна кнопка «К новому сообщению». `previousScrollHeightRef` сохранён и дополнен first-message anchor: промежуточный append во время загрузки истории обновляет baseline, фактический prepend корректирует позицию, ошибка загрузки очищает marker. Существующий `aria-live` announcement не менялся.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлено 6 сценариев: пакетирование токенов и terminal flush; отсутствие повторного render списка при изменении composer; отсутствие автоскролла выше нижнего края и кнопка перехода; автоскролл рядом с низом; сохранение viewport при interleaved token + history prepend; очистка history marker после ошибки. `npm test -- src/components/features/vera/__tests__/ChatWindow.test.tsx src/hooks/__tests__/useVeraChat.test.ts src/components/features/vera/__tests__/ChatMessage.test.tsx` — 40 passed. `npm test` — 131 passed. `npm run lint` — успешно, 0 errors и 26 существующих warnings. `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** нет.
+- **Осталось / связанные карточки:** в рамках карточки ничего не осталось; SSE-протокол и screen-reader announcement не изменялись.
 
 ### VERA-029 — Нет явного создания/закрытия нового диалога
 

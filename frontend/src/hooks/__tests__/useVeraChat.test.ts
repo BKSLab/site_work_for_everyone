@@ -51,6 +51,15 @@ class FakeEventSource {
     }
 }
 
+let animationFrameId = 0;
+let animationFrames = new Map<number, FrameRequestCallback>();
+
+function flushAnimationFrames() {
+    const callbacks = [...animationFrames.values()];
+    animationFrames.clear();
+    callbacks.forEach((callback) => callback(performance.now()));
+}
+
 describe("useVeraChat", () => {
     beforeEach(() => {
         useAuthStore.setState({
@@ -61,6 +70,8 @@ describe("useVeraChat", () => {
         window.sessionStorage.clear();
         FakeEventSource.urls = [];
         FakeEventSource.instances = [];
+        animationFrameId = 0;
+        animationFrames = new Map();
         getCurrentSessionMock.mockReset().mockResolvedValue({
             session_id: null,
         });
@@ -70,6 +81,18 @@ describe("useVeraChat", () => {
         });
         sendMessageMock.mockReset().mockResolvedValue(undefined);
         vi.stubGlobal("EventSource", FakeEventSource);
+        vi.stubGlobal(
+            "requestAnimationFrame",
+            vi.fn((callback: FrameRequestCallback) => {
+                animationFrameId += 1;
+                animationFrames.set(animationFrameId, callback);
+                return animationFrameId;
+            }),
+        );
+        vi.stubGlobal(
+            "cancelAnimationFrame",
+            vi.fn((frameId: number) => animationFrames.delete(frameId)),
+        );
     });
 
     afterEach(() => {
@@ -368,6 +391,7 @@ describe("useVeraChat", () => {
                 type: "token",
                 content: "Работнику положен отпуск.",
             });
+            flushAnimationFrames();
         });
 
         expect(result.current.messages[1]).toMatchObject({
@@ -390,6 +414,51 @@ describe("useVeraChat", () => {
         );
         expect(result.current.messages[1].streaming).toBe(false);
         expect(result.current.messages[1].feedbackEligible).toBe(true);
+
+        unmount();
+    });
+
+    it("batches tokens per animation frame and flushes the last batch on done", async () => {
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+        await act(async () => {
+            await result.current.sendMessage("Расскажите об отпуске.");
+        });
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "token",
+                content: "Первая ",
+            });
+            FakeEventSource.instances[0].emit({
+                type: "token",
+                content: "часть.",
+            });
+        });
+
+        expect(requestAnimationFrame).toHaveBeenCalledOnce();
+        expect(result.current.messages[1].content).toBe("");
+
+        act(() => {
+            flushAnimationFrames();
+        });
+        expect(result.current.messages[1].content).toBe("Первая часть.");
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "token",
+                content: " Последняя часть.",
+            });
+            FakeEventSource.instances[0].emit({ type: "done" });
+        });
+
+        expect(result.current.messages[1]).toMatchObject({
+            content: "Первая часть. Последняя часть.",
+            streaming: false,
+            feedbackEligible: true,
+        });
+        expect(animationFrames.size).toBe(0);
 
         unmount();
     });

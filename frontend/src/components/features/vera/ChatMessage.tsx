@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { memo } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { VeraChatMessage } from "@/hooks/useVeraChat";
 import { MessageFeedbackControls } from "./MessageFeedbackControls";
@@ -8,7 +9,10 @@ interface ChatMessageProps {
     sessionId: string;
 }
 
-export function ChatMessage({ message, sessionId }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({
+    message,
+    sessionId,
+}: ChatMessageProps) {
     const isUser = message.role === "user";
     const isPreparing = !isUser && message.streaming && !message.content;
     const deliveryLabel =
@@ -105,4 +109,4 @@ export function ChatMessage({ message, sessionId }: ChatMessageProps) {
             </div>
         </div>
     );
-}
+});

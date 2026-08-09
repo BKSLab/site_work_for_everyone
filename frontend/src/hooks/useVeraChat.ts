@@ -147,6 +147,70 @@ export function useVeraChat() {
     const eventSourceRef = useRef<EventSource | null>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const messagesRevisionRef = useRef(0);
+    const tokenBufferRef = useRef<{
+        messageId: string;
+        content: string;
+    } | null>(null);
+    const tokenFrameRef = useRef<number | null>(null);
+
+    const applyBufferedTokens = useCallback(() => {
+        const buffered = tokenBufferRef.current;
+        tokenBufferRef.current = null;
+        if (!buffered?.content) return;
+
+        setMessages((prev) =>
+            prev.map((message) =>
+                message.id === buffered.messageId
+                    ? {
+                          ...message,
+                          content: message.content + buffered.content,
+                      }
+                    : message,
+            ),
+        );
+    }, []);
+
+    const clearBufferedTokens = useCallback(() => {
+        if (tokenFrameRef.current !== null) {
+            cancelAnimationFrame(tokenFrameRef.current);
+            tokenFrameRef.current = null;
+        }
+        tokenBufferRef.current = null;
+    }, []);
+
+    const flushBufferedTokens = useCallback(() => {
+        if (tokenFrameRef.current !== null) {
+            cancelAnimationFrame(tokenFrameRef.current);
+            tokenFrameRef.current = null;
+        }
+        applyBufferedTokens();
+    }, [applyBufferedTokens]);
+
+    const bufferToken = useCallback(
+        (messageId: string, content: string) => {
+            const buffered = tokenBufferRef.current;
+            if (buffered && buffered.messageId !== messageId) {
+                flushBufferedTokens();
+            }
+
+            const current = tokenBufferRef.current;
+            tokenBufferRef.current = {
+                messageId,
+                content:
+                    current?.messageId === messageId
+                        ? current.content + content
+                        : content,
+            };
+
+            if (tokenFrameRef.current === null) {
+                tokenFrameRef.current = requestAnimationFrame(() => {
+                    tokenFrameRef.current = null;
+                    applyBufferedTokens();
+                });
+            }
+        },
+        [applyBufferedTokens, flushBufferedTokens],
+    );
 
     const closeStream = useCallback(() => {
         // Обязательное явное закрытие: EventSource по умолчанию сам
@@ -181,7 +245,13 @@ export function useVeraChat() {
         [],
     );
 
-    useEffect(() => closeStream, [closeStream]);
+    useEffect(
+        () => () => {
+            closeStream();
+            clearBufferedTokens();
+        },
+        [clearBufferedTokens, closeStream],
+    );
 
     useEffect(() => {
         if (isAuthLoading) return;
@@ -415,6 +485,7 @@ export function useVeraChat() {
 
             timeoutRef.current = setTimeout(() => {
                 closeStream();
+                clearBufferedTokens();
                 finishAssistantMessageAfterError(assistantMessageId);
                 setStatus("unavailable");
                 setAnnouncement("");
@@ -431,6 +502,7 @@ export function useVeraChat() {
                 try {
                     rawData = JSON.parse(event.data);
                 } catch {
+                    flushBufferedTokens();
                     closeStream();
                     finishAssistantMessageAfterError(assistantMessageId);
                     setStatus("unavailable");
@@ -442,6 +514,7 @@ export function useVeraChat() {
                 }
                 const parsedEvent = veraSseEventSchema.safeParse(rawData);
                 if (!parsedEvent.success) {
+                    flushBufferedTokens();
                     closeStream();
                     finishAssistantMessageAfterError(assistantMessageId);
                     setStatus("unavailable");
@@ -455,17 +528,12 @@ export function useVeraChat() {
 
                 if (data.type === "token") {
                     setStatus("streaming");
-                    setMessages((prev) =>
-                        prev.map((m) =>
-                            m.id === assistantMessageId
-                                ? { ...m, content: m.content + data.content }
-                                : m,
-                        ),
-                    );
+                    bufferToken(assistantMessageId, data.content);
                     return;
                 }
 
                 if (data.type === "done") {
+                    flushBufferedTokens();
                     setMessages((prev) =>
                         prev.map((m) =>
                             m.id === assistantMessageId
@@ -484,6 +552,7 @@ export function useVeraChat() {
                 }
 
                 // data.type === "error"
+                flushBufferedTokens();
                 finishAssistantMessageAfterError(assistantMessageId);
                 setStatus("idle");
                 setAnnouncement("");
@@ -495,6 +564,7 @@ export function useVeraChat() {
             };
 
             eventSource.onerror = () => {
+                flushBufferedTokens();
                 closeStream();
                 finishAssistantMessageAfterError(assistantMessageId);
                 setStatus("unavailable");
@@ -520,6 +590,7 @@ export function useVeraChat() {
                 return { outcome: "accepted", restoreDraft: false };
             } catch (err) {
                 closeStream();
+                clearBufferedTokens();
                 setStatus("idle");
                 const isApiError = err instanceof ApiRequestError;
                 const isDefinitelyRejected =
@@ -562,7 +633,14 @@ export function useVeraChat() {
                 };
             }
         },
-        [sessionId, closeStream, finishAssistantMessageAfterError],
+        [
+            sessionId,
+            bufferToken,
+            clearBufferedTokens,
+            closeStream,
+            finishAssistantMessageAfterError,
+            flushBufferedTokens,
+        ],
     );
 
     return {
