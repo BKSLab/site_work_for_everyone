@@ -5,7 +5,7 @@ const { getCurrentSessionMock, getHistoryMock, sendMessageMock } = vi.hoisted(
     () => ({
         getCurrentSessionMock: vi.fn(),
         getHistoryMock: vi.fn(),
-        sendMessageMock: vi.fn().mockResolvedValue(undefined),
+        sendMessageMock: vi.fn(),
     }),
 );
 
@@ -60,6 +60,14 @@ function flushAnimationFrames() {
     callbacks.forEach((callback) => callback(performance.now()));
 }
 
+function acceptedReceipt(data: { request_id: string }) {
+    return {
+        request_id: data.request_id,
+        stream_ticket: "signed.ticket",
+        stream_url: `/vera/sse/${encodeURIComponent(data.request_id)}`,
+    };
+}
+
 describe("useVeraChat", () => {
     beforeEach(() => {
         useAuthStore.setState({
@@ -79,7 +87,9 @@ describe("useVeraChat", () => {
             session_id: "conversation-1",
             turns: [],
         });
-        sendMessageMock.mockReset().mockResolvedValue(undefined);
+        sendMessageMock
+            .mockReset()
+            .mockImplementation(async (data) => acceptedReceipt(data));
         vi.stubGlobal("EventSource", FakeEventSource);
         vi.stubGlobal(
             "requestAnimationFrame",
@@ -114,7 +124,7 @@ describe("useVeraChat", () => {
         expect(payload.session_id).toBeTruthy();
         expect(payload.request_id).toBeTruthy();
         expect(FakeEventSource.urls).toEqual([
-            `/vera/sse/${encodeURIComponent(payload.request_id)}`,
+            `/vera/sse/${encodeURIComponent(payload.request_id)}?ticket=signed.ticket`,
         ]);
         expect(result.current.messages[0]).toMatchObject({
             role: "user",
@@ -123,6 +133,59 @@ describe("useVeraChat", () => {
         });
 
         unmount();
+    });
+
+    it("opens EventSource only after the publication receipt arrives", async () => {
+        let resolvePublication!: () => void;
+        sendMessageMock.mockImplementationOnce(
+            (data) =>
+                new Promise((resolve) => {
+                    resolvePublication = () => resolve(acceptedReceipt(data));
+                }),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+        let sendPromise!: ReturnType<typeof result.current.sendMessage>;
+        act(() => {
+            sendPromise = result.current.sendMessage("Расскажите об отпуске.");
+        });
+        await waitFor(() => expect(sendMessageMock).toHaveBeenCalledOnce());
+        expect(FakeEventSource.instances).toEqual([]);
+
+        await act(async () => {
+            resolvePublication();
+            await sendPromise;
+        });
+
+        expect(FakeEventSource.instances).toHaveLength(1);
+        unmount();
+    });
+
+    it("does not open EventSource after unmount while publication is pending", async () => {
+        let resolvePublication!: () => void;
+        sendMessageMock.mockImplementationOnce(
+            (data) =>
+                new Promise((resolve) => {
+                    resolvePublication = () => resolve(acceptedReceipt(data));
+                }),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+        let sendPromise!: ReturnType<typeof result.current.sendMessage>;
+        act(() => {
+            sendPromise = result.current.sendMessage("Расскажите об отпуске.");
+        });
+        await waitFor(() => expect(sendMessageMock).toHaveBeenCalledOnce());
+        unmount();
+
+        await act(async () => {
+            resolvePublication();
+            await sendPromise;
+        });
+
+        expect(FakeEventSource.instances).toEqual([]);
     });
 
     it("validates a long message before optimistic append", async () => {
@@ -173,6 +236,7 @@ describe("useVeraChat", () => {
             deliveryStatus: "rejected",
         });
         expect(result.current.error).toBe("Сообщение отклонено.");
+        expect(FakeEventSource.instances).toEqual([]);
 
         unmount();
     });
@@ -198,6 +262,7 @@ describe("useVeraChat", () => {
             role: "user",
             deliveryStatus: "unknown",
         });
+        expect(FakeEventSource.instances).toEqual([]);
 
         unmount();
     });

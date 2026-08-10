@@ -120,7 +120,11 @@ describe("Vera HTTP response schemas", () => {
 
     it("accepts every successful response variant", () => {
         expect(
-            veraChatResponseSchema.safeParse({ status: "queued" }).success,
+            veraChatResponseSchema.safeParse({
+                request_id: "request-1",
+                stream_ticket: "signed.ticket",
+                stream_url: "/vera/sse/request-1",
+            }).success,
         ).toBe(true);
         expect(
             veraCurrentChatSessionResponseSchema.safeParse({
@@ -165,6 +169,19 @@ describe("Vera HTTP response schemas", () => {
                 updated_at: timestamp,
             }).success,
         ).toBe(true);
+    });
+
+    it("rejects the legacy chat receipt and unsafe stream URLs", () => {
+        expect(
+            veraChatResponseSchema.safeParse({ status: "queued" }).success,
+        ).toBe(false);
+        expect(
+            veraChatResponseSchema.safeParse({
+                request_id: "request-1",
+                stream_ticket: "signed.ticket",
+                stream_url: "https://example.com/sse/request-1",
+            }).success,
+        ).toBe(false);
     });
 
     it("accepts string and validation-list error responses", () => {

@@ -1,18 +1,25 @@
 import logging
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Header, HTTPException, Path, Query, Request, status
 
 from src.core.limiter import limiter
 from src.dependencies.jwt import OptionalUserPayloadDep
-from src.dependencies.vera import VeraAgentClientDep, VeraPublisherDep
+from src.dependencies.vera import (
+    VeraAgentClientDep,
+    VeraPublisherDep,
+    VeraStreamTicketIssuerDep,
+)
 from src.exceptions.services import (
     VeraAgentServiceError,
     VeraPublisherError,
     VeraSessionTokenError,
+    VeraStreamTicketServiceError,
 )
 from src.services.vera_session_access import resolve_vera_session_access
 from src.schemas.vera import (
+    VeraChatAcceptedResponseSchema,
     VeraChatHistoryResponseSchema,
     VeraChatRequestSchema,
     VeraCurrentChatSessionResponseSchema,
@@ -75,6 +82,7 @@ async def get_current_vera_chat_session(
 @router.post(
     path="/chat",
     status_code=status.HTTP_202_ACCEPTED,
+    response_model=VeraChatAcceptedResponseSchema,
     summary="Отправить сообщение агенту «Вера»",
     description=(
         "Публикует вопрос пользователя в очередь `agent.requests` "
@@ -101,6 +109,7 @@ async def send_message(
     data: VeraChatRequestSchema,
     user_payload: OptionalUserPayloadDep,
     vera_publisher: VeraPublisherDep,
+    stream_ticket_issuer: VeraStreamTicketIssuerDep,
     anonymous_token: Annotated[
         str | None,
         Header(alias="X-Vera-Session-Token"),
@@ -114,6 +123,12 @@ async def send_message(
     """
     if vera_publisher is None:
         logger.warning("Публикация в очередь Веры невозможна — publisher не инициализирован.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ассистент временно недоступен.",
+        )
+    if stream_ticket_issuer is None:
+        logger.error("Выпуск stream ticket невозможен — не задан VERA_AGENT_API_KEY.")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Ассистент временно недоступен.",
@@ -132,6 +147,20 @@ async def send_message(
         ) from error
 
     try:
+        stream_ticket = stream_ticket_issuer.issue(
+            request_id=data.request_id,
+            session_id=data.session_id,
+            user_id=access.user_id,
+            anonymous_token_hash=access.anonymous_token_hash,
+        )
+    except VeraStreamTicketServiceError as error:
+        logger.error("Выпуск stream ticket Веры не удался: %s", error)
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.detail,
+        ) from error
+
+    try:
         await vera_publisher.publish_agent_request(
             session_id=data.session_id,
             request_id=data.request_id,
@@ -143,7 +172,11 @@ async def send_message(
         logger.error("Публикация вопроса агенту «Вера» не удалась: %s", error)
         raise HTTPException(status_code=error.status_code, detail=error.detail)
 
-    return {"status": "queued"}
+    return VeraChatAcceptedResponseSchema(
+        request_id=data.request_id,
+        stream_ticket=stream_ticket,
+        stream_url=f"/vera/sse/{quote(data.request_id, safe='')}",
+    )
 
 
 @router.get(

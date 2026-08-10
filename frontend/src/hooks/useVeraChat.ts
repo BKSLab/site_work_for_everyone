@@ -146,6 +146,7 @@ export function useVeraChat() {
 
     const eventSourceRef = useRef<EventSource | null>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isMountedRef = useRef(true);
     const messagesRevisionRef = useRef(0);
     const tokenBufferRef = useRef<{
         messageId: string;
@@ -245,13 +246,14 @@ export function useVeraChat() {
         [],
     );
 
-    useEffect(
-        () => () => {
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
             closeStream();
             clearBufferedTokens();
-        },
-        [clearBufferedTokens, closeStream],
-    );
+        };
+    }, [clearBufferedTokens, closeStream]);
 
     useEffect(() => {
         if (isAuthLoading) return;
@@ -474,12 +476,75 @@ export function useVeraChat() {
                 },
             ]);
 
-            // Открываем SSE до публикации сообщения в очередь — проще
-            // рассуждать о порядке событий, хотя буфер позднего
-            // подключения на стороне agent_service (session_bus.py,
-            // LATE_CONNECT_BUFFER_SECONDS = 60s) страхует и обратный порядок.
+            let receipt: Awaited<ReturnType<typeof veraApi.sendMessage>>;
+            try {
+                receipt = await veraApi.sendMessage({
+                    session_id: payload.data.session_id,
+                    request_id: payload.data.request_id,
+                    message: payload.data.message,
+                });
+            } catch (err) {
+                closeStream();
+                clearBufferedTokens();
+                setStatus("idle");
+                const isApiError = err instanceof ApiRequestError;
+                const isDefinitelyRejected =
+                    isApiError && (err.status === 422 || err.status === 429);
+                const deliveryStatus =
+                    isApiError &&
+                    (err.status === 401 ||
+                        err.status === 403 ||
+                        isDefinitelyRejected)
+                        ? "rejected"
+                        : "unknown";
+                setMessages((prev) =>
+                    prev
+                        .filter((message) => message.id !== assistantMessageId)
+                        .map((message) =>
+                            message.id === userMessageId
+                                ? { ...message, deliveryStatus }
+                                : message,
+                        ),
+                );
+                setAnnouncement("");
+                if (
+                    isApiError &&
+                    (err.status === 401 || err.status === 403)
+                ) {
+                    setSessionId(resetSessionId());
+                    setError(
+                        "Сессия чата обновлена. Отправьте сообщение ещё раз.",
+                    );
+                    return { outcome: "rejected", restoreDraft: false };
+                }
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "Не удалось отправить сообщение.",
+                );
+                return {
+                    outcome: deliveryStatus,
+                    restoreDraft: isDefinitelyRejected,
+                };
+            }
+
+            if (!isMountedRef.current) {
+                return { outcome: "accepted", restoreDraft: false };
+            }
+
+            setMessages((prev) =>
+                prev.map((message) =>
+                    message.id === userMessageId
+                        ? { ...message, deliveryStatus: "sent" }
+                        : message,
+                ),
+            );
+
+            // Ticket выпускается backend только после успешной публикации
+            // в RabbitMQ. Late-connect buffer Agent Service сохраняет события
+            // между ответом 202 и этим подключением.
             const eventSource = new EventSource(
-                `/vera/sse/${encodeURIComponent(requestId)}`,
+                `${receipt.stream_url}?ticket=${encodeURIComponent(receipt.stream_ticket)}`,
             );
             eventSourceRef.current = eventSource;
 
@@ -574,64 +639,7 @@ export function useVeraChat() {
                 );
             };
 
-            try {
-                await veraApi.sendMessage({
-                    session_id: payload.data.session_id,
-                    request_id: payload.data.request_id,
-                    message: payload.data.message,
-                });
-                setMessages((prev) =>
-                    prev.map((message) =>
-                        message.id === userMessageId
-                            ? { ...message, deliveryStatus: "sent" }
-                            : message,
-                    ),
-                );
-                return { outcome: "accepted", restoreDraft: false };
-            } catch (err) {
-                closeStream();
-                clearBufferedTokens();
-                setStatus("idle");
-                const isApiError = err instanceof ApiRequestError;
-                const isDefinitelyRejected =
-                    isApiError && (err.status === 422 || err.status === 429);
-                const deliveryStatus =
-                    isApiError &&
-                    (err.status === 401 ||
-                        err.status === 403 ||
-                        isDefinitelyRejected)
-                        ? "rejected"
-                        : "unknown";
-                setMessages((prev) =>
-                    prev
-                        .filter((message) => message.id !== assistantMessageId)
-                        .map((message) =>
-                            message.id === userMessageId
-                                ? { ...message, deliveryStatus }
-                                : message,
-                        ),
-                );
-                setAnnouncement("");
-                if (
-                    isApiError &&
-                    (err.status === 401 || err.status === 403)
-                ) {
-                    setSessionId(resetSessionId());
-                    setError(
-                        "Сессия чата обновлена. Отправьте сообщение ещё раз.",
-                    );
-                    return { outcome: "rejected", restoreDraft: false };
-                }
-                setError(
-                    err instanceof Error
-                        ? err.message
-                        : "Не удалось отправить сообщение.",
-                );
-                return {
-                    outcome: deliveryStatus,
-                    restoreDraft: isDefinitelyRejected,
-                };
-            }
+            return { outcome: "accepted", restoreDraft: false };
         },
         [
             sessionId,

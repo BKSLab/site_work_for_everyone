@@ -10,8 +10,13 @@ from main import app as backend_app
 from src.api.vera import router as vera_router
 from src.core.limiter import limiter
 from src.dependencies.jwt import get_optional_user_payload
-from src.dependencies.vera import get_vera_publisher
+from src.dependencies.vera import (
+    get_vera_publisher,
+    get_vera_stream_ticket_issuer,
+)
+from src.exceptions.services import VeraStreamTicketServiceError
 from src.services.vera_publisher import VeraPublisherManager
+from src.services.vera_stream_ticket import VeraStreamTicketIssuer
 
 
 class _FakePublisher:
@@ -28,6 +33,11 @@ class _FakePublisher:
 
     async def publish_agent_request(self, **payload) -> None:
         self.published_requests.append(payload)
+
+
+class _FailingTicketIssuer:
+    def issue(self, **_kwargs) -> str:
+        raise VeraStreamTicketServiceError("signing failed")
 
 
 async def _wait_until_ready(manager: VeraPublisherManager) -> None:
@@ -228,6 +238,9 @@ class VeraPublisherManagerTests(unittest.IsolatedAsyncioTestCase):
         test_app.dependency_overrides[get_vera_publisher] = (
             lambda: manager.publisher
         )
+        test_app.dependency_overrides[get_vera_stream_ticket_issuer] = lambda: (
+            VeraStreamTicketIssuer("shared-test-key")
+        )
         transport = httpx.ASGITransport(app=test_app)
         async with httpx.AsyncClient(
             transport=transport,
@@ -243,8 +256,96 @@ class VeraPublisherManagerTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(response.status_code, 202)
-        self.assertEqual(response.json(), {"status": "queued"})
+        self.assertEqual(response.json()["request_id"], "request-1")
+        self.assertEqual(response.json()["stream_url"], "/vera/sse/request-1")
+        self.assertTrue(response.json()["stream_ticket"])
         self.assertEqual(len(publisher.published_requests), 1)
+        await manager.close()
+
+    async def test_chat_does_not_publish_when_stream_ticket_is_not_configured(
+        self,
+    ) -> None:
+        publisher = _FakePublisher()
+
+        async def connector(**_kwargs):
+            return publisher
+
+        manager = VeraPublisherManager(
+            rabbitmq_url="amqp://test",
+            queue_name="agent.requests",
+            connector=connector,
+            reconnect_delays=(0,),
+        )
+        await manager.start()
+
+        test_app = FastAPI()
+        test_app.state.limiter = limiter
+        test_app.include_router(vera_router, prefix="/api")
+        test_app.dependency_overrides[get_optional_user_payload] = lambda: {
+            "sub": "user@example.com"
+        }
+        test_app.dependency_overrides[get_vera_publisher] = lambda: manager.publisher
+        test_app.dependency_overrides[get_vera_stream_ticket_issuer] = lambda: None
+        transport = httpx.ASGITransport(app=test_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                "/api/vera/chat",
+                json={
+                    "session_id": "session-1",
+                    "request_id": "request-1",
+                    "message": "Вопрос",
+                },
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(publisher.published_requests, [])
+        await manager.close()
+
+    async def test_chat_does_not_publish_when_stream_ticket_cannot_be_issued(
+        self,
+    ) -> None:
+        publisher = _FakePublisher()
+
+        async def connector(**_kwargs):
+            return publisher
+
+        manager = VeraPublisherManager(
+            rabbitmq_url="amqp://test",
+            queue_name="agent.requests",
+            connector=connector,
+            reconnect_delays=(0,),
+        )
+        await manager.start()
+
+        test_app = FastAPI()
+        test_app.state.limiter = limiter
+        test_app.include_router(vera_router, prefix="/api")
+        test_app.dependency_overrides[get_optional_user_payload] = lambda: {
+            "sub": "user@example.com"
+        }
+        test_app.dependency_overrides[get_vera_publisher] = lambda: manager.publisher
+        test_app.dependency_overrides[get_vera_stream_ticket_issuer] = (
+            _FailingTicketIssuer
+        )
+        transport = httpx.ASGITransport(app=test_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                "/api/vera/chat",
+                json={
+                    "session_id": "session-1",
+                    "request_id": "request-1",
+                    "message": "Вопрос",
+                },
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(publisher.published_requests, [])
         await manager.close()
 
 

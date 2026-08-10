@@ -71,7 +71,9 @@ export const veraErrorResponseSchema = z.object({
 export type VeraErrorResponse = z.infer<typeof veraErrorResponseSchema>;
 
 export const veraChatResponseSchema = z.object({
-    status: z.literal("queued"),
+    request_id: z.string().min(1).max(100),
+    stream_ticket: z.string().min(1),
+    stream_url: z.string().regex(/^\/vera\/sse\/[^?#]+$/),
 }).passthrough();
 
 export type VeraChatResponse = z.infer<typeof veraChatResponseSchema>;

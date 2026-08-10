@@ -14,6 +14,14 @@ class VeraChatRequestSchema(BaseModel):
     message: str = Field(..., min_length=1, max_length=MAX_MESSAGE_LENGTH)
 
 
+class VeraChatAcceptedResponseSchema(BaseModel):
+    """Квитанция публикации и данные для подключения к SSE-потоку."""
+
+    request_id: str
+    stream_ticket: str
+    stream_url: str
+
+
 class VeraChatHistoryTurnResponseSchema(BaseModel):
     """Одна восстановленная реплика диалога."""
 

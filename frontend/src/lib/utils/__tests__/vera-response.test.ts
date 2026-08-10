@@ -21,16 +21,22 @@ function response(
     });
 }
 
+const chatReceipt = {
+    request_id: "request-1",
+    stream_ticket: "signed.ticket",
+    stream_url: "/vera/sse/request-1",
+};
+
 describe("parseVeraJsonResponse", () => {
     it("parses JSON only after validating its schema", async () => {
         const result = await parseVeraJsonResponse(
-            response(JSON.stringify({ status: "queued" })),
+            response(JSON.stringify(chatReceipt)),
             veraChatResponseSchema,
         );
 
         expect(result).toEqual({
             success: true,
-            data: { status: "queued" },
+            data: chatReceipt,
         });
     });
 
@@ -93,7 +99,7 @@ describe("parseVeraHttpResponse", () => {
     it("rejects a success body returned with an error status", async () => {
         const result = await parseVeraHttpResponse(
             response(
-                JSON.stringify({ status: "queued" }),
+                JSON.stringify(chatReceipt),
                 "application/json",
                 503,
             ),

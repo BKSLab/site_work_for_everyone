@@ -7,6 +7,13 @@ server {
         root /var/www/certbot;
     }
 
+    # Не логируем bearer-ticket даже при ошибочном подключении по HTTP перед
+    # перенаправлением на HTTPS.
+    location /vera/sse/ {
+        access_log off;
+        return 301 https://$host$request_uri;
+    }
+
     # Всё остальное — редирект на HTTPS
     location / {
         return 301 https://$host$request_uri;
@@ -57,6 +64,9 @@ server {
     # из env var AGENT_SSE_UPSTREAM, без общей docker-сети с vera_agent_service.
     location /vera/sse/ {
         proxy_pass http://${AGENT_SSE_UPSTREAM}/sse/;
+        # Stream ticket передаётся в query string, поэтому этот location не
+        # пишет access log: стандартный $request раскрыл бы bearer-ticket.
+        access_log off;
         proxy_http_version 1.1;
         proxy_set_header Connection '';
         proxy_buffering off;

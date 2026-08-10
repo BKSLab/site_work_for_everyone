@@ -549,15 +549,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** SSE-поток недоступен без валидного короткоживущего ticket, связанного с `request_id`, `session_id` и владельцем. Повторная подписка обрабатывается явно. Тесты на неверный/истёкший ticket и на второго подписчика проходят.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`.
+- **Изменённые файлы:** Agent Service: `vera_agent_service/app/exceptions/streaming.py`, `vera_agent_service/app/main.py`, `vera_agent_service/app/streaming/session_bus.py`, `vera_agent_service/app/streaming/sse.py`, `vera_agent_service/app/streaming/ticket.py`, `vera_agent_service/tests/fixtures/stream_ticket.py`, `vera_agent_service/tests/integration/test_consumer_sse_pipeline.py`, `vera_agent_service/tests/integration/test_main.py`, `vera_agent_service/tests/unit/streaming/test_session_bus.py`, `vera_agent_service/tests/unit/streaming/test_sse.py`, `vera_agent_service/tests/unit/streaming/test_ticket.py`; site backend: `backend/src/api/vera.py`, `backend/src/dependencies/vera.py`, `backend/src/exceptions/services.py`, `backend/src/schemas/vera.py`, `backend/src/services/vera_stream_ticket.py`, `backend/tests/test_nginx_sse_access_log.py`, `backend/tests/test_vera_publisher_recovery.py`, `backend/tests/test_vera_stream_ticket.py`; frontend/nginx: `frontend/src/hooks/useVeraChat.ts`, `frontend/src/hooks/__tests__/useVeraChat.test.ts`, `frontend/src/lib/api/vera.ts`, `frontend/src/lib/api/__tests__/vera.test.ts`, `frontend/src/lib/schemas/vera.ts`, `frontend/src/lib/schemas/__tests__/vera.test.ts`, `frontend/src/lib/utils/__tests__/vera-response.test.ts`, `nginx/templates/default.conf.template`; настоящий отчёт. Код Agent Service зафиксирован коммитом `5433db5`.
+- **Суть изменения:** backend сайта после проверки owner выпускает 60-секундный HMAC-SHA256 ticket из уже общего `VERA_AGENT_API_KEY`, связывающий `request_id`, `session_id` и ровно одного владельца, затем публикует запрос и возвращает `202 {request_id, stream_ticket, stream_url}`. Ticket готовится до необратимой публикации, поэтому ошибка подписи не создаёт принятого запроса без квитанции. Frontend сначала ждёт и валидирует receipt, включая привязку `stream_url` к тому же `request_id`, и только затем открывает `EventSource`; late-connect buffer сохранён. Agent проверяет подпись, срок и path `request_id` до подписки, возвращает пустой `401` для любой ошибки и `409` второму одновременному subscriber, не заменяя очередь первого. В обоих nginx SSE-location access log выключен, поэтому bearer-ticket из query string не записывается.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены совместимый golden vector выпуска/проверки ticket, user/anonymous, expired/foreign/tampered/missing ticket, пустой `401`, конфликт второго subscriber и сохранение первого, освобождение subscriber-слота, POST-before-SSE/unmount, несовпадающие receipt/URL, отказ до Rabbit publish и статическая проверка обоих nginx SSE access logs. Agent: целевые streaming + real Redis — `32 passed`, Ruff изменённых файлов — `All checks passed`; полный `.\venv\Scripts\python.exe -m pytest -p no:cacheprovider -q` — `242 passed`, `10 warnings`. Site backend: полный прямой запуск семи `backend/tests/test_*.py` — `35/35 OK`. Frontend: `npm test` — `140 passed`; `npm run lint` — `0 errors`, `26` существующих warnings; `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** новый общий секрет и DB owner lookup не вводились: ключ подписи детерминированно выводится из уже общего `API_KEY`/`VERA_AGENT_API_KEY`, а подписанные owner/session claims исключают гонку с ещё не сохранённым Rabbit turn. Ticket намеренно допускает reconnect в пределах TTL, как требует целевой протокол. Вместо редактирования query-параметра nginx полностью отключает access log только для SSE-location — это исключает утечку при любом порядке query-параметров.
+- **Осталось / связанные карточки:** bounded queues, heartbeat и server deadline выполняются в VERA-012; клиентские watchdog/state reconciliation — в VERA-024/025. Синхронизация документации и env-примеров остаётся VERA-010, readiness-проверка обязательного межсервисного ключа — VERA-037.
 
 ### VERA-012 — SessionBus не ограничивает ресурсы и не имеет heartbeat/durable replay
 

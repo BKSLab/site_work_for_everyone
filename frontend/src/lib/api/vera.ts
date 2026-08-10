@@ -22,6 +22,7 @@ import type { z } from "zod";
 import { ApiRequestError } from "./client";
 
 const VERA_BASE = "/api/vera";
+const VERA_STREAM_PREFIX = "/vera/sse/";
 
 export type {
     VeraChatHistoryResponse,
@@ -49,6 +50,19 @@ async function readVeraResponse<T>(
     return parsed.data;
 }
 
+function isStreamUrlForRequest(streamUrl: string, requestId: string): boolean {
+    const encodedRequestId = streamUrl.slice(VERA_STREAM_PREFIX.length);
+    if (!streamUrl.startsWith(VERA_STREAM_PREFIX) || encodedRequestId.includes("/")) {
+        return false;
+    }
+
+    try {
+        return decodeURIComponent(encodedRequestId) === requestId;
+    } catch {
+        return false;
+    }
+}
+
 export const veraApi = {
     getCurrentSession: async (
         signal?: AbortSignal,
@@ -74,7 +88,17 @@ export const veraApi = {
             body: JSON.stringify(data),
         });
 
-        return readVeraResponse(response, veraChatResponseSchema);
+        const receipt = await readVeraResponse(
+            response,
+            veraChatResponseSchema,
+        );
+        if (
+            receipt.request_id !== data.request_id ||
+            !isStreamUrlForRequest(receipt.stream_url, data.request_id)
+        ) {
+            throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
+        }
+        return receipt;
     },
 
     getHistory: async (
