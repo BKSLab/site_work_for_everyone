@@ -579,15 +579,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Очереди и late-connect буферы ограничены сверху, определена политика overflow и TTL-очистка. Клиент получает heartbeat. Есть общий deadline запроса. Медленный клиент не вызывает неограниченного роста памяти.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`.
+- **Изменённые файлы:** Agent Service: `app/core/settings.py`, `app/main.py`, `app/streaming/session_bus.py`, `app/streaming/sse.py`, `tests/integration/test_consumer_sse_pipeline.py`, `tests/unit/core/test_settings.py`, `tests/unit/streaming/test_session_bus.py`, `tests/unit/streaming/test_sse.py`; настоящий отчёт. Код Agent Service зафиксирован коммитом `494c84e`.
+- **Суть изменения:** `SessionBus` получил bounded subscriber queues, late/reconnect buffers и общий hard cap request-state. Переполнение очереди медленного клиента либо late-connect buffer создаёт один terminal `error`, но не отменяет consumer и сохранение результата в истории; последующие producer events не создают второй terminal. Фоновая lifespan-задача очищает просроченные буферы без новой публикации. SSE выдаёт возрастающие `id`, heartbeat каждые 15 секунд и общий deadline 420 секунд, валидируемый относительно настроенного timeout consultation-email tool. Bounded in-memory reconnect использует `Last-Event-ID`: непрочитанный хвост повторяется, потерянное окно получает пустой `410`, уже подтверждённый terminal — `204`; второй одновременный subscriber по-прежнему получает `409`.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены сценарии heartbeat/wire IDs, медленного subscriber и late-buffer overflow, hard memory caps, фоновой TTL-очистки, общего deadline, first-terminal-wins, reconnect/replay и lost cursor, `204/410/503`, а также реальный RabbitMQ consumer → HTTP SSE pipeline. Целевой запуск `python -m pytest -p no:cacheprovider tests/unit/streaming tests/unit/core/test_settings.py tests/integration/test_consumer_sse_pipeline.py -q` — `58 passed`; Ruff изменённых файлов — `All checks passed`; полный `python -m pytest -p no:cacheprovider -q` — `270 passed`, `10 warnings`.
+- **Отклонения от предложенного решения и причина:** durable replay, Redis Streams и `Last-Event-ID` поверх внешнего store не добавлялись — прогон 7 прямо относит их к VERA-013. Реализован только bounded best-effort replay в памяти одного процесса; при исчерпании общего state-cap новый stream получает controlled `503`, чтобы не вытеснять незавершённый terminal tombstone и не допускать второго terminal.
+- **Осталось / связанные карточки:** клиентская обработка heartbeat и три watchdog-таймера выполняются в VERA-024; явная клиентская delivery state machine и сверка неоднозначного POST — в VERA-025; внешний event store и multi-worker delivery остаются VERA-013.
 
 ### VERA-013 — Один worker и `prefetch_count=1` сериализуют всех пользователей
 
