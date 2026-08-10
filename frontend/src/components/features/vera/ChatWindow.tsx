@@ -51,6 +51,9 @@ export function ChatWindow() {
         messages,
         previousSessionGroups = [],
         sendMessage,
+        startNewDialog = async () => false,
+        isStartingNewDialog = false,
+        hasPendingNewDialog = false,
         status,
         deliveryState,
         error,
@@ -196,7 +199,18 @@ export function ChatWindow() {
         status === "waiting" ||
         status === "long-running" ||
         status === "streaming";
-    const blocksSubmission = isBusy || deliveryState === "unknown";
+    const blocksSubmission =
+        isBusy ||
+        isStartingNewDialog ||
+        hasPendingNewDialog ||
+        deliveryState === "unknown";
+    const blocksNewDialog =
+        isBusy || isStartingNewDialog || deliveryState === "unknown";
+
+    async function handleStartNewDialog() {
+        const started = await startNewDialog();
+        if (started) inputRef.current?.focus();
+    }
 
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
@@ -248,14 +262,39 @@ export function ChatWindow() {
                             className="h-full w-full object-cover"
                         />
                     </span>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <h1 className="text-base font-bold text-foreground">
                             Ассистент Вера
                         </h1>
                         <p className="truncate text-xs text-muted sm:text-sm">
                             Консультант по трудовым правам
                         </p>
+                        <p
+                            id="vera-login-dialog-policy"
+                            className="mt-1 text-[11px] leading-snug text-muted"
+                        >
+                            При входе в аккаунт текущий диалог сохраняется и
+                            продолжается.
+                        </p>
                     </div>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        aria-controls="vera-chat-history"
+                        aria-describedby="vera-login-dialog-policy"
+                        aria-busy={isStartingNewDialog}
+                        disabled={
+                            blocksNewDialog ||
+                            isHistoryLoading ||
+                            !sessionId
+                        }
+                        onClick={() => void handleStartNewDialog()}
+                        className="shrink-0 whitespace-nowrap px-3 py-2 text-xs sm:text-sm"
+                    >
+                        {isStartingNewDialog
+                            ? "Создаю диалог…"
+                            : "Новый диалог"}
+                    </Button>
                 </header>
 
                 <div
@@ -274,7 +313,9 @@ export function ChatWindow() {
                         id="vera-chat-history"
                         role="region"
                         aria-label="История переписки с Ассистентом Верой"
-                        aria-busy={isBusy || isHistoryLoading}
+                        aria-busy={
+                            isBusy || isStartingNewDialog || isHistoryLoading
+                        }
                         onScroll={handleHistoryScroll}
                         className="vera-chat-scrollbar flex h-full min-h-0 w-full flex-col gap-4 overflow-y-auto p-4 sm:p-6"
                     >
@@ -447,7 +488,11 @@ export function ChatWindow() {
                                 setInput(event.target.value)
                             }
                             onKeyDown={handleInputKeyDown}
-                            disabled={isHistoryLoading}
+                            disabled={
+                                isHistoryLoading ||
+                                isStartingNewDialog ||
+                                hasPendingNewDialog
+                            }
                             maxLength={VERA_MESSAGE_MAX_LENGTH}
                             rows={1}
                             aria-describedby="vera-chat-input-hint vera-chat-input-counter"

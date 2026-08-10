@@ -26,6 +26,7 @@ const SESSION_STORAGE_KEY = "vera_session_id";
 const PENDING_REQUEST_STORAGE_KEY = "vera_pending_request";
 const PENDING_SESSION_RESOLUTION_STORAGE_KEY =
     "vera_pending_session_resolution";
+const PENDING_NEW_DIALOG_STORAGE_KEY = "vera_pending_new_dialog";
 
 // Agent присылает heartbeat каждые 15с. Поэтому 30с достаточно для первого
 // признака жизни, 45с допускают потерю одного heartbeat, а общий deadline
@@ -163,8 +164,8 @@ function parseSseEvent(rawData: unknown): ParsedSseEvent | null {
     return parsedEvent.success ? parsedEvent.data : null;
 }
 
-function readOrCreateSessionId(): string {
-    if (typeof window === "undefined") return "";
+function readStoredSessionId(): string | null {
+    if (typeof window === "undefined") return null;
 
     try {
         const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -175,8 +176,17 @@ function readOrCreateSessionId(): string {
             }
         }
     } catch {
-        // Повреждённые данные в sessionStorage — генерируем новую сессию.
+        // Повреждённые данные не участвуют в выборе текущей сессии.
     }
+
+    return null;
+}
+
+function readOrCreateSessionId(): string {
+    if (typeof window === "undefined") return "";
+
+    const storedSessionId = readStoredSessionId();
+    if (storedSessionId) return storedSessionId;
 
     const id = crypto.randomUUID();
     window.sessionStorage.setItem(
@@ -201,6 +211,149 @@ function storeSessionId(id: string): boolean {
 interface VeraPendingSessionResolution {
     sessionId: string;
     replacementSessionId: string;
+}
+
+interface VeraPendingNewDialog {
+    previousSessionId: string;
+    newSessionId: string;
+    ownerRecoverySessionId?: string;
+    ownerRecoveryReplacementSessionId?: string;
+    ownerRecoveryRejectionStatus?: 403 | 409;
+    ownerRecoveryPredecessorUnverified?: boolean;
+    ownerRecoveryNeedsRebase?: boolean;
+    ownerRecoveryTerminalAttempt?: boolean;
+    ownerRecoveryUsableSessionId?: string;
+    resolve403Rekeyed?: boolean;
+}
+
+type VeraNewDialogOperationPhase =
+    | "resolve"
+    | "history"
+    | "close"
+    | "create";
+
+class VeraNewDialogOperationError extends Error {
+    constructor(
+        readonly phase: VeraNewDialogOperationPhase,
+        readonly originalError: unknown,
+    ) {
+        super(
+            originalError instanceof Error
+                ? originalError.message
+                : "Не удалось выполнить операцию нового диалога.",
+        );
+        this.name = "VeraNewDialogOperationError";
+    }
+}
+
+function unwrapNewDialogOperationError(error: unknown): unknown {
+    return error instanceof VeraNewDialogOperationError
+        ? error.originalError
+        : error;
+}
+
+function readPendingNewDialog(): VeraPendingNewDialog | null {
+    try {
+        const raw = window.sessionStorage.getItem(
+            PENDING_NEW_DIALOG_STORAGE_KEY,
+        );
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as {
+            previousSessionId?: unknown;
+            newSessionId?: unknown;
+            ownerRecoverySessionId?: unknown;
+            ownerRecoveryReplacementSessionId?: unknown;
+            ownerRecoveryRejectionStatus?: unknown;
+            ownerRecoveryPredecessorUnverified?: unknown;
+            ownerRecoveryNeedsRebase?: unknown;
+            ownerRecoveryTerminalAttempt?: unknown;
+            ownerRecoveryUsableSessionId?: unknown;
+            resolve403Rekeyed?: unknown;
+        };
+        if (
+            typeof parsed.previousSessionId === "string" &&
+            parsed.previousSessionId &&
+            typeof parsed.newSessionId === "string" &&
+            parsed.newSessionId
+        ) {
+            const operation: VeraPendingNewDialog = {
+                previousSessionId: parsed.previousSessionId,
+                newSessionId: parsed.newSessionId,
+            };
+            if (
+                typeof parsed.ownerRecoverySessionId === "string" &&
+                parsed.ownerRecoverySessionId &&
+                typeof parsed.ownerRecoveryReplacementSessionId ===
+                    "string" &&
+                parsed.ownerRecoveryReplacementSessionId
+            ) {
+                operation.ownerRecoverySessionId =
+                    parsed.ownerRecoverySessionId;
+                operation.ownerRecoveryReplacementSessionId =
+                    parsed.ownerRecoveryReplacementSessionId;
+                if (
+                    parsed.ownerRecoveryRejectionStatus === 403 ||
+                    parsed.ownerRecoveryRejectionStatus === 409
+                ) {
+                    operation.ownerRecoveryRejectionStatus =
+                        parsed.ownerRecoveryRejectionStatus;
+                }
+                if (parsed.ownerRecoveryTerminalAttempt === true) {
+                    operation.ownerRecoveryTerminalAttempt = true;
+                }
+                if (parsed.ownerRecoveryPredecessorUnverified === true) {
+                    operation.ownerRecoveryPredecessorUnverified = true;
+                }
+                if (parsed.ownerRecoveryNeedsRebase === true) {
+                    operation.ownerRecoveryNeedsRebase = true;
+                }
+                if (
+                    typeof parsed.ownerRecoveryUsableSessionId === "string" &&
+                    parsed.ownerRecoveryUsableSessionId
+                ) {
+                    operation.ownerRecoveryUsableSessionId =
+                        parsed.ownerRecoveryUsableSessionId;
+                }
+            }
+            if (parsed.resolve403Rekeyed === true) {
+                operation.resolve403Rekeyed = true;
+            }
+            return operation;
+        }
+    } catch {
+        // Повреждённая операция не может безопасно закрыть текущий диалог.
+    }
+    return null;
+}
+
+function storePendingNewDialog(operation: VeraPendingNewDialog): boolean {
+    try {
+        window.sessionStorage.setItem(
+            PENDING_NEW_DIALOG_STORAGE_KEY,
+            JSON.stringify(operation),
+        );
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function clearPendingNewDialog(operation: VeraPendingNewDialog): boolean {
+    try {
+        const pendingOperation = readPendingNewDialog();
+        if (!pendingOperation) return true;
+        if (
+            pendingOperation?.previousSessionId ===
+                operation.previousSessionId &&
+            pendingOperation.newSessionId === operation.newSessionId
+        ) {
+            window.sessionStorage.removeItem(PENDING_NEW_DIALOG_STORAGE_KEY);
+            return true;
+        }
+    } catch {
+        // Повреждённую запись следующая явная операция перезапишет.
+    }
+    return false;
 }
 
 function readPendingSessionResolution(): VeraPendingSessionResolution | null {
@@ -260,12 +413,12 @@ function readOrCreateSessionReplacementId(sessionId: string): string | null {
 function clearSessionReplacementId(
     sessionId: string,
     replacementSessionId: string,
-) {
+): boolean {
     try {
         const raw = window.sessionStorage.getItem(
             PENDING_SESSION_RESOLUTION_STORAGE_KEY,
         );
-        if (!raw) return;
+        if (!raw) return true;
         const parsed = JSON.parse(raw) as {
             sessionId?: unknown;
             replacementSessionId?: unknown;
@@ -277,9 +430,15 @@ function clearSessionReplacementId(
             window.sessionStorage.removeItem(
                 PENDING_SESSION_RESOLUTION_STORAGE_KEY,
             );
+            return (
+                window.sessionStorage.getItem(
+                    PENDING_SESSION_RESOLUTION_STORAGE_KEY,
+                ) === null
+            );
         }
+        return true;
     } catch {
-        // Следующий resolve перезапишет повреждённую запись.
+        return false;
     }
 }
 
@@ -444,6 +603,8 @@ export function useVeraChat() {
     const [isOlderHistoryLoading, setIsOlderHistoryLoading] = useState(false);
     const [olderPreviousHistorySessionId, setOlderPreviousHistorySessionId] =
         useState<string | null>(null);
+    const [isStartingNewDialog, setIsStartingNewDialog] = useState(false);
+    const [hasPendingNewDialog, setHasPendingNewDialog] = useState(false);
     const [status, setStatus] = useState<ChatStatus>("idle");
     const [deliveryState, setDeliveryState] =
         useState<VeraDeliveryState>("draft");
@@ -454,6 +615,7 @@ export function useVeraChat() {
     const [announcement, setAnnouncement] = useState("");
 
     const eventSourceRef = useRef<EventSource | null>(null);
+    const newDialogControllerRef = useRef<AbortController | null>(null);
     const sendResolveControllerRef = useRef<AbortController | null>(null);
     const postControllerRef = useRef<AbortController | null>(null);
     const reconciliationControllerRef = useRef<AbortController | null>(null);
@@ -461,6 +623,7 @@ export function useVeraChat() {
     const olderPreviousHistoryControllerRef =
         useRef<AbortController | null>(null);
     const activeRequestIdRef = useRef<string | null>(null);
+    const isStartingNewDialogRef = useRef(false);
     const sessionIdRef = useRef("");
     const controlledSessionTransitionRef = useRef<string | null>(null);
     const previousAuthUserIdRef = useRef<string | null | undefined>(
@@ -531,6 +694,236 @@ export function useVeraChat() {
         [],
     );
 
+    const discardForeignOwnerArtifacts = useCallback(
+        (preservePendingNewDialog = false): boolean => {
+            try {
+                window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+                window.sessionStorage.removeItem(PENDING_REQUEST_STORAGE_KEY);
+                window.sessionStorage.removeItem(
+                    PENDING_SESSION_RESOLUTION_STORAGE_KEY,
+                );
+                if (!preservePendingNewDialog) {
+                    window.sessionStorage.removeItem(
+                        PENDING_NEW_DIALOG_STORAGE_KEY,
+                    );
+                }
+            } catch {
+                return false;
+            }
+
+            messagesRevisionRef.current += 1;
+            olderHistoryControllerRef.current?.abort();
+            olderHistoryControllerRef.current = null;
+            olderPreviousHistoryControllerRef.current?.abort();
+            olderPreviousHistoryControllerRef.current = null;
+            setMessages([]);
+            setPreviousSessionGroups([]);
+            setHistoryCursor(null);
+            setIsOlderHistoryLoading(false);
+            setOlderPreviousHistorySessionId(null);
+            setHasPendingNewDialog(preservePendingNewDialog);
+            setHistoryError(null);
+            setError(null);
+            setAnnouncement("");
+            return true;
+        },
+        [],
+    );
+
+    const completeNewDialogOperation = useCallback(
+        async ({
+            operation,
+            previousMessages,
+            previousHistoryCursor,
+            signal,
+            requestAuthUserId,
+        }: {
+            operation: VeraPendingNewDialog;
+            previousMessages: VeraChatMessage[];
+            previousHistoryCursor: number | null;
+            signal: AbortSignal;
+            requestAuthUserId: string | null;
+        }): Promise<boolean> => {
+            try {
+                await veraApi.closeSession(
+                    operation.previousSessionId,
+                    signal,
+                );
+            } catch (closeError) {
+                if (
+                    !(
+                        closeError instanceof ApiRequestError &&
+                        closeError.status === 404
+                    )
+                ) {
+                    throw new VeraNewDialogOperationError(
+                        "close",
+                        closeError,
+                    );
+                }
+                // An idempotent retry can observe an already absent
+                // predecessor. There is nothing left to close, so the
+                // durable create candidate remains safe to continue.
+            }
+            if (
+                signal.aborted ||
+                !isMountedRef.current ||
+                authUserIdRef.current !== requestAuthUserId
+            ) {
+                return false;
+            }
+
+            try {
+                await veraApi.createSession(
+                    { session_id: operation.newSessionId },
+                    signal,
+                );
+            } catch (createError) {
+                if (
+                    signal.aborted ||
+                    !isMountedRef.current ||
+                    authUserIdRef.current !== requestAuthUserId
+                ) {
+                    return false;
+                }
+                if (
+                    createError instanceof ApiRequestError &&
+                    (createError.status === 403 ||
+                        createError.status === 409)
+                ) {
+                    // A random-ID collision or a definitively rejected stale
+                    // proof must not trap the already closed predecessor in
+                    // an unretryable operation. Keep the boundary journal,
+                    // but move its create candidate before the next retry.
+                    storePendingNewDialog({
+                        previousSessionId: operation.previousSessionId,
+                        newSessionId: crypto.randomUUID(),
+                    });
+                }
+                throw new VeraNewDialogOperationError(
+                    "create",
+                    createError,
+                );
+            }
+            if (
+                signal.aborted ||
+                !isMountedRef.current ||
+                authUserIdRef.current !== requestAuthUserId
+            ) {
+                return false;
+            }
+            if (!storeResolvedSession(operation.newSessionId, true)) {
+                throw new Error("Не удалось сохранить новый диалог.");
+            }
+
+            preservePreviousSession(
+                operation.previousSessionId,
+                previousMessages,
+                previousHistoryCursor,
+            );
+            messagesRevisionRef.current += 1;
+            olderHistoryControllerRef.current?.abort();
+            olderHistoryControllerRef.current = null;
+            olderPreviousHistoryControllerRef.current?.abort();
+            olderPreviousHistoryControllerRef.current = null;
+            setMessages([]);
+            setHistoryCursor(null);
+            setIsOlderHistoryLoading(false);
+            setOlderPreviousHistorySessionId(null);
+            setIsHistoryLoading(false);
+            setHistoryError(null);
+            setStatus("idle");
+            deliveryStateRef.current = "draft";
+            setDeliveryState("draft");
+            setError(null);
+            setAnnouncement(
+                "Начат новый диалог. Контекст предыдущего диалога завершён.",
+            );
+            if (
+                !clearSessionReplacementId(
+                    operation.previousSessionId,
+                    operation.newSessionId,
+                )
+            ) {
+                setHasPendingNewDialog(true);
+                throw new Error(
+                    "Новый диалог создан, но проверку операции не удалось завершить. Повторите действие.",
+                );
+            }
+            if (!clearPendingNewDialog(operation)) {
+                setHasPendingNewDialog(true);
+                throw new Error(
+                    "Новый диалог создан, но завершение операции не удалось сохранить. Повторите действие.",
+                );
+            }
+            setHasPendingNewDialog(false);
+            return true;
+        },
+        [
+            preservePreviousSession,
+            storeResolvedSession,
+        ],
+    );
+
+    const completeExpiredNewDialogBoundary = useCallback(
+        ({
+            operation,
+            previousMessages,
+            previousHistoryCursor,
+        }: {
+            operation: VeraPendingNewDialog;
+            previousMessages: VeraChatMessage[];
+            previousHistoryCursor: number | null;
+        }): boolean => {
+            if (!storeResolvedSession(operation.newSessionId, true)) {
+                throw new Error("Не удалось сохранить новый диалог.");
+            }
+            preservePreviousSession(
+                operation.previousSessionId,
+                previousMessages,
+                previousHistoryCursor,
+            );
+            messagesRevisionRef.current += 1;
+            olderHistoryControllerRef.current?.abort();
+            olderHistoryControllerRef.current = null;
+            olderPreviousHistoryControllerRef.current?.abort();
+            olderPreviousHistoryControllerRef.current = null;
+            setMessages([]);
+            setHistoryCursor(null);
+            setIsOlderHistoryLoading(false);
+            setOlderPreviousHistorySessionId(null);
+            setIsHistoryLoading(false);
+            setHistoryError(null);
+            setStatus("idle");
+            deliveryStateRef.current = "draft";
+            setDeliveryState("draft");
+            setError(null);
+            setAnnouncement(
+                "Начат новый диалог. Контекст предыдущего диалога завершён.",
+            );
+            if (
+                !clearSessionReplacementId(
+                    operation.previousSessionId,
+                    operation.newSessionId,
+                )
+            ) {
+                setHasPendingNewDialog(true);
+                throw new Error(
+                    "Новый диалог создан, но проверку операции не удалось завершить. Повторите действие.",
+                );
+            }
+            if (!clearPendingNewDialog(operation)) {
+                setHasPendingNewDialog(true);
+                throw new Error(
+                    "Новый диалог создан, но завершение операции не удалось сохранить. Повторите действие.",
+                );
+            }
+            setHasPendingNewDialog(false);
+            return true;
+        },
+        [preservePreviousSession, storeResolvedSession],
+    );
+
     const abandonRejectedLifecycleOperation = useCallback(
         async ({
             doomedSessionId,
@@ -538,6 +931,9 @@ export function useVeraChat() {
             pendingRequest,
             previousMessages,
             previousHistoryCursor,
+            rejectionStatus,
+            pendingNewDialogOperation,
+            requestAuthUserId,
             signal,
         }: {
             doomedSessionId: string;
@@ -545,18 +941,188 @@ export function useVeraChat() {
             pendingRequest: VeraPendingRequest | null;
             previousMessages: VeraChatMessage[];
             previousHistoryCursor: number | null;
+            rejectionStatus: 403 | 409;
+            pendingNewDialogOperation?: VeraPendingNewDialog;
+            requestAuthUserId: string | null;
             signal?: AbortSignal;
         }): Promise<boolean> => {
-            // Keep the rejected operation and its unknown request intact
-            // until a fresh session is durably resolved. If current lookup,
-            // storage, or that one bounded resolve fails, reload can still
-            // recover/archive the original request instead of losing it.
+            const isRecoveryRequestActive = () =>
+                !signal?.aborted &&
+                isMountedRef.current &&
+                authUserIdRef.current === requestAuthUserId;
+            if (!isRecoveryRequestActive()) return false;
+            // A foreign 403 discards owner-scoped UI immediately. A same-owner
+            // 409 keeps its recovery context until a fresh session is durable.
+            // If current lookup, storage, or the bounded resolve fails, the
+            // operation journal remains available for an exact retry.
             const requestToArchive =
                 pendingRequest ?? readStoredPendingRequest();
 
-            const recoveryAuthUserId = authUserIdRef.current;
-            let recoverySessionId: string | null = null;
-            if (recoveryAuthUserId !== null) {
+            const recoveryAuthUserId = requestAuthUserId;
+            let durablePendingNewDialogOperation = pendingNewDialogOperation;
+            const resumesPendingOwnerRecovery = Boolean(
+                pendingNewDialogOperation?.ownerRecoverySessionId &&
+                    pendingNewDialogOperation.ownerRecoveryReplacementSessionId,
+            );
+            let recoverySessionId: string | null =
+                pendingNewDialogOperation?.ownerRecoverySessionId ?? null;
+            let freshReplacementSessionId =
+                pendingNewDialogOperation?.ownerRecoveryReplacementSessionId ??
+                null;
+            let effectiveRejectionStatus: 403 | 409 = rejectionStatus;
+            let isForeignOwnerRejection =
+                effectiveRejectionStatus === 403;
+            if (
+                durablePendingNewDialogOperation
+                    ?.ownerRecoveryPredecessorUnverified &&
+                effectiveRejectionStatus === 409
+            ) {
+                // The marker is already durable. Keep the original 409 policy so
+                // a later successful predecessor-history read can revalidate it,
+                // but treat this attempt as foreign until that happens. No
+                // recovery-session response can establish predecessor ownership.
+                effectiveRejectionStatus = 403;
+                isForeignOwnerRejection = true;
+            }
+            const durableRecoveryRejectionStatus = () =>
+                rejectionStatus === 409 &&
+                durablePendingNewDialogOperation
+                    ?.ownerRecoveryPredecessorUnverified
+                    ? 409
+                    : effectiveRejectionStatus;
+            const settleTerminalRejectedRecovery = (
+                terminalOperation: VeraPendingNewDialog,
+                usableLocalSessionId: string,
+                rejectedRecoverySessionId: string,
+                rejectedReplacementSessionId: string,
+                reportsCompletion = false,
+            ): boolean => {
+                let cleanupOperation = terminalOperation;
+                if (
+                    terminalOperation.ownerRecoveryUsableSessionId !==
+                    usableLocalSessionId
+                ) {
+                    cleanupOperation = {
+                        ...terminalOperation,
+                        ownerRecoveryUsableSessionId: usableLocalSessionId,
+                    };
+                    if (!storePendingNewDialog(cleanupOperation)) {
+                        setHasPendingNewDialog(true);
+                        return false;
+                    }
+                }
+                if (isForeignOwnerRejection) {
+                    if (
+                        !clearSessionReplacementId(
+                            rejectedRecoverySessionId,
+                            rejectedReplacementSessionId,
+                        )
+                    ) {
+                        setHasPendingNewDialog(true);
+                        return false;
+                    }
+                    if (!discardForeignOwnerArtifacts(true)) return false;
+                    if (!storeResolvedSession(usableLocalSessionId, true)) {
+                        return false;
+                    }
+                    if (!clearPendingNewDialog(cleanupOperation)) {
+                        setHasPendingNewDialog(true);
+                        return false;
+                    }
+                } else {
+                    if (!storeResolvedSession(usableLocalSessionId, true)) {
+                        return false;
+                    }
+                    if (
+                        !clearSessionReplacementId(
+                            rejectedRecoverySessionId,
+                            rejectedReplacementSessionId,
+                        )
+                    ) {
+                        setHasPendingNewDialog(true);
+                        return false;
+                    }
+                    const archivedSessionId =
+                        requestToArchive?.sessionId ?? doomedSessionId;
+                    preservePreviousSession(
+                        archivedSessionId,
+                        requestToArchive
+                            ? pendingRequestToAbandonedMessages(requestToArchive)
+                            : previousMessages,
+                        previousHistoryCursor,
+                    );
+                    olderHistoryControllerRef.current?.abort();
+                    olderHistoryControllerRef.current = null;
+                    setIsOlderHistoryLoading(false);
+                    setHistoryCursor(null);
+                    setMessages([]);
+                    if (requestToArchive) {
+                        clearPendingRequest(requestToArchive.requestId);
+                    }
+                    if (!clearPendingNewDialog(cleanupOperation)) {
+                        setHasPendingNewDialog(true);
+                        return false;
+                    }
+                }
+                setHasPendingNewDialog(false);
+                setStatus("idle");
+                deliveryStateRef.current = "draft";
+                setDeliveryState("draft");
+                setAnnouncement("");
+                return reportsCompletion;
+            };
+            if (
+                durablePendingNewDialogOperation?.ownerRecoveryUsableSessionId &&
+                recoverySessionId &&
+                freshReplacementSessionId
+            ) {
+                return settleTerminalRejectedRecovery(
+                    durablePendingNewDialogOperation,
+                    durablePendingNewDialogOperation
+                        .ownerRecoveryUsableSessionId,
+                    recoverySessionId,
+                    freshReplacementSessionId,
+                    true,
+                );
+            }
+            if (
+                isForeignOwnerRejection &&
+                resumesPendingOwnerRecovery &&
+                !discardForeignOwnerArtifacts(true)
+            ) {
+                return false;
+            }
+            if (isForeignOwnerRejection && !resumesPendingOwnerRecovery) {
+                if (
+                    !discardForeignOwnerArtifacts(
+                        pendingNewDialogOperation !== undefined,
+                    )
+                ) {
+                    return false;
+                }
+                let currentSession: VeraCurrentChatSessionResponse;
+                try {
+                    currentSession = await veraApi.getCurrentSession(signal);
+                } catch {
+                    return false;
+                }
+                if (
+                    signal?.aborted ||
+                    !isMountedRef.current ||
+                    authUserIdRef.current !== recoveryAuthUserId
+                ) {
+                    return false;
+                }
+                if (
+                    currentSession.session_id !== doomedSessionId &&
+                    currentSession.session_id !== doomedReplacementSessionId
+                ) {
+                    recoverySessionId = currentSession.session_id;
+                }
+            } else if (
+                !resumesPendingOwnerRecovery &&
+                recoveryAuthUserId !== null
+            ) {
                 let currentSession: VeraCurrentChatSessionResponse;
                 try {
                     currentSession = await veraApi.getCurrentSession(signal);
@@ -580,14 +1146,86 @@ export function useVeraChat() {
 
             if (recoverySessionId === null) {
                 try {
-                    recoverySessionId = resetSessionId();
+                    recoverySessionId = isForeignOwnerRejection
+                        ? crypto.randomUUID()
+                        : resetSessionId();
                 } catch {
                     return false;
                 }
             }
-            if (!storeSessionId(recoverySessionId)) return false;
-            const freshReplacementSessionId = crypto.randomUUID();
+            if (!freshReplacementSessionId) {
+                freshReplacementSessionId = crypto.randomUUID();
+            }
             if (
+                pendingNewDialogOperation &&
+                !resumesPendingOwnerRecovery
+            ) {
+                durablePendingNewDialogOperation = {
+                    ...pendingNewDialogOperation,
+                    ownerRecoverySessionId: recoverySessionId,
+                    ownerRecoveryReplacementSessionId:
+                        freshReplacementSessionId,
+                    ownerRecoveryRejectionStatus:
+                        durableRecoveryRejectionStatus(),
+                };
+                if (
+                    !storePendingNewDialog(durablePendingNewDialogOperation)
+                ) {
+                    return false;
+                }
+                setHasPendingNewDialog(true);
+            }
+            const prepareAuthoritativeRecoveryPair = async () => {
+                if (!durablePendingNewDialogOperation) return false;
+                let authoritativeCurrent: VeraCurrentChatSessionResponse;
+                try {
+                    authoritativeCurrent =
+                        await veraApi.getCurrentSession(signal);
+                } catch {
+                    return false;
+                }
+                if (!isRecoveryRequestActive()) return false;
+
+                let authoritativeSessionId: string;
+                let authoritativeReplacementSessionId: string;
+                try {
+                    authoritativeSessionId =
+                        authoritativeCurrent.session_id ?? crypto.randomUUID();
+                    authoritativeReplacementSessionId = crypto.randomUUID();
+                } catch {
+                    return false;
+                }
+                const terminalOperation: VeraPendingNewDialog = {
+                    ...durablePendingNewDialogOperation,
+                    ownerRecoverySessionId: authoritativeSessionId,
+                    ownerRecoveryReplacementSessionId:
+                        authoritativeReplacementSessionId,
+                    ownerRecoveryRejectionStatus:
+                        durableRecoveryRejectionStatus(),
+                    ownerRecoveryNeedsRebase: false,
+                    ownerRecoveryTerminalAttempt: true,
+                };
+                if (
+                    !storePendingNewDialog(terminalOperation) ||
+                    !storeSessionId(authoritativeSessionId) ||
+                    !storeSessionReplacementId(
+                        authoritativeSessionId,
+                        authoritativeReplacementSessionId,
+                    )
+                ) {
+                    return false;
+                }
+                durablePendingNewDialogOperation = terminalOperation;
+                recoverySessionId = authoritativeSessionId;
+                freshReplacementSessionId =
+                    authoritativeReplacementSessionId;
+                return true;
+            };
+
+            if (durablePendingNewDialogOperation?.ownerRecoveryNeedsRebase) {
+                if (!(await prepareAuthoritativeRecoveryPair())) return false;
+            } else if (
+                !storeSessionId(recoverySessionId) ||
                 !storeSessionReplacementId(
                     recoverySessionId,
                     freshReplacementSessionId,
@@ -597,26 +1235,118 @@ export function useVeraChat() {
             }
 
             let resolution: VeraChatSessionResolveResponse;
-            try {
-                resolution = await veraApi.resolveSession(
-                    {
-                        session_id: recoverySessionId,
-                        replacement_session_id: freshReplacementSessionId,
-                    },
-                    signal,
-                );
-            } catch {
+            while (true) {
+                try {
+                    resolution = await veraApi.resolveSession(
+                        {
+                            session_id: recoverySessionId,
+                            replacement_session_id:
+                                freshReplacementSessionId,
+                        },
+                        signal,
+                    );
+                    break;
+                } catch (recoveryError) {
+                    const isDefiniteNestedRejection =
+                        recoveryError instanceof ApiRequestError &&
+                        (recoveryError.status === 403 ||
+                            recoveryError.status === 409);
+                    if (
+                        !isDefiniteNestedRejection ||
+                        !durablePendingNewDialogOperation ||
+                        !isRecoveryRequestActive()
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        durablePendingNewDialogOperation
+                            .ownerRecoveryTerminalAttempt
+                    ) {
+                        let usableLocalSessionId: string;
+                        try {
+                            usableLocalSessionId = crypto.randomUUID();
+                        } catch {
+                            return false;
+                        }
+                        return settleTerminalRejectedRecovery(
+                            durablePendingNewDialogOperation,
+                            usableLocalSessionId,
+                            recoverySessionId,
+                            freshReplacementSessionId,
+                        );
+                    }
+
+                    durablePendingNewDialogOperation = {
+                        ...durablePendingNewDialogOperation,
+                        ownerRecoveryRejectionStatus:
+                            durableRecoveryRejectionStatus(),
+                        ownerRecoveryNeedsRebase: true,
+                    };
+                    if (
+                        !storePendingNewDialog(
+                            durablePendingNewDialogOperation,
+                        ) ||
+                        !clearSessionReplacementId(
+                            recoverySessionId,
+                            freshReplacementSessionId,
+                        )
+                    ) {
+                        return false;
+                    }
+                    if (
+                        isForeignOwnerRejection &&
+                        !discardForeignOwnerArtifacts(true)
+                    ) {
+                        return false;
+                    }
+                    if (!(await prepareAuthoritativeRecoveryPair())) {
+                        return false;
+                    }
+                }
+            }
+            if (!isRecoveryRequestActive()) return false;
+
+            if (isForeignOwnerRejection) {
+                if (
+                    !clearSessionReplacementId(
+                        recoverySessionId,
+                        freshReplacementSessionId,
+                    ) ||
+                    !discardForeignOwnerArtifacts(
+                        durablePendingNewDialogOperation !== undefined,
+                    ) ||
+                    !storeResolvedSession(resolution.session_id, true)
+                ) {
+                    if (durablePendingNewDialogOperation) {
+                        setHasPendingNewDialog(true);
+                    }
+                    return false;
+                }
+                if (
+                    durablePendingNewDialogOperation &&
+                    !clearPendingNewDialog(
+                        durablePendingNewDialogOperation,
+                    )
+                ) {
+                    setHasPendingNewDialog(true);
+                    return false;
+                }
+                setHasPendingNewDialog(false);
+                return true;
+            }
+            if (!storeResolvedSession(resolution.session_id, true)) {
                 return false;
             }
             if (
-                signal?.aborted ||
-                !isMountedRef.current ||
-                authUserIdRef.current !== recoveryAuthUserId
+                !clearSessionReplacementId(
+                    recoverySessionId,
+                    freshReplacementSessionId,
+                )
             ) {
-                return false;
-            }
-
-            if (!storeResolvedSession(resolution.session_id, true)) {
+                if (durablePendingNewDialogOperation) {
+                    setHasPendingNewDialog(true);
+                }
                 return false;
             }
             const archivedSessionId =
@@ -636,13 +1366,406 @@ export function useVeraChat() {
             if (requestToArchive) {
                 clearPendingRequest(requestToArchive.requestId);
             }
-            clearSessionReplacementId(
-                recoverySessionId,
-                freshReplacementSessionId,
-            );
+            if (
+                durablePendingNewDialogOperation &&
+                !clearPendingNewDialog(durablePendingNewDialogOperation)
+            ) {
+                setHasPendingNewDialog(true);
+                return false;
+            }
+            if (durablePendingNewDialogOperation) {
+                setHasPendingNewDialog(false);
+            }
             return true;
         },
-        [preservePreviousSession, storeResolvedSession],
+        [
+            discardForeignOwnerArtifacts,
+            preservePreviousSession,
+            storeResolvedSession,
+        ],
+    );
+
+    const runPendingNewDialogOperation = useCallback(
+        async ({
+            operation,
+            fallbackPreviousMessages,
+            fallbackPreviousHistoryCursor,
+            signal,
+            requestAuthUserId,
+        }: {
+            operation: VeraPendingNewDialog;
+            fallbackPreviousMessages: VeraChatMessage[];
+            fallbackPreviousHistoryCursor: number | null;
+            signal: AbortSignal;
+            requestAuthUserId: string | null;
+        }): Promise<boolean> => {
+            const assertRequestStillActive = () =>
+                !signal.aborted &&
+                isMountedRef.current &&
+                authUserIdRef.current === requestAuthUserId;
+            const exposePendingRetrySession = () => {
+                const retryOperation = readPendingNewDialog();
+                const retrySessionId =
+                    retryOperation?.ownerRecoveryUsableSessionId ??
+                    retryOperation?.previousSessionId ??
+                    readStoredSessionId();
+                if (retrySessionId) {
+                    sessionIdRef.current = retrySessionId;
+                    controlledSessionTransitionRef.current = retrySessionId;
+                    setSessionId(retrySessionId);
+                }
+            };
+
+            if (!assertRequestStillActive()) return false;
+            if (
+                operation.ownerRecoverySessionId &&
+                operation.ownerRecoveryReplacementSessionId
+            ) {
+                let recoveryOperation = operation;
+                let recoveryRejectionStatus =
+                    operation.ownerRecoveryRejectionStatus ?? 403;
+                let recoveryPreviousMessages = fallbackPreviousMessages;
+                let recoveryPreviousHistoryCursor =
+                    fallbackPreviousHistoryCursor;
+                if (recoveryRejectionStatus === 409) {
+                    try {
+                        const previousHistory = await veraApi.getHistory(
+                            operation.previousSessionId,
+                            { signal },
+                        );
+                        recoveryPreviousMessages =
+                            historyToMessages(previousHistory);
+                        recoveryPreviousHistoryCursor =
+                            previousHistory.next_before_sequence ?? null;
+                        if (
+                            operation.ownerRecoveryPredecessorUnverified
+                        ) {
+                            recoveryOperation = { ...operation };
+                            delete recoveryOperation.ownerRecoveryPredecessorUnverified;
+                        }
+                    } catch (historyLoadError) {
+                        if (
+                            historyLoadError instanceof ApiRequestError &&
+                            historyLoadError.status === 404
+                        ) {
+                            recoveryPreviousMessages = [];
+                            recoveryPreviousHistoryCursor = null;
+                            recoveryOperation = {
+                                ...operation,
+                                ownerRecoveryPredecessorUnverified: true,
+                            };
+                        } else if (
+                            historyLoadError instanceof ApiRequestError &&
+                            historyLoadError.status === 403
+                        ) {
+                            recoveryRejectionStatus = 403;
+                            recoveryPreviousMessages = [];
+                            recoveryPreviousHistoryCursor = null;
+                            recoveryOperation = {
+                                previousSessionId: operation.previousSessionId,
+                                newSessionId: operation.newSessionId,
+                                resolve403Rekeyed: true,
+                            };
+                        } else if (
+                            historyLoadError instanceof ApiRequestError &&
+                            (historyLoadError.status === 401 ||
+                                historyLoadError.status === 503)
+                        ) {
+                            recoveryOperation = {
+                                ...operation,
+                                ownerRecoveryPredecessorUnverified: true,
+                            };
+                        } else {
+                            throw new VeraNewDialogOperationError(
+                                "history",
+                                historyLoadError,
+                            );
+                        }
+                    }
+                    if (!assertRequestStillActive()) return false;
+                    if (
+                        recoveryOperation !== operation &&
+                        !storePendingNewDialog(recoveryOperation)
+                    ) {
+                        throw new Error(
+                            recoveryRejectionStatus === 403
+                                ? "Не удалось сохранить смену владельца диалога."
+                                : "Не удалось сохранить проверку истории диалога.",
+                        );
+                    }
+                }
+                const recovered = await abandonRejectedLifecycleOperation({
+                    doomedSessionId: operation.previousSessionId,
+                    doomedReplacementSessionId: operation.newSessionId,
+                    pendingRequest: null,
+                    previousMessages: recoveryPreviousMessages,
+                    previousHistoryCursor: recoveryPreviousHistoryCursor,
+                    rejectionStatus: recoveryRejectionStatus,
+                    pendingNewDialogOperation: recoveryOperation,
+                    requestAuthUserId,
+                    signal,
+                });
+                if (!assertRequestStillActive()) return false;
+                if (recovered) {
+                    setHistoryError(null);
+                    setError(null);
+                    setAnnouncement("Начат новый диалог.");
+                    return true;
+                }
+                exposePendingRetrySession();
+                throw new Error(
+                    "Не удалось завершить восстановление нового владельца диалога.",
+                );
+            }
+
+            const executeOperation = async (
+                candidateOperation: VeraPendingNewDialog,
+            ): Promise<boolean> => {
+                if (
+                    !storeSessionReplacementId(
+                        candidateOperation.previousSessionId,
+                        candidateOperation.newSessionId,
+                    )
+                ) {
+                    throw new Error(
+                        "Не удалось сохранить проверку нового диалога.",
+                    );
+                }
+
+                let resolution: VeraChatSessionResolveResponse;
+                try {
+                    resolution = await veraApi.resolveSession(
+                        {
+                            session_id: candidateOperation.previousSessionId,
+                            replacement_session_id:
+                                candidateOperation.newSessionId,
+                        },
+                        signal,
+                    );
+                } catch (resolveError) {
+                    throw new VeraNewDialogOperationError(
+                        "resolve",
+                        resolveError,
+                    );
+                }
+                if (!assertRequestStillActive()) return false;
+
+                let previousMessages = fallbackPreviousMessages;
+                let previousHistoryCursor = fallbackPreviousHistoryCursor;
+                try {
+                    const previousHistory = await veraApi.getHistory(
+                        candidateOperation.previousSessionId,
+                        { signal },
+                    );
+                    const loadedMessages = historyToMessages(previousHistory);
+                    if (
+                        loadedMessages.length > 0 ||
+                        previousMessages.length === 0
+                    ) {
+                        previousMessages = loadedMessages;
+                    }
+                    previousHistoryCursor =
+                        previousHistory.next_before_sequence ??
+                        previousHistoryCursor;
+                } catch (historyLoadError) {
+                    if (
+                        !(
+                            historyLoadError instanceof ApiRequestError &&
+                            historyLoadError.status === 404
+                        )
+                    ) {
+                        throw new VeraNewDialogOperationError(
+                            "history",
+                            historyLoadError,
+                        );
+                    }
+                    if (previousMessages.length === 0) {
+                        previousHistoryCursor = null;
+                    }
+                }
+                if (!assertRequestStillActive()) return false;
+
+                if (
+                    resolution.boundary === "expired" &&
+                    resolution.previous_session_id ===
+                        candidateOperation.previousSessionId
+                ) {
+                    return completeExpiredNewDialogBoundary({
+                        operation: candidateOperation,
+                        previousMessages,
+                        previousHistoryCursor,
+                    });
+                }
+
+                if (
+                    !storeResolvedSession(
+                        resolution.session_id,
+                        true,
+                    )
+                ) {
+                    throw new Error("Не удалось сохранить активный диалог.");
+                }
+                if (
+                    !clearSessionReplacementId(
+                        candidateOperation.previousSessionId,
+                        candidateOperation.newSessionId,
+                    )
+                ) {
+                    throw new Error(
+                        "Не удалось завершить проверку нового диалога.",
+                    );
+                }
+                return await completeNewDialogOperation({
+                    operation: candidateOperation,
+                    previousMessages,
+                    previousHistoryCursor,
+                    signal,
+                    requestAuthUserId,
+                });
+            };
+
+            let activeOperation = operation;
+            let operationError: unknown;
+            try {
+                return await executeOperation(activeOperation);
+            } catch (error) {
+                operationError = error;
+            }
+            if (!assertRequestStillActive()) return false;
+
+            let originalOperationError =
+                unwrapNewDialogOperationError(operationError);
+            const shouldRekeyLostAnonymousSuccessor =
+                operationError instanceof VeraNewDialogOperationError &&
+                operationError.phase === "resolve" &&
+                originalOperationError instanceof ApiRequestError &&
+                originalOperationError.status === 403 &&
+                !activeOperation.resolve403Rekeyed;
+            if (shouldRekeyLostAnonymousSuccessor) {
+                clearSessionReplacementId(
+                    activeOperation.previousSessionId,
+                    activeOperation.newSessionId,
+                );
+                activeOperation = {
+                    previousSessionId: activeOperation.previousSessionId,
+                    newSessionId: crypto.randomUUID(),
+                    resolve403Rekeyed: true,
+                };
+                if (!storePendingNewDialog(activeOperation)) {
+                    throw new Error(
+                        "Не удалось сохранить повтор нового диалога.",
+                    );
+                }
+                setHasPendingNewDialog(true);
+                try {
+                    return await executeOperation(activeOperation);
+                } catch (error) {
+                    operationError = error;
+                    originalOperationError =
+                        unwrapNewDialogOperationError(error);
+                }
+                if (!assertRequestStillActive()) return false;
+            }
+
+            const rejectedStatus =
+                originalOperationError instanceof ApiRequestError &&
+                (originalOperationError.status === 403 ||
+                    originalOperationError.status === 409)
+                    ? originalOperationError.status === 403
+                        ? 403
+                        : 409
+                    : null;
+            const canRecoverRejectedPredecessor =
+                operationError instanceof VeraNewDialogOperationError &&
+                ((rejectedStatus === 403 &&
+                    (operationError.phase === "resolve" ||
+                        operationError.phase === "history" ||
+                        operationError.phase === "close")) ||
+                    (rejectedStatus === 409 &&
+                        operationError.phase === "resolve"));
+            if (!canRecoverRejectedPredecessor || !rejectedStatus) {
+                throw operationError;
+            }
+
+            let recoveryRejectionStatus: 403 | 409 = rejectedStatus;
+            let recoveryPreviousMessages = fallbackPreviousMessages;
+            let recoveryPreviousHistoryCursor =
+                fallbackPreviousHistoryCursor;
+            if (
+                rejectedStatus === 409 &&
+                operationError instanceof VeraNewDialogOperationError &&
+                operationError.phase === "resolve"
+            ) {
+                try {
+                    const previousHistory = await veraApi.getHistory(
+                        activeOperation.previousSessionId,
+                        { signal },
+                    );
+                    recoveryPreviousMessages =
+                        historyToMessages(previousHistory);
+                    recoveryPreviousHistoryCursor =
+                        previousHistory.next_before_sequence ?? null;
+                } catch (historyLoadError) {
+                    if (
+                        historyLoadError instanceof ApiRequestError &&
+                        historyLoadError.status === 404
+                    ) {
+                        recoveryPreviousMessages = [];
+                        recoveryPreviousHistoryCursor = null;
+                    } else if (
+                        historyLoadError instanceof ApiRequestError &&
+                        historyLoadError.status === 403
+                    ) {
+                        recoveryRejectionStatus = 403;
+                        recoveryPreviousMessages = [];
+                        recoveryPreviousHistoryCursor = null;
+                    } else if (
+                        historyLoadError instanceof ApiRequestError &&
+                        (historyLoadError.status === 401 ||
+                            historyLoadError.status === 503)
+                    ) {
+                        // Lifecycle already proved this is a same-owner 409.
+                        // Strict history can still reject an expired anonymous
+                        // proof, so retain the best local snapshot and recover.
+                    } else {
+                        throw new VeraNewDialogOperationError(
+                            "history",
+                            historyLoadError,
+                        );
+                    }
+                }
+                if (!assertRequestStillActive()) return false;
+            }
+
+            if (!assertRequestStillActive()) return false;
+            const recovered = await abandonRejectedLifecycleOperation({
+                doomedSessionId: activeOperation.previousSessionId,
+                doomedReplacementSessionId: activeOperation.newSessionId,
+                pendingRequest: null,
+                previousMessages: recoveryPreviousMessages,
+                previousHistoryCursor: recoveryPreviousHistoryCursor,
+                rejectionStatus: recoveryRejectionStatus,
+                pendingNewDialogOperation: activeOperation,
+                requestAuthUserId,
+                signal,
+            });
+            if (!assertRequestStillActive()) return false;
+            if (recovered) {
+                setHistoryError(null);
+                setError(null);
+                setAnnouncement("Начат новый диалог.");
+                return true;
+            }
+
+            exposePendingRetrySession();
+            throw originalOperationError;
+        },
+        [
+            abandonRejectedLifecycleOperation,
+            completeExpiredNewDialogBoundary,
+            completeNewDialogOperation,
+            storeResolvedSession,
+        ],
     );
 
     const transitionDeliveryState = useCallback(
@@ -1007,6 +2130,8 @@ export function useVeraChat() {
         isMountedRef.current = true;
         return () => {
             isMountedRef.current = false;
+            newDialogControllerRef.current?.abort();
+            newDialogControllerRef.current = null;
             sendResolveControllerRef.current?.abort();
             sendResolveControllerRef.current = null;
             postControllerRef.current?.abort();
@@ -1038,6 +2163,9 @@ export function useVeraChat() {
             previousAuthUserId !== authUserId;
         if (!changedAuthenticatedIdentity) return;
 
+        newDialogControllerRef.current?.abort();
+        newDialogControllerRef.current = null;
+        isStartingNewDialogRef.current = false;
         sendResolveControllerRef.current?.abort();
         sendResolveControllerRef.current = null;
         postControllerRef.current?.abort();
@@ -1058,12 +2186,15 @@ export function useVeraChat() {
         window.sessionStorage.removeItem(
             PENDING_SESSION_RESOLUTION_STORAGE_KEY,
         );
+        window.sessionStorage.removeItem(PENDING_NEW_DIALOG_STORAGE_KEY);
         setSessionId("");
         setMessages([]);
         setPreviousSessionGroups([]);
         setHistoryCursor(null);
         setIsOlderHistoryLoading(false);
         setOlderPreviousHistorySessionId(null);
+        setIsStartingNewDialog(false);
+        setHasPendingNewDialog(false);
         setHistoryError(null);
         setError(null);
         setStatus("idle");
@@ -1086,6 +2217,39 @@ export function useVeraChat() {
         async function resolveCurrentSession() {
             setIsHistoryLoading(true);
             setHistoryError(null);
+            const pendingNewDialog = readPendingNewDialog();
+            if (pendingNewDialog) {
+                setHasPendingNewDialog(true);
+                isStartingNewDialogRef.current = true;
+                setIsStartingNewDialog(true);
+                newDialogControllerRef.current = controller;
+                try {
+                    await runPendingNewDialogOperation({
+                        operation: pendingNewDialog,
+                        fallbackPreviousMessages: [],
+                        fallbackPreviousHistoryCursor: null,
+                        signal: controller.signal,
+                        requestAuthUserId: authUserIdRef.current,
+                    });
+                } catch (newDialogError) {
+                    if (cancelled || controller.signal.aborted) return;
+                    const originalNewDialogError =
+                        unwrapNewDialogOperationError(newDialogError);
+                    setHistoryError(
+                        originalNewDialogError instanceof ApiRequestError
+                            ? originalNewDialogError.detail
+                            : "Не удалось завершить создание нового диалога. Попробуйте ещё раз.",
+                    );
+                } finally {
+                    if (newDialogControllerRef.current === controller) {
+                        newDialogControllerRef.current = null;
+                        isStartingNewDialogRef.current = false;
+                        if (!cancelled) setIsStartingNewDialog(false);
+                    }
+                }
+                if (!cancelled) setIsHistoryLoading(false);
+                return;
+            }
             const pendingResolution = readPendingSessionResolution();
             const storedPendingRequest = readStoredPendingRequest();
             const abandonedPendingRequest =
@@ -1097,32 +2261,92 @@ export function useVeraChat() {
                     : null;
             try {
                 let currentSessionId: string | null = null;
+                let usedLocalSessionCandidate = false;
                 if (!pendingResolution) {
-                    const currentSession = await veraApi.getCurrentSession(
-                        controller.signal,
-                    );
-                    if (cancelled) return;
-                    currentSessionId = currentSession.session_id;
+                    const localSessionId = readStoredSessionId();
+                    if (localSessionId) {
+                        // A visible local anonymous conversation remains the
+                        // source of truth across null -> authenticated login.
+                        // Agent start_turn performs the existing assignment;
+                        // an older authenticated current session must not
+                        // replace what the user is looking at.
+                        currentSessionId = localSessionId;
+                        usedLocalSessionCandidate = true;
+                    } else {
+                        const currentSession = await veraApi.getCurrentSession(
+                            controller.signal,
+                        );
+                        if (cancelled) return;
+                        currentSessionId = currentSession.session_id;
+                    }
                 }
-                const requestedSessionId =
+                let requestedSessionId =
                     pendingResolution?.sessionId ??
                     currentSessionId ??
                     readOrCreateSessionId();
-                const replacementSessionId =
+                let replacementSessionId =
                     readOrCreateSessionReplacementId(requestedSessionId);
                 if (!replacementSessionId) {
                     throw new Error(
                         "Не удалось сохранить границу диалога.",
                     );
                 }
-                const resolution: VeraChatSessionResolveResponse =
-                    await veraApi.resolveSession(
+                let discardedForeignLocalArtifacts = false;
+                let resolution: VeraChatSessionResolveResponse;
+                try {
+                    resolution = await veraApi.resolveSession(
                         {
                             session_id: requestedSessionId,
                             replacement_session_id: replacementSessionId,
                         },
                         controller.signal,
                     );
+                } catch (initialResolveError) {
+                    if (
+                        pendingResolution ||
+                        !usedLocalSessionCandidate ||
+                        !(initialResolveError instanceof ApiRequestError) ||
+                        initialResolveError.status !== 403
+                    ) {
+                        throw initialResolveError;
+                    }
+
+                    // A stored ID can outlive the authenticated identity that
+                    // owned it in an earlier mount. Only a definite foreign
+                    // rejection permits one bounded server-current fallback;
+                    // a normal null -> auth transition keeps the local chat.
+                    const foreignSessionId = requestedSessionId;
+                    const foreignReplacementSessionId = replacementSessionId;
+                    if (!discardForeignOwnerArtifacts()) {
+                        throw new Error(
+                            "Не удалось очистить данные предыдущего владельца диалога.",
+                        );
+                    }
+                    discardedForeignLocalArtifacts = true;
+                    const fallbackCurrent =
+                        await veraApi.getCurrentSession(controller.signal);
+                    if (cancelled || controller.signal.aborted) return;
+                    requestedSessionId =
+                        fallbackCurrent.session_id !== foreignSessionId &&
+                        fallbackCurrent.session_id !==
+                            foreignReplacementSessionId
+                            ? (fallbackCurrent.session_id ?? crypto.randomUUID())
+                            : crypto.randomUUID();
+                    replacementSessionId =
+                        readOrCreateSessionReplacementId(requestedSessionId);
+                    if (!replacementSessionId) {
+                        throw new Error(
+                            "Не удалось сохранить границу нового владельца диалога.",
+                        );
+                    }
+                    resolution = await veraApi.resolveSession(
+                        {
+                            session_id: requestedSessionId,
+                            replacement_session_id: replacementSessionId,
+                        },
+                        controller.signal,
+                    );
+                }
                 if (cancelled) return;
 
                 const pendingRequest = readPendingRequest(requestedSessionId);
@@ -1142,14 +2366,17 @@ export function useVeraChat() {
                     }
                 }
                 const pendingRequestToArchive =
-                    abandonedPendingRequest ??
-                    (storedPendingRequest &&
-                    resolution.boundary === "expired" &&
-                    resolution.previous_session_id ===
-                        storedPendingRequest.sessionId &&
-                    storedPendingRequest.requestId !== replacementSessionId
-                        ? storedPendingRequest
-                        : null);
+                    discardedForeignLocalArtifacts
+                        ? null
+                        : (abandonedPendingRequest ??
+                          (storedPendingRequest &&
+                          resolution.boundary === "expired" &&
+                          resolution.previous_session_id ===
+                              storedPendingRequest.sessionId &&
+                          storedPendingRequest.requestId !==
+                              replacementSessionId
+                              ? storedPendingRequest
+                              : null));
 
                 let previousLifecycleGroup: VeraPreviousSessionGroup | null =
                     null;
@@ -1239,6 +2466,7 @@ export function useVeraChat() {
                     setAnnouncement("Начат новый диалог.");
                 }
                 const keepsUnknownRetainedOperation =
+                    !discardedForeignLocalArtifacts &&
                     storedPendingRequest?.requestId === replacementSessionId;
                 if (!keepsUnknownRetainedOperation) {
                     clearSessionReplacementId(
@@ -1246,6 +2474,7 @@ export function useVeraChat() {
                         replacementSessionId,
                     );
                 }
+                setIsHistoryLoading(false);
             } catch (error) {
                 if (cancelled || controller.signal.aborted) return;
                 if (
@@ -1268,6 +2497,9 @@ export function useVeraChat() {
                             ) ?? abandonedPendingRequest,
                             previousMessages: [],
                             previousHistoryCursor: null,
+                            rejectionStatus:
+                                error.status === 403 ? 403 : 409,
+                            requestAuthUserId: authUserId,
                             signal: controller.signal,
                         });
                     if (cancelled || controller.signal.aborted) return;
@@ -1300,9 +2532,11 @@ export function useVeraChat() {
         authUserId,
         clearBufferedTokens,
         closeStream,
+        discardForeignOwnerArtifacts,
         isAuthLoading,
         preservePreviousSession,
         restoreDeliveryState,
+        runPendingNewDialogOperation,
         storeResolvedSession,
     ]);
 
@@ -1625,9 +2859,110 @@ export function useVeraChat() {
         [olderPreviousHistorySessionId, previousSessionGroups],
     );
 
+    const startNewDialog = useCallback(async (): Promise<boolean> => {
+        if (
+            isStartingNewDialogRef.current ||
+            isHistoryLoading ||
+            !sessionId ||
+            activeRequestIdRef.current !== null ||
+            !DELIVERY_STATES_ALLOWING_NEW_REQUEST.has(
+                deliveryStateRef.current,
+            )
+        ) {
+            return false;
+        }
+
+        isStartingNewDialogRef.current = true;
+        setIsStartingNewDialog(true);
+        setError(null);
+        setHistoryError(null);
+        setAnnouncement("Создаю новый диалог.");
+        const controller = new AbortController();
+        newDialogControllerRef.current?.abort();
+        newDialogControllerRef.current = controller;
+        const requestAuthUserId = authUserId;
+
+        try {
+            let operation = readPendingNewDialog();
+            if (operation) setHasPendingNewDialog(true);
+            let messagesToArchive = messages;
+            let historyCursorToArchive = historyCursor;
+
+            if (!operation) {
+                operation = {
+                    previousSessionId: sessionId,
+                    newSessionId: crypto.randomUUID(),
+                };
+                if (!storePendingNewDialog(operation)) {
+                    throw new Error(
+                        "Не удалось безопасно сохранить создание нового диалога.",
+                    );
+                }
+                setHasPendingNewDialog(true);
+            } else if (operation.previousSessionId !== sessionId) {
+                const archivedGroup = previousSessionGroups.find(
+                    (group) =>
+                        group.sessionId === operation?.previousSessionId,
+                );
+                messagesToArchive = archivedGroup?.messages ?? [];
+                historyCursorToArchive =
+                    archivedGroup?.historyCursor ?? null;
+            }
+
+            return await runPendingNewDialogOperation({
+                operation,
+                fallbackPreviousMessages: messagesToArchive,
+                fallbackPreviousHistoryCursor: historyCursorToArchive,
+                signal: controller.signal,
+                requestAuthUserId,
+            });
+        } catch (newDialogError) {
+            if (
+                controller.signal.aborted ||
+                !isMountedRef.current ||
+                authUserIdRef.current !== requestAuthUserId
+            ) {
+                return false;
+            }
+            setAnnouncement("");
+            const originalNewDialogError =
+                unwrapNewDialogOperationError(newDialogError);
+            setHasPendingNewDialog(readPendingNewDialog() !== null);
+            setError(
+                originalNewDialogError instanceof ApiRequestError
+                    ? originalNewDialogError.detail
+                    : originalNewDialogError instanceof Error
+                      ? originalNewDialogError.message
+                      : "Не удалось начать новый диалог. Попробуйте ещё раз.",
+            );
+            return false;
+        } finally {
+            if (newDialogControllerRef.current === controller) {
+                newDialogControllerRef.current = null;
+                isStartingNewDialogRef.current = false;
+                if (isMountedRef.current) setIsStartingNewDialog(false);
+            }
+        }
+    }, [
+        authUserId,
+        historyCursor,
+        isHistoryLoading,
+        messages,
+        previousSessionGroups,
+        runPendingNewDialogOperation,
+        sessionId,
+    ]);
+
     const sendMessage = useCallback(
         async (text: string): Promise<VeraSendMessageResult> => {
+            if (readPendingNewDialog()) {
+                setError(
+                    "Завершите создание нового диалога перед отправкой сообщения.",
+                );
+                return { outcome: "rejected", restoreDraft: true };
+            }
             if (
+                isStartingNewDialogRef.current ||
                 !DELIVERY_STATES_ALLOWING_NEW_REQUEST.has(
                     deliveryStateRef.current,
                 )
@@ -1742,13 +3077,16 @@ export function useVeraChat() {
                 ) {
                     const recovered =
                         await abandonRejectedLifecycleOperation({
-                        doomedSessionId: sessionId,
-                        doomedReplacementSessionId: replacementSessionId,
-                        pendingRequest: null,
-                        previousMessages: messagesBeforeRequest,
-                        previousHistoryCursor: historyCursor,
-                        signal: resolveController.signal,
-                    });
+                            doomedSessionId: sessionId,
+                            doomedReplacementSessionId: replacementSessionId,
+                            pendingRequest: null,
+                            previousMessages: messagesBeforeRequest,
+                            previousHistoryCursor: historyCursor,
+                            rejectionStatus:
+                                resolveError.status === 403 ? 403 : 409,
+                            requestAuthUserId,
+                            signal: resolveController.signal,
+                        });
                     if (
                         !isMountedRef.current ||
                         authUserIdRef.current !== requestAuthUserId ||
@@ -1927,7 +3265,8 @@ export function useVeraChat() {
             } catch (err) {
                 if (
                     !isMountedRef.current ||
-                    activeRequestIdRef.current !== requestId
+                    activeRequestIdRef.current !== requestId ||
+                    authUserIdRef.current !== requestAuthUserId
                 ) {
                     return { outcome: "unknown", restoreDraft: false };
                 }
@@ -1952,14 +3291,16 @@ export function useVeraChat() {
                 if (shouldAbandonRejectedOperation) {
                     const recovered =
                         await abandonRejectedLifecycleOperation({
-                        doomedSessionId: publishedSessionId,
-                        doomedReplacementSessionId: requestId,
-                        pendingRequest:
-                            readPendingRequestByRequestId(requestId),
-                        previousMessages: messagesBeforeRequest,
-                        previousHistoryCursor: historyCursor,
-                        signal: postController.signal,
-                    });
+                            doomedSessionId: publishedSessionId,
+                            doomedReplacementSessionId: requestId,
+                            pendingRequest:
+                                readPendingRequestByRequestId(requestId),
+                            previousMessages: messagesBeforeRequest,
+                            previousHistoryCursor: historyCursor,
+                            rejectionStatus: err.status === 403 ? 403 : 409,
+                            requestAuthUserId,
+                            signal: postController.signal,
+                        });
                     if (
                         !isMountedRef.current ||
                         activeRequestIdRef.current !== requestId ||
@@ -2048,7 +3389,7 @@ export function useVeraChat() {
                 // Re-run the exact lifecycle operation before polling so
                 // history lookup follows the effective session instead of
                 // waiting on the closed predecessor for 30 seconds.
-                const recoveryAuthUserId = authUserIdRef.current;
+                const recoveryAuthUserId = requestAuthUserId;
                 const lifecycleController = new AbortController();
                 let lifecycleTimedOut = false;
                 sendResolveControllerRef.current?.abort();
@@ -2122,6 +3463,9 @@ export function useVeraChat() {
                                     readPendingRequestByRequestId(requestId),
                                 previousMessages: messagesBeforeRequest,
                                 previousHistoryCursor: historyCursor,
+                                rejectionStatus:
+                                    lifecycleError.status === 403 ? 403 : 409,
+                                requestAuthUserId: recoveryAuthUserId,
                                 signal: lifecycleController.signal,
                             });
                         if (
@@ -2456,6 +3800,9 @@ export function useVeraChat() {
         messages,
         previousSessionGroups,
         sendMessage,
+        startNewDialog,
+        isStartingNewDialog,
+        hasPendingNewDialog,
         status,
         deliveryState,
         error,

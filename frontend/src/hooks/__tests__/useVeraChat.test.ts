@@ -5,19 +5,25 @@ const {
     getCurrentSessionMock,
     getHistoryMock,
     resolveSessionMock,
+    createSessionMock,
+    closeSessionMock,
     sendMessageMock,
 } = vi.hoisted(() => ({
-        getCurrentSessionMock: vi.fn(),
-        getHistoryMock: vi.fn(),
-        resolveSessionMock: vi.fn(),
-        sendMessageMock: vi.fn(),
-    }));
+    getCurrentSessionMock: vi.fn(),
+    getHistoryMock: vi.fn(),
+    resolveSessionMock: vi.fn(),
+    createSessionMock: vi.fn(),
+    closeSessionMock: vi.fn(),
+    sendMessageMock: vi.fn(),
+}));
 
 vi.mock("@/lib/api/vera", () => ({
     veraApi: {
         getCurrentSession: getCurrentSessionMock,
         getHistory: getHistoryMock,
         resolveSession: resolveSessionMock,
+        createSession: createSessionMock,
+        closeSession: closeSessionMock,
         sendMessage: sendMessageMock,
     },
 }));
@@ -153,6 +159,14 @@ describe("useVeraChat", () => {
             previous_session_id: null,
             boundary: "retained",
             session_ttl_seconds: 86_400,
+        }));
+        createSessionMock.mockReset().mockImplementation(async (data) => ({
+            session_id: data.session_id,
+            session_ttl_seconds: 86_400,
+        }));
+        closeSessionMock.mockReset().mockImplementation(async (sessionId) => ({
+            session_id: sessionId,
+            closed_at: "2026-08-10T12:00:00Z",
         }));
         sendMessageMock
             .mockReset()
@@ -472,7 +486,7 @@ describe("useVeraChat", () => {
         const writes: string[] = [];
         const setItemSpy = vi
             .spyOn(Storage.prototype, "setItem")
-            .mockImplementation(function (key, value) {
+            .mockImplementation(function (this: Storage, key, value) {
                 writes.push(key);
                 if (key === "vera_pending_request") {
                     throw new DOMException("Storage full", "QuotaExceededError");
@@ -531,18 +545,24 @@ describe("useVeraChat", () => {
             if (statusCode === 403 || statusCode === 409) {
                 expect(result.current.sessionId).not.toBe(rejectedSessionId);
                 expect(result.current.messages).toEqual([]);
-                expect(result.current.previousSessionGroups).toContainEqual(
-                    expect.objectContaining({
-                        sessionId: rejectedSessionId,
-                        messages: expect.arrayContaining([
-                            expect.objectContaining({
-                                role: "user",
-                                content: "Расскажите об отпуске.",
-                                deliveryStatus: "unknown",
-                            }),
-                        ]),
-                    }),
-                );
+                if (statusCode === 409) {
+                    expect(
+                        result.current.previousSessionGroups,
+                    ).toContainEqual(
+                        expect.objectContaining({
+                            sessionId: rejectedSessionId,
+                            messages: expect.arrayContaining([
+                                expect.objectContaining({
+                                    role: "user",
+                                    content: "Расскажите об отпуске.",
+                                    deliveryStatus: "unknown",
+                                }),
+                            ]),
+                        }),
+                    );
+                } else {
+                    expect(result.current.previousSessionGroups).toEqual([]);
+                }
                 expect(result.current.error).toContain(
                     "Не удалось восстановить незавершённую отправку",
                 );
@@ -1575,7 +1595,7 @@ describe("useVeraChat", () => {
             const originalSetItem = Storage.prototype.setItem;
             const setItemSpy = vi
                 .spyOn(Storage.prototype, "setItem")
-                .mockImplementation(function (key, value) {
+                .mockImplementation(function (this: Storage, key, value) {
                     if (key === "vera_pending_request") {
                         const pending = JSON.parse(value) as {
                             sessionId?: string;
@@ -1731,6 +1751,191 @@ describe("useVeraChat", () => {
 
         unmount();
     });
+
+    it.each([
+        {
+            label: "authenticated B",
+            nextUser: {
+                email: "user-b@example.com",
+                first_name: "User",
+                last_name: "B",
+            },
+            currentSessionId: "user-b-current-session",
+        },
+        {
+            label: "anonymous",
+            nextUser: null,
+            currentSessionId: null,
+        },
+    ])(
+        "does not disclose user A's pending lifecycle request after remount as $label",
+        async ({ nextUser, currentSessionId }) => {
+            const foreignSessionId = "user-a-session";
+            const foreignRequestId = "user-a-pending-request";
+            const foreignText = "Приватный незавершённый вопрос A";
+            window.sessionStorage.setItem(
+                "vera_session_id",
+                JSON.stringify({ id: foreignSessionId }),
+            );
+            window.sessionStorage.setItem(
+                "vera_pending_session_resolution",
+                JSON.stringify({
+                    sessionId: foreignSessionId,
+                    replacementSessionId: foreignRequestId,
+                }),
+            );
+            window.sessionStorage.setItem(
+                "vera_pending_request",
+                JSON.stringify({
+                    sessionId: foreignSessionId,
+                    requestId: foreignRequestId,
+                    message: foreignText,
+                    createdAt: Date.now(),
+                }),
+            );
+            useAuthStore.setState({
+                user: nextUser,
+                isAuthenticated: nextUser !== null,
+                isLoading: false,
+            });
+            getCurrentSessionMock.mockResolvedValue({
+                session_id: currentSessionId,
+            });
+            resolveSessionMock
+                .mockRejectedValueOnce(
+                    new ApiRequestError(403, "Чужая lifecycle operation."),
+                )
+                .mockImplementationOnce(async (data) => ({
+                    session_id: data.session_id,
+                    previous_session_id: null,
+                    boundary: "created",
+                    session_ttl_seconds: 86_400,
+                }));
+
+            const { result, unmount } = renderHook(() => useVeraChat());
+
+            await waitFor(() => {
+                expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+                expect(result.current.isHistoryLoading).toBe(false);
+            });
+            const recoveryOperation = resolveSessionMock.mock.calls[1][0];
+            expect(getCurrentSessionMock).toHaveBeenCalledOnce();
+            if (currentSessionId) {
+                expect(recoveryOperation.session_id).toBe(currentSessionId);
+            } else {
+                expect(recoveryOperation.session_id).not.toBe(
+                    foreignSessionId,
+                );
+                expect(recoveryOperation.session_id).not.toBe(
+                    foreignRequestId,
+                );
+            }
+            expect(result.current.sessionId).toBe(
+                recoveryOperation.session_id,
+            );
+            expect(result.current.messages).toEqual([]);
+            expect(result.current.previousSessionGroups).toEqual([]);
+            expect(JSON.stringify(result.current)).not.toContain(foreignText);
+            for (const storageKey of [
+                "vera_pending_request",
+                "vera_pending_session_resolution",
+                "vera_pending_new_dialog",
+            ]) {
+                expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+            }
+
+            unmount();
+        },
+    );
+
+    it.each([
+        {
+            label: "authenticated B",
+            nextUser: {
+                email: "user-b@example.com",
+                first_name: "User",
+                last_name: "B",
+            },
+            currentSessionId: "user-b-current-session",
+        },
+        {
+            label: "anonymous",
+            nextUser: null,
+            currentSessionId: null,
+        },
+    ])(
+        "clears user A's stale pending request after a local-session 403 as $label",
+        async ({ nextUser, currentSessionId }) => {
+            const foreignSessionId = "user-a-local-session";
+            const foreignRequestId = "user-a-stale-request";
+            const foreignText = "Приватный локальный вопрос A";
+            window.sessionStorage.setItem(
+                "vera_session_id",
+                JSON.stringify({ id: foreignSessionId }),
+            );
+            window.sessionStorage.setItem(
+                "vera_pending_request",
+                JSON.stringify({
+                    sessionId: foreignSessionId,
+                    requestId: foreignRequestId,
+                    message: foreignText,
+                    createdAt: Date.now(),
+                }),
+            );
+            useAuthStore.setState({
+                user: nextUser,
+                isAuthenticated: nextUser !== null,
+                isLoading: false,
+            });
+            getCurrentSessionMock.mockResolvedValue({
+                session_id: currentSessionId,
+            });
+            resolveSessionMock
+                .mockRejectedValueOnce(
+                    new ApiRequestError(403, "Чужая локальная сессия."),
+                )
+                .mockImplementationOnce(async (data) => ({
+                    session_id: data.session_id,
+                    previous_session_id: null,
+                    boundary: "created",
+                    session_ttl_seconds: 86_400,
+                }));
+
+            const { result, unmount } = renderHook(() => useVeraChat());
+
+            await waitFor(() => {
+                expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+                expect(result.current.isHistoryLoading).toBe(false);
+            });
+            const recoveryOperation = resolveSessionMock.mock.calls[1][0];
+            expect(getCurrentSessionMock).toHaveBeenCalledOnce();
+            if (currentSessionId) {
+                expect(recoveryOperation.session_id).toBe(currentSessionId);
+            } else {
+                expect(recoveryOperation.session_id).not.toBe(
+                    foreignSessionId,
+                );
+                expect(recoveryOperation.session_id).not.toBe(
+                    foreignRequestId,
+                );
+            }
+            expect(result.current.sessionId).toBe(
+                recoveryOperation.session_id,
+            );
+            expect(result.current.messages).toEqual([]);
+            expect(result.current.previousSessionGroups).toEqual([]);
+            expect(JSON.stringify(result.current)).not.toContain(foreignText);
+            for (const storageKey of [
+                "vera_pending_request",
+                "vera_pending_session_resolution",
+                "vera_pending_new_dialog",
+            ]) {
+                expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+            }
+
+            unmount();
+        },
+    );
 
     it("abandons an unrecoverable stale operation during initialization and resolves one fresh session", async () => {
         window.sessionStorage.setItem(
@@ -2143,14 +2348,2135 @@ describe("useVeraChat", () => {
         secondRender.unmount();
     });
 
-    it("uses the authenticated user's current server session", async () => {
+    it("closes the current session, creates a new one, and preserves a visible boundary", async () => {
+        getHistoryMock.mockImplementation(async (sessionId) =>
+            historyWithTurn({
+                sessionId,
+                requestId: "completed-request",
+                status: "completed",
+                answer: "Ответ завершённого диалога.",
+            }),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => expect(result.current.messages).toHaveLength(2));
+        const previousSessionId = result.current.sessionId;
+
+        let started = false;
+        await act(async () => {
+            started = await result.current.startNewDialog();
+        });
+
+        expect(started).toBe(true);
+        expect(closeSessionMock).toHaveBeenCalledWith(
+            previousSessionId,
+            expect.any(AbortSignal),
+        );
+        const createdSessionId = createSessionMock.mock.calls[0][0].session_id;
+        expect(
+            resolveSessionMock.mock.calls.at(-1)?.[0].replacement_session_id,
+        ).toBe(createdSessionId);
+        expect(createdSessionId).not.toBe(previousSessionId);
+        expect(result.current.sessionId).toBe(createdSessionId);
+        expect(result.current.messages).toEqual([]);
+        expect(result.current.previousSessionGroups).toContainEqual(
+            expect.objectContaining({
+                sessionId: previousSessionId,
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "Ответ завершённого диалога.",
+                    }),
+                ]),
+            }),
+        );
+        expect(closeSessionMock.mock.invocationCallOrder[0]).toBeLessThan(
+            createSessionMock.mock.invocationCallOrder[0],
+        );
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+        expect(result.current.announcement).toContain("Начат новый диалог");
+
+        unmount();
+    });
+
+    it("treats an expired preflight rollover as the completed explicit boundary", async () => {
         window.sessionStorage.setItem(
             "vera_session_id",
+            JSON.stringify({ id: "inactive-session", createdAt: 1 }),
+        );
+        getHistoryMock.mockImplementation(async (sessionId) =>
+            historyWithTurn({
+                sessionId,
+                requestId: "inactive-request",
+                status: "completed",
+                answer: "Ответ до серверной границы.",
+            }),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => expect(result.current.messages).toHaveLength(2));
+        resolveSessionMock.mockImplementationOnce(async (data) => ({
+            session_id: data.replacement_session_id,
+            previous_session_id: data.session_id,
+            boundary: "expired",
+            session_ttl_seconds: 86_400,
+        }));
+
+        let started = false;
+        await act(async () => {
+            started = await result.current.startNewDialog();
+        });
+
+        const preflight = resolveSessionMock.mock.calls.at(-1)![0];
+        expect(started).toBe(true);
+        expect(preflight.session_id).toBe("inactive-session");
+        expect(result.current.sessionId).toBe(
+            preflight.replacement_session_id,
+        );
+        expect(closeSessionMock).not.toHaveBeenCalled();
+        expect(createSessionMock).not.toHaveBeenCalled();
+        expect(result.current.previousSessionGroups).toEqual([
+            expect.objectContaining({
+                sessionId: "inactive-session",
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "Ответ до серверной границы.",
+                    }),
+                ]),
+            }),
+        ]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("completes an expired durable new-dialog operation without strict close or create", async () => {
+        const operation = {
+            previousSessionId: "expired-pending-session",
+            newSessionId: "expired-pending-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        resolveSessionMock.mockImplementationOnce(async (data) => ({
+            session_id: data.replacement_session_id,
+            previous_session_id: data.session_id,
+            boundary: "expired",
+            session_ttl_seconds: 86_400,
+        }));
+        getHistoryMock.mockResolvedValueOnce({
+            ...historyWithTurn({
+                sessionId: operation.previousSessionId,
+                requestId: "expired-pending-turn",
+                status: "completed",
+                answer: "История закрытого предшественника.",
+            }),
+            next_before_sequence: 4,
+        });
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => {
+            expect(result.current.sessionId).toBe(operation.newSessionId);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+        expect(resolveSessionMock.mock.calls[0][0]).toEqual({
+            session_id: operation.previousSessionId,
+            replacement_session_id: operation.newSessionId,
+        });
+        expect(closeSessionMock).not.toHaveBeenCalled();
+        expect(createSessionMock).not.toHaveBeenCalled();
+        expect(result.current.previousSessionGroups).toEqual([
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 4,
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "История закрытого предшественника.",
+                    }),
+                ]),
+            }),
+        ]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem(
+                "vera_pending_session_resolution",
+            ),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("rekeys a lost anonymous successor proof once and completes the same boundary", async () => {
+        const operation = {
+            previousSessionId: "closed-owned-session",
+            newSessionId: "lost-cookie-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(403, "Successor proof не принят."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.replacement_session_id,
+                previous_session_id: data.session_id,
+                boundary: "expired",
+                session_ttl_seconds: 86_400,
+            }));
+        getHistoryMock.mockImplementation(async (sessionId) => ({
+            session_id: sessionId,
+            turns: [],
+            next_before_sequence: null,
+        }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+        const rekeyedOperation = resolveSessionMock.mock.calls[1][0];
+        expect(resolveSessionMock.mock.calls[0][0]).toEqual({
+            session_id: operation.previousSessionId,
+            replacement_session_id: operation.newSessionId,
+        });
+        expect(rekeyedOperation.session_id).toBe(operation.previousSessionId);
+        expect(rekeyedOperation.replacement_session_id).not.toBe(
+            operation.newSessionId,
+        );
+        expect(result.current.sessionId).toBe(
+            rekeyedOperation.replacement_session_id,
+        );
+        expect(closeSessionMock).not.toHaveBeenCalled();
+        expect(createSessionMock).not.toHaveBeenCalled();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("keeps foreign new-dialog recovery retryable when current lookup is transiently unavailable", async () => {
+        const operation = {
+            previousSessionId: "foreign-pending-session",
+            newSessionId: "foreign-pending-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(403, "Чужая история."),
+            )
+            .mockRejectedValueOnce(
+                new ApiRequestError(403, "Чужая история."),
+            );
+        getCurrentSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(503, "Current временно недоступен."),
+            )
+            .mockResolvedValueOnce({
+                session_id: "new-owner-current-session",
+            });
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(result.current.isHistoryLoading).toBe(false);
+            expect(result.current.isStartingNewDialog).toBe(false);
+            expect(result.current.hasPendingNewDialog).toBe(true);
+        });
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_pending_new_dialog") ??
+                    "{}",
+            ),
+        ).toMatchObject(operation);
+
+        let retried = false;
+        await act(async () => {
+            retried = await result.current.startNewDialog();
+        });
+
+        expect(retried).toBe(true);
+        expect(getCurrentSessionMock).toHaveBeenCalledTimes(2);
+        expect(result.current.sessionId).toBe("new-owner-current-session");
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("reloads predecessor history on a durable retry before archiving it", async () => {
+        const operation = {
+            previousSessionId: "history-retry-session",
+            newSessionId: "history-retry-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock.mockImplementation(async (sessionId) => ({
+            ...historyWithTurn({
+                sessionId,
+                requestId: "history-retry-turn",
+                status: "completed",
+                answer: "История сохраняется после повтора.",
+            }),
+            next_before_sequence: 6,
+        }));
+        createSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(504, "Create receipt потерян."),
+        );
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(createSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+            expect(result.current.hasPendingNewDialog).toBe(true);
+        });
+
+        let retried = false;
+        await act(async () => {
+            retried = await result.current.startNewDialog();
+        });
+
+        expect(retried).toBe(true);
+        expect(getHistoryMock).toHaveBeenCalledTimes(2);
+        expect(result.current.previousSessionGroups).toEqual([
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 6,
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "История сохраняется после повтора.",
+                    }),
+                ]),
+            }),
+        ]);
+
+        unmount();
+    });
+
+    it("keeps exact owner recovery journal after a foreign fallback resolve failure", async () => {
+        const operation = {
+            previousSessionId: "foreign-owner-session",
+            newSessionId: "foreign-owner-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock.mockRejectedValueOnce(
+            new ApiRequestError(403, "Чужая история."),
+        );
+        getCurrentSessionMock.mockResolvedValue({
+            session_id: "owner-current-after-foreign",
+        });
+        resolveSessionMock
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
+            }))
+            .mockRejectedValueOnce(
+                new ApiRequestError(504, "Fresh owner resolve потерян."),
+            );
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+        const durableRecovery = JSON.parse(
+            window.sessionStorage.getItem("vera_pending_new_dialog") ?? "{}",
+        ) as {
+            ownerRecoverySessionId: string;
+            ownerRecoveryReplacementSessionId: string;
+        };
+        expect(durableRecovery.ownerRecoverySessionId).toBe(
+            "owner-current-after-foreign",
+        );
+        expect(durableRecovery.ownerRecoveryReplacementSessionId).toBeTruthy();
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem(
+                    "vera_pending_session_resolution",
+                ) ?? "{}",
+            ),
+        ).toEqual({
+            sessionId: durableRecovery.ownerRecoverySessionId,
+            replacementSessionId:
+                durableRecovery.ownerRecoveryReplacementSessionId,
+        });
+
+        let retried = false;
+        await act(async () => {
+            retried = await result.current.startNewDialog();
+        });
+
+        expect(retried).toBe(true);
+        expect(resolveSessionMock.mock.calls[2][0]).toEqual({
+            session_id: durableRecovery.ownerRecoverySessionId,
+            replacement_session_id:
+                durableRecovery.ownerRecoveryReplacementSessionId,
+        });
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("reloads same-owner history before retrying a persisted 409 recovery", async () => {
+        const operation = {
+            previousSessionId: "same-owner-retry-session",
+            newSessionId: "same-owner-retry-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock.mockImplementation(async (sessionId) => ({
+            ...historyWithTurn({
+                sessionId,
+                requestId: "same-owner-retry-turn",
+                status: "completed",
+                answer: "История пережила потерянный fresh resolve.",
+            }),
+            next_before_sequence: 12,
+        }));
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(409, "Recovery window истёк."),
+            )
+            .mockRejectedValueOnce(
+                new ApiRequestError(504, "Fresh resolve потерян."),
+            )
+            .mockImplementation(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "created",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const firstMount = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(firstMount.result.current.isHistoryLoading).toBe(false);
+            expect(firstMount.result.current.hasPendingNewDialog).toBe(true);
+        });
+        const durableRecovery = JSON.parse(
+            window.sessionStorage.getItem("vera_pending_new_dialog") ?? "{}",
+        ) as {
+            ownerRecoverySessionId: string;
+            ownerRecoveryReplacementSessionId: string;
+        };
+        firstMount.unmount();
+
+        const secondMount = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(3);
+            expect(secondMount.result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(resolveSessionMock.mock.calls[2][0]).toEqual({
+            session_id: durableRecovery.ownerRecoverySessionId,
+            replacement_session_id:
+                durableRecovery.ownerRecoveryReplacementSessionId,
+        });
+        expect(getHistoryMock).toHaveBeenCalledTimes(2);
+        expect(secondMount.result.current.previousSessionGroups).toContainEqual(
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 12,
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "История пережила потерянный fresh resolve.",
+                    }),
+                ]),
+            }),
+        );
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        secondMount.unmount();
+    });
+
+    it("continues a persisted 409 recovery without exposing unverified expired history", async () => {
+        const operation = {
+            previousSessionId: "expired-history-409-session",
+            newSessionId: "expired-history-409-successor",
+            ownerRecoverySessionId: "expired-history-recovery-session",
+            ownerRecoveryReplacementSessionId:
+                "expired-history-recovery-successor",
+            ownerRecoveryRejectionStatus: 409 as const,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_session_resolution",
             JSON.stringify({
-                id: "local-session",
+                sessionId: operation.ownerRecoverySessionId,
+                replacementSessionId:
+                    operation.ownerRecoveryReplacementSessionId,
+            }),
+        );
+        getHistoryMock.mockRejectedValueOnce(
+            new ApiRequestError(401, "Anonymous proof истёк."),
+        );
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(resolveSessionMock.mock.calls[0][0]).toEqual({
+            session_id: operation.ownerRecoverySessionId,
+            replacement_session_id:
+                operation.ownerRecoveryReplacementSessionId,
+        });
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(result.current.hasPendingNewDialog).toBe(false);
+        expect(result.current.isStartingNewDialog).toBe(false);
+        expect(result.current.deliveryState).toBe("draft");
+        expect(result.current.historyError).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("does not archive foreign plaintext after unverified 404 history and an exact rejection", async () => {
+        const operation = {
+            previousSessionId: "unverified-404-session",
+            newSessionId: "unverified-404-successor",
+            ownerRecoverySessionId: "unverified-404-recovery",
+            ownerRecoveryReplacementSessionId:
+                "unverified-404-replacement",
+            ownerRecoveryRejectionStatus: 409 as const,
+        };
+        useAuthStore.setState({
+            user: {
+                email: "user-b@example.com",
+                first_name: "User",
+                last_name: "B",
+            },
+            isAuthenticated: true,
+        });
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_request",
+            JSON.stringify({
+                requestId: "unverified-private-request",
+                sessionId: operation.previousSessionId,
+                message: "Приватный текст пользователя A.",
                 createdAt: Date.now(),
             }),
         );
+        getHistoryMock.mockRejectedValueOnce(
+            new ApiRequestError(404, "История не найдена."),
+        );
+        getCurrentSessionMock.mockResolvedValue({
+            session_id: "user-b-current-after-404",
+        });
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(403, "Exact recovery не принадлежит B."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(resolveSessionMock.mock.calls[1][0]).toEqual({
+            session_id: "user-b-current-after-404",
+            replacement_session_id: expect.any(String),
+        });
+        expect(result.current.messages).toEqual([]);
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("does not treat an unverified created recovery as predecessor ownership", async () => {
+        const operation = {
+            previousSessionId: "unverified-created-session",
+            newSessionId: "unverified-created-successor",
+            ownerRecoverySessionId: "unverified-created-recovery",
+            ownerRecoveryReplacementSessionId:
+                "unverified-created-replacement",
+            ownerRecoveryRejectionStatus: 409 as const,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_request",
+            JSON.stringify({
+                requestId: "unverified-created-private-request",
+                sessionId: operation.previousSessionId,
+                message: "Чужой текст нельзя архивировать.",
+                createdAt: Date.now(),
+            }),
+        );
+        getHistoryMock.mockRejectedValueOnce(
+            new ApiRequestError(401, "Истёкший owner proof."),
+        );
+        resolveSessionMock.mockResolvedValueOnce({
+            session_id: operation.ownerRecoverySessionId,
+            previous_session_id: null,
+            boundary: "created",
+            session_ttl_seconds: 86_400,
+        });
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(result.current.sessionId).toBe(
+            operation.ownerRecoverySessionId,
+        );
+        expect(result.current.messages).toEqual([]);
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("keeps an unverified predecessor private after a lost create response is retained on retry", async () => {
+        const operation = {
+            previousSessionId: "unverified-lost-created-session",
+            newSessionId: "unverified-lost-created-successor",
+            ownerRecoverySessionId: "unverified-lost-created-recovery",
+            ownerRecoveryReplacementSessionId:
+                "unverified-lost-created-replacement",
+            ownerRecoveryRejectionStatus: 409 as const,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_request",
+            JSON.stringify({
+                requestId: "unverified-lost-created-private-request",
+                sessionId: operation.previousSessionId,
+                message: "Чужой текст не должен пережить потерянный ответ.",
+                createdAt: Date.now(),
+            }),
+        );
+        getHistoryMock.mockRejectedValue(
+            new ApiRequestError(503, "Owner history временно недоступна."),
+        );
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(504, "Created response потерян."),
+            )
+            .mockResolvedValueOnce({
+                session_id: operation.ownerRecoverySessionId,
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
+            });
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+            expect(result.current.hasPendingNewDialog).toBe(true);
+        });
+
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        let retried = false;
+        await act(async () => {
+            retried = await result.current.startNewDialog();
+        });
+
+        expect(retried).toBe(true);
+        expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+        expect(resolveSessionMock.mock.calls[0][0]).toEqual(
+            resolveSessionMock.mock.calls[1][0],
+        );
+        expect(result.current.messages).toEqual([]);
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("clears an unverified marker after 2xx history revalidates the predecessor", async () => {
+        const operation = {
+            previousSessionId: "revalidated-409-session",
+            newSessionId: "revalidated-409-successor",
+            ownerRecoverySessionId: "revalidated-recovery-session",
+            ownerRecoveryReplacementSessionId:
+                "revalidated-recovery-successor",
+            ownerRecoveryRejectionStatus: 409 as const,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(503, "Strict proof истёк."),
+            )
+            .mockResolvedValueOnce({
+                ...historyWithTurn({
+                    sessionId: operation.previousSessionId,
+                    requestId: "revalidated-history-turn",
+                    status: "completed",
+                    answer: "Владелец истории повторно подтверждён.",
+                }),
+                next_before_sequence: 18,
+            });
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(504, "Exact response потерян."),
+            )
+            .mockRejectedValueOnce(
+                new ApiRequestError(403, "Exact pair отклонён."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "created",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+            expect(result.current.hasPendingNewDialog).toBe(true);
+        });
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_pending_new_dialog") ??
+                    "{}",
+            ).ownerRecoveryPredecessorUnverified,
+        ).toBe(true);
+
+        let retried = false;
+        await act(async () => {
+            retried = await result.current.startNewDialog();
+        });
+
+        expect(retried).toBe(true);
+        expect(resolveSessionMock).toHaveBeenCalledTimes(3);
+        expect(result.current.previousSessionGroups).toContainEqual(
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 18,
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "Владелец истории повторно подтверждён.",
+                    }),
+                ]),
+            }),
+        );
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("preserves the original 409 policy while an unverified recovery waits for current", async () => {
+        const operation = {
+            previousSessionId: "rebase-revalidated-session",
+            newSessionId: "rebase-revalidated-successor",
+            ownerRecoverySessionId: "rebase-revalidated-recovery",
+            ownerRecoveryReplacementSessionId:
+                "rebase-revalidated-replacement",
+            ownerRecoveryRejectionStatus: 409 as const,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(503, "Owner history временно недоступна."),
+            )
+            .mockResolvedValueOnce({
+                ...historyWithTurn({
+                    sessionId: operation.previousSessionId,
+                    requestId: "rebase-revalidated-turn",
+                    status: "completed",
+                    answer: "История подтверждена после current retry.",
+                }),
+                next_before_sequence: 23,
+            });
+        getCurrentSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(503, "Current временно недоступен."),
+            )
+            .mockResolvedValueOnce({
+                session_id: "rebase-authoritative-current",
+            });
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(403, "Exact recovery отклонена."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+            expect(result.current.hasPendingNewDialog).toBe(true);
+        });
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_pending_new_dialog") ??
+                    "{}",
+            ),
+        ).toMatchObject({
+            ownerRecoveryRejectionStatus: 409,
+            ownerRecoveryPredecessorUnverified: true,
+            ownerRecoveryNeedsRebase: true,
+        });
+
+        let retried = false;
+        await act(async () => {
+            retried = await result.current.startNewDialog();
+        });
+
+        expect(retried).toBe(true);
+        expect(getHistoryMock).toHaveBeenCalledTimes(2);
+        expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+        expect(resolveSessionMock.mock.calls[1][0]).toEqual({
+            session_id: "rebase-authoritative-current",
+            replacement_session_id: expect.any(String),
+        });
+        expect(result.current.previousSessionGroups).toContainEqual(
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 23,
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "История подтверждена после current retry.",
+                    }),
+                ]),
+            }),
+        );
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("does not repeat a definitely rejected recovery pair after current lookup fails", async () => {
+        const operation = {
+            previousSessionId: "needs-rebase-foreign-session",
+            newSessionId: "needs-rebase-foreign-successor",
+            ownerRecoverySessionId: "needs-rebase-session",
+            ownerRecoveryReplacementSessionId: "needs-rebase-successor",
+            ownerRecoveryRejectionStatus: 403 as const,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getCurrentSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(503, "Current временно недоступен."),
+            )
+            .mockResolvedValueOnce({
+                session_id: "authoritative-session-after-reload",
+            });
+        resolveSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(403, "Exact pair отклонён."),
+        );
+
+        const firstMount = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(firstMount.result.current.isHistoryLoading).toBe(false);
+        });
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_pending_new_dialog") ??
+                    "{}",
+            ).ownerRecoveryNeedsRebase,
+        ).toBe(true);
+        firstMount.unmount();
+
+        const secondMount = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(secondMount.result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(resolveSessionMock.mock.calls[0][0]).toEqual({
+            session_id: operation.ownerRecoverySessionId,
+            replacement_session_id:
+                operation.ownerRecoveryReplacementSessionId,
+        });
+        expect(resolveSessionMock.mock.calls[1][0]).toEqual({
+            session_id: "authoritative-session-after-reload",
+            replacement_session_id: expect.any(String),
+        });
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        secondMount.unmount();
+    });
+
+    it("invalidates persisted 409 recovery credentials when history proves foreign", async () => {
+        const operation = {
+            previousSessionId: "old-owner-409-session",
+            newSessionId: "old-owner-409-successor",
+            ownerRecoverySessionId: "old-owner-recovery-session",
+            ownerRecoveryReplacementSessionId: "old-owner-recovery-successor",
+            ownerRecoveryRejectionStatus: 409 as const,
+        };
+        useAuthStore.setState({
+            user: {
+                email: "user-b@example.com",
+                first_name: "User",
+                last_name: "B",
+            },
+            isAuthenticated: true,
+        });
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock.mockRejectedValueOnce(
+            new ApiRequestError(403, "Чужая история."),
+        );
+        getCurrentSessionMock.mockResolvedValue({
+            session_id: "user-b-current-after-owner-change",
+        });
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(resolveSessionMock.mock.calls[0][0]).toEqual({
+            session_id: "user-b-current-after-owner-change",
+            replacement_session_id: expect.any(String),
+        });
+        expect(resolveSessionMock.mock.calls[0][0]).not.toEqual({
+            session_id: operation.ownerRecoverySessionId,
+            replacement_session_id:
+                operation.ownerRecoveryReplacementSessionId,
+        });
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("keeps original foreign-owner privacy after a nested 409 recovery rejection", async () => {
+        const operation = {
+            previousSessionId: "foreign-original-session",
+            newSessionId: "foreign-original-successor",
+            ownerRecoverySessionId: "foreign-recovery-session",
+            ownerRecoveryReplacementSessionId:
+                "foreign-recovery-successor",
+            ownerRecoveryRejectionStatus: 403 as const,
+        };
+        useAuthStore.setState({
+            user: {
+                email: "user-b@example.com",
+                first_name: "User",
+                last_name: "B",
+            },
+            isAuthenticated: true,
+        });
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_session_resolution",
+            JSON.stringify({
+                sessionId: operation.ownerRecoverySessionId,
+                replacementSessionId:
+                    operation.ownerRecoveryReplacementSessionId,
+            }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_request",
+            JSON.stringify({
+                requestId: "foreign-private-request",
+                sessionId: operation.previousSessionId,
+                message: "Приватный текст пользователя A.",
+                createdAt: Date.now(),
+            }),
+        );
+        getCurrentSessionMock.mockResolvedValue({
+            session_id: "user-b-authoritative-current",
+        });
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(409, "Nested recovery конфликтует."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(resolveSessionMock.mock.calls[0][0]).toEqual({
+            session_id: operation.ownerRecoverySessionId,
+            replacement_session_id:
+                operation.ownerRecoveryReplacementSessionId,
+        });
+        expect(resolveSessionMock.mock.calls[1][0]).toEqual({
+            session_id: "user-b-authoritative-current",
+            replacement_session_id: expect.any(String),
+        });
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(result.current.messages).toEqual([]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("terminates a preloaded recovery after its bounded pair returns 403", async () => {
+        const operation = {
+            previousSessionId: "terminal-same-owner-session",
+            newSessionId: "terminal-same-owner-successor",
+            ownerRecoverySessionId: "terminal-recovery-session",
+            ownerRecoveryReplacementSessionId:
+                "terminal-recovery-successor",
+            ownerRecoveryRejectionStatus: 409 as const,
+            ownerRecoveryTerminalAttempt: true,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_session_resolution",
+            JSON.stringify({
+                sessionId: operation.ownerRecoverySessionId,
+                replacementSessionId:
+                    operation.ownerRecoveryReplacementSessionId,
+            }),
+        );
+        getHistoryMock.mockResolvedValueOnce({
+            ...historyWithTurn({
+                sessionId: operation.previousSessionId,
+                requestId: "terminal-same-owner-turn",
+                status: "completed",
+                answer: "Same-owner история сохранена.",
+            }),
+            next_before_sequence: 15,
+        });
+        resolveSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(403, "Terminal recovery отклонён."),
+        );
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(result.current.sessionId).not.toBe(
+            operation.ownerRecoverySessionId,
+        );
+        expect(result.current.previousSessionGroups).toContainEqual(
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 15,
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "Same-owner история сохранена.",
+                    }),
+                ]),
+            }),
+        );
+        expect(result.current.hasPendingNewDialog).toBe(false);
+        expect(result.current.deliveryState).toBe("draft");
+        expect(result.current.historyError).toBeTruthy();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("resumes terminal cleanup without replaying a rejected lifecycle pair", async () => {
+        const operation = {
+            previousSessionId: "cleanup-phase-session",
+            newSessionId: "cleanup-phase-successor",
+            ownerRecoverySessionId: "cleanup-phase-recovery",
+            ownerRecoveryReplacementSessionId:
+                "cleanup-phase-replacement",
+            ownerRecoveryRejectionStatus: 409 as const,
+            ownerRecoveryTerminalAttempt: true,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_session_resolution",
+            JSON.stringify({
+                sessionId: operation.ownerRecoverySessionId,
+                replacementSessionId:
+                    operation.ownerRecoveryReplacementSessionId,
+            }),
+        );
+        getHistoryMock.mockResolvedValue({
+            ...historyWithTurn({
+                sessionId: operation.previousSessionId,
+                requestId: "cleanup-phase-turn",
+                status: "completed",
+                answer: "История сохраняется после cleanup retry.",
+            }),
+            next_before_sequence: 21,
+        });
+        resolveSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(403, "Terminal pair отклонён."),
+        );
+        const originalRemoveItem = Storage.prototype.removeItem;
+        const removeItemSpy = vi
+            .spyOn(Storage.prototype, "removeItem")
+            .mockImplementation(function (this: Storage, key) {
+                if (key === "vera_pending_session_resolution") return;
+                return originalRemoveItem.call(this, key);
+            });
+
+        const firstMount = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(firstMount.result.current.isHistoryLoading).toBe(false);
+        });
+        const pendingCleanup = JSON.parse(
+            window.sessionStorage.getItem("vera_pending_new_dialog") ?? "{}",
+        ) as { ownerRecoveryUsableSessionId?: string };
+        expect(pendingCleanup.ownerRecoveryUsableSessionId).toBeTruthy();
+        expect(firstMount.result.current.sessionId).toBe(
+            pendingCleanup.ownerRecoveryUsableSessionId,
+        );
+        expect(firstMount.result.current.hasPendingNewDialog).toBe(true);
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).not.toBeNull();
+        firstMount.unmount();
+        removeItemSpy.mockRestore();
+
+        const secondMount = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(secondMount.result.current.isHistoryLoading).toBe(false);
+            expect(secondMount.result.current.hasPendingNewDialog).toBe(false);
+        });
+
+        expect(resolveSessionMock).toHaveBeenCalledOnce();
+        expect(secondMount.result.current.sessionId).toBe(
+            pendingCleanup.ownerRecoveryUsableSessionId,
+        );
+        expect(secondMount.result.current.previousSessionGroups).toContainEqual(
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 21,
+            }),
+        );
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).toBeNull();
+
+        secondMount.unmount();
+    });
+
+    it("terminates a preloaded foreign recovery after its bounded pair returns 409", async () => {
+        const operation = {
+            previousSessionId: "terminal-foreign-session",
+            newSessionId: "terminal-foreign-successor",
+            ownerRecoverySessionId: "terminal-foreign-recovery-session",
+            ownerRecoveryReplacementSessionId:
+                "terminal-foreign-recovery-successor",
+            ownerRecoveryRejectionStatus: 403 as const,
+            ownerRecoveryTerminalAttempt: true,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_request",
+            JSON.stringify({
+                requestId: "terminal-private-request",
+                sessionId: operation.previousSessionId,
+                message: "Текст прежнего владельца.",
+                createdAt: Date.now(),
+            }),
+        );
+        resolveSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(409, "Terminal recovery конфликтует."),
+        );
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(result.current.sessionId).not.toBe(
+            operation.ownerRecoverySessionId,
+        );
+        expect(result.current.messages).toEqual([]);
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(result.current.hasPendingNewDialog).toBe(false);
+        expect(result.current.deliveryState).toBe("draft");
+        expect(result.current.historyError).toBeTruthy();
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("keeps a terminal foreign recovery retryable when the usable session write fails", async () => {
+        const operation = {
+            previousSessionId: "quota-foreign-session",
+            newSessionId: "quota-foreign-successor",
+            ownerRecoverySessionId: "quota-recovery-session",
+            ownerRecoveryReplacementSessionId: "quota-recovery-successor",
+            ownerRecoveryRejectionStatus: 403 as const,
+            ownerRecoveryTerminalAttempt: true,
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.ownerRecoverySessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_request",
+            JSON.stringify({
+                requestId: "quota-private-request",
+                sessionId: operation.previousSessionId,
+                message: "Текст не должен пережить foreign cleanup.",
+                createdAt: Date.now(),
+            }),
+        );
+        resolveSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(409, "Terminal recovery конфликтует."),
+        );
+        const originalSetItem = Storage.prototype.setItem;
+        let sessionWrites = 0;
+        const setItemSpy = vi
+            .spyOn(Storage.prototype, "setItem")
+            .mockImplementation(function (this: Storage, key, value) {
+                if (key === "vera_session_id") {
+                    sessionWrites += 1;
+                    if (sessionWrites === 2) {
+                        throw new DOMException(
+                            "Storage full",
+                            "QuotaExceededError",
+                        );
+                    }
+                }
+                return originalSetItem.call(this, key, value);
+            });
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledOnce();
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(result.current.hasPendingNewDialog).toBe(true);
+        expect(result.current.isStartingNewDialog).toBe(false);
+        expect(result.current.deliveryState).toBe("draft");
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_pending_new_dialog") ??
+                    "{}",
+            ),
+        ).toMatchObject(operation);
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_pending_new_dialog") ??
+                    "{}",
+            ).ownerRecoveryUsableSessionId,
+        ).toBeTruthy();
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        expect(window.sessionStorage.getItem("vera_session_id")).toBeNull();
+
+        let blockedSend;
+        await act(async () => {
+            blockedSend = await result.current.sendMessage(
+                "Новый текст пока не отправляем.",
+            );
+        });
+        expect(blockedSend).toEqual({
+            outcome: "rejected",
+            restoreDraft: true,
+        });
+        expect(sendMessageMock).not.toHaveBeenCalled();
+
+        setItemSpy.mockRestore();
+        let retried = false;
+        await act(async () => {
+            retried = await result.current.startNewDialog();
+        });
+
+        expect(retried).toBe(true);
+        expect(resolveSessionMock).toHaveBeenCalledOnce();
+        expect(result.current.hasPendingNewDialog).toBe(false);
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("abandons a 409 explicit lifecycle operation without retrying the doomed successor", async () => {
+        const operation = {
+            previousSessionId: "same-owner-doomed-session",
+            newSessionId: "same-owner-doomed-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock.mockImplementation(async (sessionId) => ({
+            ...historyWithTurn({
+                sessionId,
+                requestId: "same-owner-visible-turn",
+                status: "completed",
+                answer: "Контекст same-owner операции.",
+            }),
+            next_before_sequence: 7,
+        }));
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(409, "Recovery window истёк."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "created",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(closeSessionMock).not.toHaveBeenCalled();
+        expect(createSessionMock).not.toHaveBeenCalled();
+        expect(result.current.sessionId).not.toBe(
+            operation.previousSessionId,
+        );
+        expect(result.current.previousSessionGroups).toContainEqual(
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 7,
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        content: "Контекст same-owner операции.",
+                    }),
+                ]),
+            }),
+        );
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("settles a freshly generated recovery rejection in the same bounded action", async () => {
+        const operation = {
+            previousSessionId: "fresh-reject-session",
+            newSessionId: "fresh-reject-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock.mockResolvedValue({
+            ...historyWithTurn({
+                sessionId: operation.previousSessionId,
+                requestId: "fresh-reject-visible-turn",
+                status: "completed",
+                answer: "Same-owner история после bounded recovery.",
+            }),
+            next_before_sequence: 9,
+        });
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(409, "Исходная lifecycle пара устарела."),
+            )
+            .mockRejectedValueOnce(
+                new ApiRequestError(403, "Fresh recovery pair отклонена."),
+            )
+            .mockRejectedValueOnce(
+                new ApiRequestError(409, "Terminal pair отклонена."),
+            );
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(3);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(resolveSessionMock.mock.calls[0][0]).toEqual({
+            session_id: operation.previousSessionId,
+            replacement_session_id: operation.newSessionId,
+        });
+        expect(resolveSessionMock.mock.calls[1][0]).not.toEqual(
+            resolveSessionMock.mock.calls[2][0],
+        );
+        expect(result.current.previousSessionGroups).toContainEqual(
+            expect.objectContaining({
+                sessionId: operation.previousSessionId,
+                historyCursor: 9,
+            }),
+        );
+        expect(result.current.hasPendingNewDialog).toBe(false);
+        expect(result.current.deliveryState).toBe("draft");
+        expect(result.current.historyError).toBeTruthy();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("does not archive a 409 predecessor when its history proves foreign", async () => {
+        const operation = {
+            previousSessionId: "foreign-409-session",
+            newSessionId: "foreign-409-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        useAuthStore.setState({
+            user: {
+                email: "user-b@example.com",
+                first_name: "User",
+                last_name: "B",
+            },
+            isAuthenticated: true,
+            isLoading: false,
+        });
+        getHistoryMock.mockRejectedValueOnce(
+            new ApiRequestError(403, "Чужая история."),
+        );
+        getCurrentSessionMock.mockResolvedValue({
+            session_id: "user-b-current-after-409",
+        });
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(409, "Recovery window истёк."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(result.current.sessionId).toBe(
+            "user-b-current-after-409",
+        );
+        expect(result.current.messages).toEqual([]);
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("recovers a 409 explicit lifecycle operation when strict history returns 503", async () => {
+        const operation = {
+            previousSessionId: "expired-proof-409-session",
+            newSessionId: "expired-proof-409-successor",
+        };
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: operation.previousSessionId }),
+        );
+        window.sessionStorage.setItem(
+            "vera_pending_new_dialog",
+            JSON.stringify(operation),
+        );
+        getHistoryMock.mockRejectedValueOnce(
+            new ApiRequestError(503, "Owner proof expired."),
+        );
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(409, "Recovery window истёк."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "created",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+
+        expect(result.current.sessionId).not.toBe(
+            operation.previousSessionId,
+        );
+        expect(result.current.previousSessionGroups).toContainEqual({
+            sessionId: operation.previousSessionId,
+            messages: [],
+            historyCursor: null,
+        });
+        expect(closeSessionMock).not.toHaveBeenCalled();
+        expect(createSessionMock).not.toHaveBeenCalled();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("abandons a foreign predecessor when explicit close is rejected", async () => {
+        getHistoryMock.mockImplementation(async (sessionId) =>
+            historyWithTurn({
+                sessionId,
+                requestId: "visible-request",
+                status: "completed",
+                answer: "Видимый ответ остаётся на месте.",
+            }),
+        );
+        closeSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(403, "Чужая сессия."),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() => expect(result.current.messages).toHaveLength(2));
+        const previousSessionId = result.current.sessionId;
+        let started = false;
+        await act(async () => {
+            started = await result.current.startNewDialog();
+        });
+
+        expect(started).toBe(true);
+        expect(result.current.sessionId).not.toBe(previousSessionId);
+        expect(result.current.messages).toEqual([]);
+        expect(result.current.previousSessionGroups).toEqual([]);
+        expect(createSessionMock).not.toHaveBeenCalled();
+        expect(getCurrentSessionMock).toHaveBeenCalledTimes(2);
+        expect(result.current.error).toBeNull();
+        expect(result.current.isStartingNewDialog).toBe(false);
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("retries the same durable new id after create transport failure", async () => {
+        createSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(504, "Сервер не отвечает."),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() =>
+            expect(result.current.isHistoryLoading).toBe(false),
+        );
+
+        await act(async () => {
+            await result.current.startNewDialog();
+        });
+        const pendingOperation = JSON.parse(
+            window.sessionStorage.getItem("vera_pending_new_dialog") ?? "{}",
+        ) as { previousSessionId: string; newSessionId: string };
+        expect(pendingOperation.newSessionId).toBeTruthy();
+        expect(result.current.sessionId).toBe(
+            pendingOperation.previousSessionId,
+        );
+
+        let blockedSend;
+        await act(async () => {
+            blockedSend = await result.current.sendMessage(
+                "Не отправлять в закрытый диалог.",
+            );
+        });
+        expect(blockedSend).toEqual({
+            outcome: "rejected",
+            restoreDraft: true,
+        });
+        expect(sendMessageMock).not.toHaveBeenCalled();
+
+        await act(async () => {
+            await result.current.startNewDialog();
+        });
+
+        expect(createSessionMock.mock.calls[0][0].session_id).toBe(
+            pendingOperation.newSessionId,
+        );
+        expect(createSessionMock.mock.calls[1][0].session_id).toBe(
+            pendingOperation.newSessionId,
+        );
+        expect(closeSessionMock).toHaveBeenCalledTimes(2);
+        expect(result.current.sessionId).toBe(pendingOperation.newSessionId);
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("resumes a durable new-dialog operation with the same id after remount", async () => {
+        createSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(502, "Ответ создания потерян."),
+        );
+        const firstHook = renderHook(() => useVeraChat());
+        await waitFor(() =>
+            expect(firstHook.result.current.isHistoryLoading).toBe(false),
+        );
+        await act(async () => {
+            await firstHook.result.current.startNewDialog();
+        });
+        const pendingOperation = JSON.parse(
+            window.sessionStorage.getItem("vera_pending_new_dialog") ?? "{}",
+        ) as { previousSessionId: string; newSessionId: string };
+        firstHook.unmount();
+
+        getCurrentSessionMock.mockClear();
+        const recoveredHook = renderHook(() => useVeraChat());
+
+        await waitFor(() => {
+            expect(recoveredHook.result.current.sessionId).toBe(
+                pendingOperation.newSessionId,
+            );
+            expect(
+                recoveredHook.result.current.isStartingNewDialog,
+            ).toBe(false);
+        });
+        expect(createSessionMock.mock.calls[0][0].session_id).toBe(
+            pendingOperation.newSessionId,
+        );
+        expect(createSessionMock.mock.calls[1][0].session_id).toBe(
+            pendingOperation.newSessionId,
+        );
+        expect(getCurrentSessionMock).not.toHaveBeenCalled();
+        expect(
+            recoveredHook.result.current.previousSessionGroups,
+        ).toContainEqual(
+            expect.objectContaining({
+                sessionId: pendingOperation.previousSessionId,
+            }),
+        );
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        recoveredHook.unmount();
+    });
+
+    it("keeps a remounted durable new-dialog operation retryable after another create failure", async () => {
+        createSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(502, "Первый ответ создания потерян."),
+            )
+            .mockRejectedValueOnce(
+                new ApiRequestError(504, "Повторный ответ создания потерян."),
+            );
+        const firstHook = renderHook(() => useVeraChat());
+        await waitFor(() =>
+            expect(firstHook.result.current.isHistoryLoading).toBe(false),
+        );
+        await act(async () => {
+            await firstHook.result.current.startNewDialog();
+        });
+        const pendingOperation = JSON.parse(
+            window.sessionStorage.getItem("vera_pending_new_dialog") ?? "{}",
+        ) as { previousSessionId: string; newSessionId: string };
+        firstHook.unmount();
+
+        const recoveredHook = renderHook(() => useVeraChat());
+        await waitFor(() => {
+            expect(createSessionMock).toHaveBeenCalledTimes(2);
+            expect(
+                recoveredHook.result.current.isStartingNewDialog,
+            ).toBe(false);
+            expect(recoveredHook.result.current.isHistoryLoading).toBe(false);
+        });
+        expect(recoveredHook.result.current.hasPendingNewDialog).toBe(true);
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_pending_new_dialog") ??
+                    "{}",
+            ),
+        ).toEqual(pendingOperation);
+
+        let retried = false;
+        await act(async () => {
+            retried = await recoveredHook.result.current.startNewDialog();
+        });
+
+        expect(retried).toBe(true);
+        expect(createSessionMock).toHaveBeenCalledTimes(3);
+        for (const [payload] of createSessionMock.mock.calls) {
+            expect(payload.session_id).toBe(pendingOperation.newSessionId);
+        }
+        expect(recoveredHook.result.current.sessionId).toBe(
+            pendingOperation.newSessionId,
+        );
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        recoveredHook.unmount();
+    });
+
+    it.each([
+        {
+            label: "authenticated B",
+            nextUser: {
+                email: "user-b@example.com",
+                first_name: "User",
+                last_name: "B",
+            },
+            currentSessionId: "user-b-current-session",
+        },
+        {
+            label: "anonymous",
+            nextUser: null,
+            currentSessionId: null,
+        },
+    ])(
+        "abandons user A's pending new-dialog journal after remount as $label",
+        async ({ nextUser, currentSessionId }) => {
+            useAuthStore.setState({
+                user: {
+                    email: "user-a@example.com",
+                    first_name: "User",
+                    last_name: "A",
+                },
+                isAuthenticated: true,
+                isLoading: false,
+            });
+            createSessionMock.mockRejectedValueOnce(
+                new ApiRequestError(504, "Ответ создания потерян."),
+            );
+            const firstHook = renderHook(() => useVeraChat());
+            await waitFor(() =>
+                expect(firstHook.result.current.isHistoryLoading).toBe(false),
+            );
+            await act(async () => {
+                await firstHook.result.current.startNewDialog();
+            });
+            const userAOperation = JSON.parse(
+                window.sessionStorage.getItem("vera_pending_new_dialog") ??
+                    "{}",
+            ) as { previousSessionId: string; newSessionId: string };
+            firstHook.unmount();
+            window.sessionStorage.setItem(
+                "vera_pending_request",
+                JSON.stringify({
+                    sessionId: userAOperation.previousSessionId,
+                    requestId: "user-a-pending-request",
+                    message: "Незавершённый вопрос A",
+                    createdAt: Date.now(),
+                }),
+            );
+            window.sessionStorage.setItem(
+                "vera_pending_session_resolution",
+                JSON.stringify({
+                    sessionId: userAOperation.previousSessionId,
+                    replacementSessionId: "user-a-replacement",
+                }),
+            );
+
+            useAuthStore.setState({
+                user: nextUser,
+                isAuthenticated: nextUser !== null,
+                isLoading: false,
+            });
+            getCurrentSessionMock.mockReset().mockResolvedValue({
+                session_id: currentSessionId,
+            });
+            getHistoryMock.mockImplementation(async (sessionId) => ({
+                session_id: sessionId,
+                turns: [],
+                next_before_sequence: null,
+            }));
+            resolveSessionMock
+                .mockReset()
+                .mockRejectedValueOnce(
+                    new ApiRequestError(403, "Чужой successor proof."),
+                )
+                .mockRejectedValueOnce(
+                    new ApiRequestError(403, "Чужая сессия."),
+                )
+                .mockImplementation(async (data) => ({
+                    session_id: data.session_id,
+                    previous_session_id: null,
+                    boundary: "created",
+                    session_ttl_seconds: 86_400,
+                }));
+            const secondHook = renderHook(() => useVeraChat());
+
+            await waitFor(() => {
+                expect(secondHook.result.current.sessionId).toBeTruthy();
+                expect(secondHook.result.current.sessionId).not.toBe(
+                    userAOperation.previousSessionId,
+                );
+                expect(secondHook.result.current.sessionId).not.toBe(
+                    userAOperation.newSessionId,
+                );
+                expect(secondHook.result.current.isHistoryLoading).toBe(false);
+            });
+            expect(getCurrentSessionMock).toHaveBeenCalledOnce();
+            expect(resolveSessionMock).toHaveBeenCalledTimes(3);
+            const recoveredSessionId =
+                resolveSessionMock.mock.calls[2][0].session_id;
+            if (currentSessionId) {
+                expect(recoveredSessionId).toBe(currentSessionId);
+            } else {
+                expect(recoveredSessionId).toBeTruthy();
+                expect(recoveredSessionId).not.toBe(
+                    userAOperation.previousSessionId,
+                );
+            }
+            expect(secondHook.result.current.sessionId).toBe(
+                recoveredSessionId,
+            );
+            expect(secondHook.result.current.hasPendingNewDialog).toBe(false);
+            expect(secondHook.result.current.previousSessionGroups).toEqual([]);
+            for (const storageKey of [
+                "vera_pending_request",
+                "vera_pending_session_resolution",
+                "vera_pending_new_dialog",
+            ]) {
+                expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+            }
+
+            await act(async () => {
+                await secondHook.result.current.sendMessage(
+                    "Вопрос пользователя B.",
+                );
+            });
+            expect(sendMessageMock).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    session_id: recoveredSessionId,
+                    message: "Вопрос пользователя B.",
+                }),
+                expect.any(AbortSignal),
+            );
+
+            secondHook.unmount();
+        },
+    );
+
+    it("continues create when an idempotent close reports an absent predecessor", async () => {
+        closeSessionMock.mockRejectedValueOnce(
+            new ApiRequestError(404, "Сессия уже отсутствует."),
+        );
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() =>
+            expect(result.current.isHistoryLoading).toBe(false),
+        );
+
+        let started = false;
+        await act(async () => {
+            started = await result.current.startNewDialog();
+        });
+
+        expect(started).toBe(true);
+        expect(createSessionMock).toHaveBeenCalledOnce();
+        expect(result.current.sessionId).toBe(
+            createSessionMock.mock.calls[0][0].session_id,
+        );
+
+        unmount();
+    });
+
+    it("continues the visible anonymous session after login instead of selecting older auth current", async () => {
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: "local-anonymous-session", createdAt: 1 }),
+        );
+        getCurrentSessionMock.mockResolvedValue({
+            session_id: "older-auth-session",
+        });
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() =>
+            expect(result.current.sessionId).toBe("local-anonymous-session"),
+        );
+
+        act(() => {
+            useAuthStore.setState({
+                user: {
+                    email: "user@example.com",
+                    first_name: "User",
+                    last_name: "Example",
+                },
+                isAuthenticated: true,
+            });
+        });
+
+        await waitFor(() => {
+            expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+        expect(getCurrentSessionMock).not.toHaveBeenCalled();
+        expect(resolveSessionMock.mock.calls[1][0].session_id).toBe(
+            "local-anonymous-session",
+        );
+        expect(result.current.sessionId).toBe("local-anonymous-session");
+
+        unmount();
+    });
+
+    it("falls back once when a remounted local id belongs to another authenticated user", async () => {
+        useAuthStore.setState({
+            user: {
+                email: "user-b@example.com",
+                first_name: "User",
+                last_name: "B",
+            },
+            isAuthenticated: true,
+            isLoading: false,
+        });
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: "user-a-local-session" }),
+        );
+        getCurrentSessionMock.mockResolvedValue({
+            session_id: "user-b-server-session",
+        });
+        resolveSessionMock
+            .mockRejectedValueOnce(
+                new ApiRequestError(403, "Чужая сессия."),
+            )
+            .mockImplementationOnce(async (data) => ({
+                session_id: data.session_id,
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
+            }));
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => {
+            expect(result.current.sessionId).toBe(
+                "user-b-server-session",
+            );
+            expect(result.current.isHistoryLoading).toBe(false);
+        });
+        expect(resolveSessionMock.mock.calls[0][0].session_id).toBe(
+            "user-a-local-session",
+        );
+        expect(getCurrentSessionMock).toHaveBeenCalledOnce();
+        expect(resolveSessionMock.mock.calls[1][0].session_id).toBe(
+            "user-b-server-session",
+        );
+        expect(resolveSessionMock).toHaveBeenCalledTimes(2);
+
+        unmount();
+    });
+
+    it("uses the authenticated user's current server session in a new tab", async () => {
+        useAuthStore.setState({
+            user: {
+                email: "user@example.com",
+                first_name: "User",
+                last_name: "Example",
+            },
+            isAuthenticated: true,
+            isLoading: false,
+        });
         getCurrentSessionMock.mockResolvedValue({
             session_id: "server-session",
         });
@@ -2371,6 +4697,152 @@ describe("useVeraChat", () => {
         unmount();
     });
 
+    it("does not resurrect user A journals after a late new-dialog resolve rejection", async () => {
+        useAuthStore.setState({
+            user: {
+                email: "user-a@example.com",
+                first_name: "User",
+                last_name: "A",
+            },
+            isAuthenticated: true,
+        });
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() =>
+            expect(result.current.isHistoryLoading).toBe(false),
+        );
+        const userASessionId = result.current.sessionId;
+        let rejectLateResolve!: (reason: unknown) => void;
+        resolveSessionMock.mockImplementationOnce(
+            () =>
+                new Promise((_resolve, reject) => {
+                    rejectLateResolve = reject;
+                }),
+        );
+
+        let newDialogPromise!: ReturnType<
+            typeof result.current.startNewDialog
+        >;
+        act(() => {
+            newDialogPromise = result.current.startNewDialog();
+        });
+        await waitFor(() => expect(rejectLateResolve).toBeDefined());
+
+        act(() => {
+            useAuthStore.setState({
+                user: {
+                    email: "user-b@example.com",
+                    first_name: "User",
+                    last_name: "B",
+                },
+                isAuthenticated: true,
+            });
+        });
+        await waitFor(() => {
+            expect(result.current.isHistoryLoading).toBe(false);
+            expect(result.current.sessionId).not.toBe(userASessionId);
+        });
+        const userBSessionId = result.current.sessionId;
+
+        await act(async () => {
+            rejectLateResolve(new ApiRequestError(403, "Чужая сессия."));
+            await newDialogPromise;
+        });
+
+        expect(result.current.sessionId).toBe(userBSessionId);
+        expect(result.current.isStartingNewDialog).toBe(false);
+        expect(result.current.hasPendingNewDialog).toBe(false);
+        expect(result.current.deliveryState).toBe("draft");
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_session_id") ?? "{}",
+            ),
+        ).toEqual({ id: userBSessionId });
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
+    it("does not resurrect user A journals after a late new-dialog create rejection", async () => {
+        useAuthStore.setState({
+            user: {
+                email: "user-a@example.com",
+                first_name: "User",
+                last_name: "A",
+            },
+            isAuthenticated: true,
+        });
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await waitFor(() =>
+            expect(result.current.isHistoryLoading).toBe(false),
+        );
+        const userASessionId = result.current.sessionId;
+        let rejectLateCreate!: (reason: unknown) => void;
+        createSessionMock.mockImplementationOnce(
+            () =>
+                new Promise((_resolve, reject) => {
+                    rejectLateCreate = reject;
+                }),
+        );
+
+        let newDialogPromise!: ReturnType<
+            typeof result.current.startNewDialog
+        >;
+        act(() => {
+            newDialogPromise = result.current.startNewDialog();
+        });
+        await waitFor(() => expect(rejectLateCreate).toBeDefined());
+
+        act(() => {
+            useAuthStore.setState({
+                user: {
+                    email: "user-b@example.com",
+                    first_name: "User",
+                    last_name: "B",
+                },
+                isAuthenticated: true,
+            });
+        });
+        await waitFor(() => {
+            expect(result.current.isHistoryLoading).toBe(false);
+            expect(result.current.sessionId).not.toBe(userASessionId);
+        });
+        const userBSessionId = result.current.sessionId;
+
+        await act(async () => {
+            rejectLateCreate(new ApiRequestError(409, "ID уже занят."));
+            await newDialogPromise;
+        });
+
+        expect(result.current.sessionId).toBe(userBSessionId);
+        expect(result.current.isStartingNewDialog).toBe(false);
+        expect(result.current.hasPendingNewDialog).toBe(false);
+        expect(result.current.deliveryState).toBe("draft");
+        expect(
+            JSON.parse(
+                window.sessionStorage.getItem("vera_session_id") ?? "{}",
+            ),
+        ).toEqual({ id: userBSessionId });
+        expect(
+            window.sessionStorage.getItem("vera_pending_request"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_session_resolution"),
+        ).toBeNull();
+        expect(
+            window.sessionStorage.getItem("vera_pending_new_dialog"),
+        ).toBeNull();
+
+        unmount();
+    });
+
     it("waits for authentication hydration before resolving the session", async () => {
         useAuthStore.setState({ isLoading: true });
         const { result, unmount } = renderHook(() => useVeraChat());
@@ -2491,6 +4963,15 @@ describe("useVeraChat", () => {
     });
 
     it("aborts an older-history page when the authenticated session changes", async () => {
+        useAuthStore.setState({
+            user: {
+                email: "first-user@example.com",
+                first_name: "Первый",
+                last_name: "Пользователь",
+            },
+            isAuthenticated: true,
+            isLoading: false,
+        });
         getCurrentSessionMock
             .mockResolvedValueOnce({ session_id: "session-1" })
             .mockResolvedValueOnce({ session_id: "session-2" });

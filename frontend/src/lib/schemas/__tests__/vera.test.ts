@@ -3,6 +3,9 @@ import {
     veraChatHistoryResponseSchema,
     veraChatResponseSchema,
     veraChatSchema,
+    veraChatSessionCloseResponseSchema,
+    veraChatSessionCreateResponseSchema,
+    veraChatSessionCreateSchema,
     veraChatSessionResolveResponseSchema,
     veraChatSessionResolveSchema,
     veraCurrentChatSessionResponseSchema,
@@ -141,6 +144,18 @@ describe("Vera HTTP response schemas", () => {
             }).success,
         ).toBe(true);
         expect(
+            veraChatSessionCreateResponseSchema.safeParse({
+                session_id: "conversation-2",
+                session_ttl_seconds: 86_400,
+            }).success,
+        ).toBe(true);
+        expect(
+            veraChatSessionCloseResponseSchema.safeParse({
+                session_id: "conversation-1",
+                closed_at: timestamp,
+            }).success,
+        ).toBe(true);
+        expect(
             veraCurrentChatSessionResponseSchema.safeParse({
                 session_id: null,
             }).success,
@@ -264,6 +279,26 @@ describe("veraChatSessionResolveSchema", () => {
             veraChatSessionResolveResponseSchema.safeParse({
                 session_id: "conversation-1",
                 boundary: "retained",
+            }).success,
+        ).toBe(false);
+    });
+});
+
+describe("explicit Vera session schemas", () => {
+    it("requires the caller-selected id for an idempotent create", () => {
+        expect(
+            veraChatSessionCreateSchema.safeParse({
+                session_id: "conversation-2",
+            }).success,
+        ).toBe(true);
+        expect(veraChatSessionCreateSchema.safeParse({}).success).toBe(false);
+    });
+
+    it("rejects an invalid close timestamp", () => {
+        expect(
+            veraChatSessionCloseResponseSchema.safeParse({
+                session_id: "conversation-1",
+                closed_at: "yesterday",
             }).success,
         ).toBe(false);
     });

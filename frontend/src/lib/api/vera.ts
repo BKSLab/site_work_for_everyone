@@ -6,6 +6,11 @@ import {
     veraChatResponseSchema,
     type VeraChatSessionLifecycleResponse,
     veraChatSessionLifecycleResponseSchema,
+    type VeraChatSessionCreateFormData,
+    type VeraChatSessionCreateResponse,
+    veraChatSessionCreateResponseSchema,
+    type VeraChatSessionCloseResponse,
+    veraChatSessionCloseResponseSchema,
     type VeraChatSessionResolveFormData,
     type VeraChatSessionResolveResponse,
     veraChatSessionResolveResponseSchema,
@@ -33,6 +38,8 @@ export type {
     VeraChatHistoryResponse,
     VeraChatHistoryTurn,
     VeraChatSessionLifecycleResponse,
+    VeraChatSessionCreateResponse,
+    VeraChatSessionCloseResponse,
     VeraChatSessionResolveResponse,
     VeraCurrentChatSessionResponse,
 } from "@/lib/schemas/vera";
@@ -151,6 +158,47 @@ export const veraApi = {
             throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
         }
         return resolution;
+    },
+
+    createSession: async (
+        data: VeraChatSessionCreateFormData,
+        signal?: AbortSignal,
+    ): Promise<VeraChatSessionCreateResponse> => {
+        const response = await fetch(`${VERA_BASE}/session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+            signal,
+        });
+        const created = await readVeraResponse(
+            response,
+            veraChatSessionCreateResponseSchema,
+        );
+        if (created.session_id !== data.session_id) {
+            throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
+        }
+        return created;
+    },
+
+    closeSession: async (
+        sessionId: string,
+        signal?: AbortSignal,
+    ): Promise<VeraChatSessionCloseResponse> => {
+        const response = await fetch(
+            `${VERA_BASE}/session/${encodeURIComponent(sessionId)}/close`,
+            {
+                method: "POST",
+                signal,
+            },
+        );
+        const closed = await readVeraResponse(
+            response,
+            veraChatSessionCloseResponseSchema,
+        );
+        if (closed.session_id !== sessionId) {
+            throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
+        }
+        return closed;
     },
 
     sendMessage: async (

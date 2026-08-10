@@ -18,6 +18,26 @@ class VeraChatRequestSchema(BaseModel):
 VeraChatSessionBoundary = Literal["created", "retained", "expired"]
 
 
+class VeraChatSessionCreateRequestSchema(BaseModel):
+    """Запрос явного создания диалога."""
+
+    session_id: str = Field(..., min_length=1, max_length=100)
+
+
+class VeraChatSessionCreateResponseSchema(BaseModel):
+    """Созданная или идемпотентно найденная открытая сессия."""
+
+    session_id: str = Field(..., min_length=1, max_length=100)
+    session_ttl_seconds: int = Field(..., ge=1)
+
+
+class VeraChatSessionCloseResponseSchema(BaseModel):
+    """Результат явного закрытия диалога."""
+
+    session_id: str = Field(..., min_length=1, max_length=100)
+    closed_at: datetime
+
+
 class VeraChatSessionResolveRequestSchema(BaseModel):
     """Кандидаты текущей и следующей сессии для server-side resolve."""
 

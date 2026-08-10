@@ -194,3 +194,78 @@ describe("veraApi.resolveSession", () => {
         ).rejects.toMatchObject({ status: 502 });
     });
 });
+
+describe("explicit Vera session API", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("creates the caller-selected session id", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            Response.json({
+                session_id: "session-2",
+                session_ttl_seconds: 86_400,
+            }),
+        );
+        vi.stubGlobal("fetch", fetchMock);
+
+        await expect(
+            veraApi.createSession({ session_id: "session-2" }),
+        ).resolves.toEqual({
+            session_id: "session-2",
+            session_ttl_seconds: 86_400,
+        });
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/api/vera/session",
+            expect.objectContaining({
+                method: "POST",
+                body: JSON.stringify({ session_id: "session-2" }),
+            }),
+        );
+    });
+
+    it("closes only the requested session id", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            Response.json({
+                session_id: "session-1",
+                closed_at: "2026-08-10T12:00:00Z",
+            }),
+        );
+        vi.stubGlobal("fetch", fetchMock);
+
+        await expect(veraApi.closeSession("session-1")).resolves.toMatchObject({
+            session_id: "session-1",
+        });
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/api/vera/session/session-1/close",
+            expect.objectContaining({ method: "POST" }),
+        );
+    });
+
+    it("rejects create and close responses bound to another id", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn()
+                .mockResolvedValueOnce(
+                    Response.json({
+                        session_id: "foreign-session",
+                        session_ttl_seconds: 86_400,
+                    }),
+                )
+                .mockResolvedValueOnce(
+                    Response.json({
+                        session_id: "foreign-session",
+                        closed_at: "2026-08-10T12:00:00Z",
+                    }),
+                ),
+        );
+
+        await expect(
+            veraApi.createSession({ session_id: "session-2" }),
+        ).rejects.toMatchObject({ status: 502 });
+        await expect(
+            veraApi.closeSession("session-1"),
+        ).rejects.toMatchObject({ status: 502 });
+    });
+});

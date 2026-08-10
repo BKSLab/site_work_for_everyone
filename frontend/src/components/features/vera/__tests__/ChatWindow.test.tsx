@@ -78,6 +78,69 @@ describe("ChatWindow accessibility", () => {
         expect(
             screen.getByText(/консультацию можно отправить на почту/i),
         ).toBeInTheDocument();
+        expect(
+            screen.getByText(
+                /при входе в аккаунт текущий диалог сохраняется/i,
+            ),
+        ).toBeVisible();
+        expect(
+            screen.getByRole("button", { name: "Новый диалог" }),
+        ).toHaveAttribute("aria-controls", "vera-chat-history");
+    });
+
+    it("exposes an accessible busy state while starting a new dialog", async () => {
+        const startNewDialog = vi.fn().mockResolvedValue(true);
+        const chatState = {
+            sessionId: "session-1",
+            messages: [],
+            sendMessage: vi.fn(),
+            startNewDialog,
+            isStartingNewDialog: false,
+            status: "idle",
+            deliveryState: "draft",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        };
+        useVeraChatMock.mockReturnValue(chatState);
+        const { rerender } = render(<ChatWindow />);
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Новый диалог" }),
+        );
+        await waitFor(() => expect(startNewDialog).toHaveBeenCalledOnce());
+
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            isStartingNewDialog: true,
+        });
+        rerender(<ChatWindow />);
+
+        const busyButton = screen.getByRole("button", {
+            name: "Создаю диалог…",
+        });
+        expect(busyButton).toBeDisabled();
+        expect(busyButton).toHaveAttribute("aria-busy", "true");
+        expect(
+            screen.getByLabelText("Сообщение для Ассистента Веры"),
+        ).toBeDisabled();
+
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            hasPendingNewDialog: true,
+        });
+        rerender(<ChatWindow />);
+
+        expect(
+            screen.getByRole("button", { name: "Новый диалог" }),
+        ).toBeEnabled();
+        expect(
+            screen.getByLabelText("Сообщение для Ассистента Веры"),
+        ).toBeDisabled();
+        expect(
+            screen.getByRole("button", { name: "Отправить" }),
+        ).toBeDisabled();
     });
 
     it("shows an accessible context boundary in message order and keeps the old feedback session", () => {

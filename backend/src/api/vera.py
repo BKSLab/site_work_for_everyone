@@ -27,6 +27,9 @@ from src.schemas.vera import (
     VeraChatAcceptedResponseSchema,
     VeraChatHistoryResponseSchema,
     VeraChatRequestSchema,
+    VeraChatSessionCloseResponseSchema,
+    VeraChatSessionCreateRequestSchema,
+    VeraChatSessionCreateResponseSchema,
     VeraChatSessionResolveRequestSchema,
     VeraChatSessionResolveResponseSchema,
     VeraCurrentChatSessionResponseSchema,
@@ -134,6 +137,154 @@ async def get_current_vera_chat_session(
             "Не удалось получить текущую сессию Веры: %s",
             error,
         )
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.detail,
+        ) from error
+
+
+@router.post(
+    path="/session",
+    status_code=status.HTTP_200_OK,
+    summary="Создать диалог с Верой",
+    description=(
+        "Создаёт новую сессию либо идемпотентно возвращает уже открытую "
+        "сессию того же владельца."
+    ),
+    operation_id="createVeraChatSession",
+    response_model=VeraChatSessionCreateResponseSchema,
+    responses={
+        401: {"description": "Подписанный токен сессии не прошёл проверку."},
+        403: {"description": "Session ID принадлежит другому владельцу."},
+        409: {"description": "Сессия с этим ID уже закрыта."},
+        429: {"description": "Превышен лимит запросов."},
+        502: {"description": "Ошибка соединения с Agent Service."},
+        503: {"description": "Agent Service API не настроен."},
+        504: {"description": "Agent Service не ответил вовремя."},
+    },
+)
+@limiter.limit("60/minute")
+async def create_vera_chat_session(
+    request: Request,
+    data: VeraChatSessionCreateRequestSchema,
+    user_payload: OptionalUserPayloadDep,
+    agent_client: VeraAgentClientDep,
+    anonymous_token: Annotated[
+        str | None,
+        Header(alias="X-Vera-Session-Token"),
+    ] = None,
+) -> VeraChatSessionCreateResponseSchema:
+    """Создаёт сессию после проверки JWT или signed owner-token.
+
+    Args:
+        request: HTTP-запрос для rate limiter.
+        data: Идентификатор создаваемой сессии.
+        user_payload: Payload проверенного JWT либо ``None``.
+        agent_client: HTTP-клиент Agent Service.
+        anonymous_token: Подписанный токен создаваемой сессии.
+
+    Returns:
+        Созданную или идемпотентно найденную открытую сессию.
+    """
+    if agent_client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Agent Service API не настроен.",
+        )
+
+    try:
+        access = resolve_vera_session_access(
+            session_id=data.session_id,
+            user_payload=user_payload,
+            anonymous_token=anonymous_token,
+        )
+        return await agent_client.create_chat_session(
+            data,
+            user_id=access.user_id,
+            anonymous_token_hash=access.anonymous_token_hash,
+        )
+    except VeraSessionTokenError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.detail,
+        ) from error
+    except VeraAgentServiceError as error:
+        log_method = logger.error if error.status_code >= 500 else logger.warning
+        log_method("Не удалось создать сессию Веры: %s", error)
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.detail,
+        ) from error
+
+
+@router.post(
+    path="/session/{session_id}/close",
+    status_code=status.HTTP_200_OK,
+    summary="Закрыть диалог с Верой",
+    description=(
+        "Закрывает принадлежащую владельцу сессию; повтор возвращает "
+        "исходное время закрытия."
+    ),
+    operation_id="closeVeraChatSession",
+    response_model=VeraChatSessionCloseResponseSchema,
+    responses={
+        401: {"description": "Подписанный токен сессии не прошёл проверку."},
+        403: {"description": "Сессия принадлежит другому владельцу."},
+        404: {"description": "Сессия не найдена."},
+        429: {"description": "Превышен лимит запросов."},
+        502: {"description": "Ошибка соединения с Agent Service."},
+        503: {"description": "Agent Service API не настроен."},
+        504: {"description": "Agent Service не ответил вовремя."},
+    },
+)
+@limiter.limit("60/minute")
+async def close_vera_chat_session(
+    request: Request,
+    session_id: Annotated[str, Path(min_length=1, max_length=100)],
+    user_payload: OptionalUserPayloadDep,
+    agent_client: VeraAgentClientDep,
+    anonymous_token: Annotated[
+        str | None,
+        Header(alias="X-Vera-Session-Token"),
+    ] = None,
+) -> VeraChatSessionCloseResponseSchema:
+    """Закрывает сессию после проверки JWT или signed owner-token.
+
+    Args:
+        request: HTTP-запрос для rate limiter.
+        session_id: Идентификатор закрываемой сессии.
+        user_payload: Payload проверенного JWT либо ``None``.
+        agent_client: HTTP-клиент Agent Service.
+        anonymous_token: Подписанный токен закрываемой сессии.
+
+    Returns:
+        Идентификатор сессии и сохранённое время закрытия.
+    """
+    if agent_client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Agent Service API не настроен.",
+        )
+
+    try:
+        access = resolve_vera_session_access(
+            session_id=session_id,
+            user_payload=user_payload,
+            anonymous_token=anonymous_token,
+        )
+        return await agent_client.close_chat_session(
+            session_id,
+            user_id=access.user_id,
+            anonymous_token_hash=access.anonymous_token_hash,
+        )
+    except VeraSessionTokenError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.detail,
+        ) from error
+    except VeraAgentServiceError as error:
+        log_method = logger.error if error.status_code >= 500 else logger.warning
+        log_method("Не удалось закрыть сессию Веры: %s", error)
         raise HTTPException(
             status_code=error.status_code,
             detail=error.detail,

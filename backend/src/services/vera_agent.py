@@ -8,6 +8,9 @@ from pydantic import ValidationError
 from src.exceptions.services import VeraAgentServiceError
 from src.schemas.vera import (
     VeraChatHistoryResponseSchema,
+    VeraChatSessionCloseResponseSchema,
+    VeraChatSessionCreateRequestSchema,
+    VeraChatSessionCreateResponseSchema,
     VeraChatSessionResolveRequestSchema,
     VeraChatSessionResolveResponseSchema,
     VeraCurrentChatSessionResponseSchema,
@@ -90,6 +93,96 @@ class VeraAgentClient:
             headers=self._access_headers(user_id, None),
         )
         return VeraCurrentChatSessionResponseSchema.model_validate(payload)
+
+    async def create_chat_session(
+        self,
+        data: VeraChatSessionCreateRequestSchema,
+        *,
+        user_id: str | None,
+        anonymous_token_hash: str | None,
+    ) -> VeraChatSessionCreateResponseSchema:
+        """Явно создаёт сессию или возвращает owned open retry.
+
+        Args:
+            data: Идентификатор создаваемой сессии.
+            user_id: Идентификатор авторизованного владельца.
+            anonymous_token_hash: Доказательство анонимного владельца.
+
+        Returns:
+            Созданную или идемпотентно найденную открытую сессию.
+        """
+        payload = await self._request(
+            method="POST",
+            path="/api/v1/chat/sessions",
+            body=data.model_dump(mode="json"),
+            headers=self._access_headers(user_id, anonymous_token_hash),
+        )
+        try:
+            created_session = (
+                VeraChatSessionCreateResponseSchema.model_validate(payload)
+            )
+        except ValidationError as error:
+            raise VeraAgentServiceError(
+                status_code=502,
+                detail="Agent Service вернул некорректный ответ о сессии.",
+                error_details="Create session response validation failed.",
+            ) from error
+        if created_session.session_id != data.session_id:
+            raise VeraAgentServiceError(
+                status_code=502,
+                detail="Agent Service вернул некорректный ответ о сессии.",
+                error_details=(
+                    "Create session response is not bound to requested "
+                    "session ID."
+                ),
+            )
+        return created_session
+
+    async def close_chat_session(
+        self,
+        session_id: str,
+        *,
+        user_id: str | None,
+        anonymous_token_hash: str | None,
+    ) -> VeraChatSessionCloseResponseSchema:
+        """Явно закрывает owned сессию.
+
+        Args:
+            session_id: Идентификатор закрываемой сессии.
+            user_id: Идентификатор авторизованного владельца.
+            anonymous_token_hash: Доказательство анонимного владельца.
+
+        Returns:
+            Идентификатор сессии и сохранённое время закрытия.
+        """
+        encoded_session_id = quote(session_id, safe="")
+        payload = await self._request(
+            method="POST",
+            path=(
+                f"/api/v1/chat/sessions/{encoded_session_id}/close"
+            ),
+            headers=self._access_headers(user_id, anonymous_token_hash),
+        )
+        try:
+            closed_session = (
+                VeraChatSessionCloseResponseSchema.model_validate(payload)
+            )
+        except ValidationError as error:
+            raise VeraAgentServiceError(
+                status_code=502,
+                detail="Agent Service вернул некорректный ответ о сессии.",
+                error_details="Close session response validation failed.",
+            ) from error
+        if closed_session.session_id != session_id:
+            raise VeraAgentServiceError(
+                status_code=502,
+                detail="Agent Service вернул некорректный ответ о сессии.",
+                error_details=(
+                    "Close session response is not bound to requested "
+                    "session ID."
+                ),
+            )
+        return closed_session
 
     async def resolve_chat_session(
         self,
