@@ -81,11 +81,13 @@ export const veraApi = {
 
     sendMessage: async (
         data: VeraChatFormData,
+        signal?: AbortSignal,
     ): Promise<VeraChatResponse> => {
         const response = await fetch(`${VERA_BASE}/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
+            signal,
         });
 
         const receipt = await readVeraResponse(

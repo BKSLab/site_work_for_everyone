@@ -102,6 +102,52 @@ describe("ChatMessage accessibility", () => {
         expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
+    it("keeps an empty answer visible when its outcome is unknown", () => {
+        render(
+            <ChatMessage
+                sessionId="session-1"
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "",
+                    streaming: false,
+                    deliveryState: "unknown",
+                }}
+            />,
+        );
+
+        expect(
+            screen.getByText(/статус ответа пока неизвестен/i),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Готовлю ответ")).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ["failed", /ответ завершился с ошибкой/i],
+        ["unknown", /статус ответа неизвестен/i],
+    ] as const)(
+        "marks a partial %s answer as potentially incomplete",
+        (deliveryState, label) => {
+            render(
+                <ChatMessage
+                    sessionId="session-1"
+                    message={{
+                        id: "assistant-1",
+                        role: "assistant",
+                        content: "Неполный юридический ответ.",
+                        streaming: false,
+                        deliveryState,
+                    }}
+                />,
+            );
+
+            expect(screen.getByText(label)).toBeInTheDocument();
+            expect(
+                screen.getByText("Неполный юридический ответ."),
+            ).toBeInTheDocument();
+        },
+    );
+
     it("offers accessible rating controls only for a completed answer", async () => {
         const user = userEvent.setup();
         render(

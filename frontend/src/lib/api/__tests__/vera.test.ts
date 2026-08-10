@@ -37,6 +37,21 @@ describe("veraApi.sendMessage", () => {
         });
     });
 
+    it("forwards the caller abort signal to the chat POST", async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValue(receiptResponse("request-1"));
+        vi.stubGlobal("fetch", fetchMock);
+        const controller = new AbortController();
+
+        await veraApi.sendMessage(request, controller.signal);
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/api/vera/chat",
+            expect.objectContaining({ signal: controller.signal }),
+        );
+    });
+
     it("rejects a receipt for another request as a contract error", async () => {
         vi.stubGlobal(
             "fetch",

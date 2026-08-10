@@ -50,6 +50,7 @@ export function ChatWindow() {
         messages,
         sendMessage,
         status,
+        deliveryState,
         error,
         announcement,
         isHistoryLoading,
@@ -142,15 +143,27 @@ export function ChatWindow() {
         void loadOlderHistory();
     }
 
+    const isDeliveryProcessing = deliveryState
+        ? [
+              "submitting",
+              "accepted",
+              "processing",
+              "streaming",
+          ].includes(deliveryState)
+        : false;
     const isBusy =
+        isDeliveryProcessing ||
         status === "waiting" ||
         status === "long-running" ||
         status === "streaming";
+    const blocksSubmission = isBusy || deliveryState === "unknown";
 
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
         const text = input.trim();
-        if (!text || isBusy || isHistoryLoading || !sessionId) return;
+        if (!text || blocksSubmission || isHistoryLoading || !sessionId) {
+            return;
+        }
         setInput("");
         const result = await sendMessage(text);
         if (result?.restoreDraft) {
@@ -360,7 +373,7 @@ export function ChatWindow() {
                             aria-label="Отправить"
                             title="Отправить"
                             disabled={
-                                isBusy ||
+                                blocksSubmission ||
                                 isHistoryLoading ||
                                 !sessionId ||
                                 !input.trim()

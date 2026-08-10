@@ -976,15 +976,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Клиент имеет явную state machine доставки. При неоднозначном исходе POST выполняется reconciliation по исходному `request_id`, а не удаление ответа. Сообщение пользователя помечается как недоставленное только при однозначном отказе сервера.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`.
+- **Изменённые файлы:** `frontend/src/hooks/useVeraChat.ts`, `frontend/src/hooks/__tests__/useVeraChat.test.ts`, `frontend/src/lib/api/vera.ts`, `frontend/src/lib/api/__tests__/vera.test.ts`, `frontend/src/components/features/vera/ChatWindow.tsx`, `frontend/src/components/features/vera/__tests__/ChatWindow.test.tsx`, `frontend/src/components/features/vera/ChatMessage.tsx`, `frontend/src/components/features/vera/__tests__/ChatMessage.test.tsx`, `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** клиент переведён на явный автомат `draft -> submitting -> accepted -> processing -> streaming -> completed | failed | unknown`; неоднозначный результат POST после ограниченного ожидания сверяется через существующую историю по исходному `request_id`, не удаляя optimistic bubbles и не публикуя запрос повторно. Pending request сохраняется в `sessionStorage` до подтверждённого terminal-состояния, поэтому reload и смена жизненного цикла компонента продолжают reconciliation с тем же идентификатором; `422`/`429` остаются единственными отказами, которые помечают пользовательское сообщение как недоставленное и разрешают новый `request_id`. Durable-статусы истории отображаются в сообщениях, включая видимые маркеры неполного failed/unknown-ответа, а owned `AbortController` и guards изолируют устаревшие POST, history и SSE callbacks при unmount или смене сессии.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены переходы автомата, матрица `422`/`429` против ambiguous `401`/`403`/`5xx`/network/timeout, reconciliation по исходному `request_id`, remount с pending journal, смена owner/session, SSE/history terminal-статусы, блокировка повторной отправки и UI-маркеры failed/unknown. `npm test -- src/hooks/__tests__/useVeraChat.test.ts` — `44 passed`; полный `npm test` — `180 passed`; `npm run lint` — `0 errors`, `26` существующих warnings; `npm run build` — успешно. При первом параллельном запуске тестов вместе со сборкой один неизменённый тест `VeraFeedbackModal` превысил 5-секундный лимит; отдельный полный повтор прошёл `180/180`, что подтвердило конкуренцию ресурсов, а не регрессию.
+- **Отклонения от предложенного решения и причина:** отдельный `GET /requests/{request_id}` не добавлялся: по обязательному решению прогона используется существующий `GET /api/vera/history/{sessionId}`. Backend и Agent Service не менялись; автоматический retry публикации намеренно отсутствует, поскольку при неоднозначном исходе он может создать второй turn.
+- **Осталось / связанные карточки:** durable replay между процессами и репликами относится к VERA-013, пользовательская отмена — к VERA-017; обе карточки вне скоупа этого прогона.
 
 ### VERA-026 — Нет runtime-валидации ответов и SSE events
 

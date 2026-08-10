@@ -15,6 +15,10 @@ export const ChatMessage = memo(function ChatMessage({
 }: ChatMessageProps) {
     const isUser = message.role === "user";
     const isPreparing = !isUser && message.streaming && !message.content;
+    const isUnknownAnswer =
+        !isUser && !message.content && message.deliveryState === "unknown";
+    const isFailedAnswer =
+        !isUser && !message.content && message.deliveryState === "failed";
     const deliveryLabel =
         message.deliveryStatus === "sending"
             ? "Отправляется…"
@@ -83,6 +87,15 @@ export const ChatMessage = memo(function ChatMessage({
                             <span className="h-1.5 w-1.5 rounded-full [animation:braille-dot_1.4s_ease-in-out_0.4s_infinite] motion-reduce:animate-none" />
                         </span>
                     </span>
+                ) : isUnknownAnswer ? (
+                    <span className="text-muted">
+                        Статус ответа пока неизвестен. Он может появиться в
+                        истории после обновления страницы.
+                    </span>
+                ) : isFailedAnswer ? (
+                    <span className="text-muted">
+                        Не удалось подготовить ответ.
+                    </span>
                 ) : (
                     <span className="whitespace-pre-wrap">
                         {message.content}
@@ -94,6 +107,21 @@ export const ChatMessage = memo(function ChatMessage({
                         className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent align-middle"
                     />
                 )}
+                {!isUser &&
+                    Boolean(message.content) &&
+                    message.deliveryState === "failed" && (
+                        <span className="mt-2 block text-xs text-muted">
+                            Ответ завершился с ошибкой и может быть неполным.
+                        </span>
+                    )}
+                {!isUser &&
+                    Boolean(message.content) &&
+                    message.deliveryState === "unknown" && (
+                        <span className="mt-2 block text-xs text-muted">
+                            Статус ответа неизвестен; текст может быть
+                            неполным.
+                        </span>
+                    )}
                 {isUser && deliveryLabel && (
                     <span className="mt-1 block text-right text-xs text-muted">
                         {deliveryLabel}

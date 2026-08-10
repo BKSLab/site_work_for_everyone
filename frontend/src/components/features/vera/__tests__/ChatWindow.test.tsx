@@ -114,6 +114,113 @@ describe("ChatWindow accessibility", () => {
         );
     });
 
+    it.each(["submitting", "accepted", "processing", "streaming"])(
+        "blocks submission and marks history busy while delivery is %s",
+        (deliveryState) => {
+            const sendMessage = vi.fn();
+            useVeraChatMock.mockReturnValue({
+                sessionId: "session-1",
+                messages: [],
+                sendMessage,
+                status: "idle",
+                deliveryState,
+                error: null,
+                announcement: "",
+                isHistoryLoading: false,
+                historyError: null,
+            });
+
+            render(<ChatWindow />);
+
+            fireEvent.change(
+                screen.getByLabelText("Сообщение для Ассистента Веры"),
+                { target: { value: "Новый вопрос." } },
+            );
+
+            expect(
+                screen.getByRole("button", { name: "Отправить" }),
+            ).toBeDisabled();
+            expect(
+                screen.getByRole("region", {
+                    name: "История переписки с Ассистентом Верой",
+                }),
+            ).toHaveAttribute("aria-busy", "true");
+            expect(sendMessage).not.toHaveBeenCalled();
+        },
+    );
+
+    it("does not submit a second request while delivery is unknown", () => {
+        const sendMessage = vi.fn();
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [],
+            sendMessage,
+            status: "unavailable",
+            deliveryState: "unknown",
+            error: "Результат отправки уточняется.",
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        const composer = screen.getByLabelText("Сообщение для Ассистента Веры");
+        fireEvent.change(composer, {
+            target: { value: "Отправить ещё раз." },
+        });
+        fireEvent.submit(
+            screen.getByRole("form", {
+                name: "Отправка сообщения Ассистенту Вере",
+            }),
+        );
+
+        expect(
+            screen.getByRole("button", { name: "Отправить" }),
+        ).toBeDisabled();
+        expect(sendMessage).not.toHaveBeenCalled();
+        expect(
+            screen.getByRole("region", {
+                name: "История переписки с Ассистентом Верой",
+            }),
+        ).toHaveAttribute("aria-busy", "false");
+    });
+
+    it.each(["draft", "completed", "failed"])(
+        "allows a new request while delivery is %s",
+        async (deliveryState) => {
+            const sendMessage = vi.fn().mockResolvedValue({
+                outcome: "accepted",
+                restoreDraft: false,
+            });
+            useVeraChatMock.mockReturnValue({
+                sessionId: "session-1",
+                messages: [],
+                sendMessage,
+                status: "idle",
+                deliveryState,
+                error: null,
+                announcement: "",
+                isHistoryLoading: false,
+                historyError: null,
+            });
+
+            render(<ChatWindow />);
+
+            fireEvent.change(
+                screen.getByLabelText("Сообщение для Ассистента Веры"),
+                { target: { value: "Новый вопрос." } },
+            );
+            fireEvent.click(
+                screen.getByRole("button", { name: "Отправить" }),
+            );
+
+            await waitFor(() => {
+                expect(sendMessage).toHaveBeenCalledWith("Новый вопрос.");
+            });
+        },
+    );
+
     it("shows a non-live status for a long consultation", () => {
         useVeraChatMock.mockReturnValue({
             sessionId: "session-1",
