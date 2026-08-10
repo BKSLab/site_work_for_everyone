@@ -71,7 +71,7 @@ describe("ChatWindow accessibility", () => {
         );
         expect(composer).toHaveAttribute(
             "aria-describedby",
-            "vera-chat-input-hint vera-chat-input-counter",
+            "vera-chat-input-hint",
         );
         expect(composer).toHaveAttribute("maxLength", "4000");
         expect(screen.getByText("0 / 4000")).toBeInTheDocument();
@@ -83,6 +83,35 @@ describe("ChatWindow accessibility", () => {
                 /при входе в аккаунт текущий диалог сохраняется/i,
             ),
         ).toBeVisible();
+    });
+
+    it("keeps the character counter out of the composer description while typing", () => {
+        /* Счётчик меняется на каждое нажатие. Если он входит в
+           `aria-describedby`, скринридер переозвучивает описание целиком —
+           подсказка «Enter — отправить» повторялась после каждой буквы. */
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [],
+            sendMessage: vi.fn(),
+            status: "idle",
+            deliveryState: "draft",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+        render(<ChatWindow />);
+        const composer = screen.getByLabelText(
+            "Сообщение для Ассистента Веры",
+        );
+
+        fireEvent.change(composer, { target: { value: "Как" } });
+
+        const describedBy = composer.getAttribute("aria-describedby") ?? "";
+        expect(describedBy).not.toContain("vera-chat-input-counter");
+        expect(describedBy).toBe("vera-chat-input-hint");
+        /* Счётчик обновился и остался единым текстовым узлом. */
+        expect(screen.getByText("3 / 4000")).toBeInTheDocument();
     });
 
     it("does not expose a new dialog action until a chat catalog exists", () => {

@@ -459,6 +459,13 @@ export function ChatWindow() {
                         Сообщение для Ассистента Веры
                     </label>
                     <div className="flex min-w-0 items-end gap-2 rounded-2xl border border-border bg-surface-hover/45 p-2 pl-4 focus-within:border-accent/60 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+                        {/* Счётчик символов намеренно не входит в
+                            `aria-describedby`: его текст меняется на каждое
+                            нажатие, а скринридер при изменении описания
+                            переозвучивает описание целиком — из-за этого
+                            подсказка «Enter — отправить» повторялась после
+                            каждой буквы. Счётчик остаётся видимым и
+                            читается в режиме обзора. */}
                         <textarea
                             ref={inputRef}
                             id="vera-chat-input"
@@ -474,7 +481,7 @@ export function ChatWindow() {
                             }
                             maxLength={VERA_MESSAGE_MAX_LENGTH}
                             rows={1}
-                            aria-describedby="vera-chat-input-hint vera-chat-input-counter"
+                            aria-describedby="vera-chat-input-hint"
                             placeholder="Напишите вопрос Ассистенту Вере…"
                             className="max-h-36 min-h-7 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 [field-sizing:content]"
                         />
@@ -522,7 +529,7 @@ export function ChatWindow() {
                             id="vera-chat-input-counter"
                             className="shrink-0 tabular-nums"
                         >
-                            {input.length} / {VERA_MESSAGE_MAX_LENGTH}
+                            {`${input.length} / ${VERA_MESSAGE_MAX_LENGTH}`}
                         </span>
                     </div>
                 </form>
