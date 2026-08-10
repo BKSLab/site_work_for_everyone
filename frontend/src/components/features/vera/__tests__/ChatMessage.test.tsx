@@ -183,9 +183,17 @@ describe("ChatMessage accessibility", () => {
             });
         });
         expect(upButton).toHaveAttribute("aria-pressed", "true");
-        expect(screen.getByRole("status")).toHaveTextContent(
-            "Положительная оценка сохранена.",
-        );
+        /* В футере ответа два независимых status-региона: оценка и
+           копирование. Они не срабатывают одновременно, поэтому проверяем
+           именно тот, что относится к оценке. */
+        const statusRegions = screen.getAllByRole("status");
+        expect(
+            statusRegions.some((region) =>
+                region.textContent?.includes(
+                    "Положительная оценка сохранена.",
+                ),
+            ),
+        ).toBe(true);
     });
 
     it("does not allow rating a partial answer after a stream failure", () => {
@@ -228,5 +236,111 @@ describe("ChatMessage accessibility", () => {
         expect(
             screen.getByRole("button", { name: "Ответ не полезен" }),
         ).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("exposes each message as a list item", () => {
+        render(
+            <ChatMessage
+                sessionId="session-1"
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "Ответ.",
+                }}
+            />,
+        );
+
+        expect(screen.getByRole("listitem")).toBeInTheDocument();
+    });
+
+    it("copies the answer text and announces the result", async () => {
+        /* `userEvent.setup()` ставит собственную заглушку буфера обмена,
+           поэтому свой стаб подменяем после него. */
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        const user = userEvent.setup();
+        vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+        render(
+            <ChatMessage
+                sessionId="session-1"
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "Квота составляет 2 процента.",
+                }}
+            />,
+        );
+
+        await user.click(
+            screen.getByRole("button", { name: "Скопировать ответ" }),
+        );
+
+        expect(writeText).toHaveBeenCalledWith("Квота составляет 2 процента.");
+        await waitFor(() => {
+            const statusRegions = screen.getAllByRole("status");
+            expect(
+                statusRegions.some((region) =>
+                    region.textContent?.includes("Ответ скопирован."),
+                ),
+            ).toBe(true);
+        });
+        vi.unstubAllGlobals();
+    });
+
+    it("reports a clipboard failure instead of pretending the answer was copied", async () => {
+        const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+        const user = userEvent.setup();
+        vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+        render(
+            <ChatMessage
+                sessionId="session-1"
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "Ответ.",
+                }}
+            />,
+        );
+
+        await user.click(
+            screen.getByRole("button", { name: "Скопировать ответ" }),
+        );
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            /не удалось скопировать/i,
+        );
+        vi.unstubAllGlobals();
+    });
+
+    it("does not offer copying for a user message or an empty answer", () => {
+        const { rerender } = render(
+            <ChatMessage
+                sessionId="session-1"
+                message={{
+                    id: "user-1",
+                    role: "user",
+                    content: "Мой вопрос.",
+                }}
+            />,
+        );
+
+        expect(
+            screen.queryByRole("button", { name: "Скопировать ответ" }),
+        ).not.toBeInTheDocument();
+
+        rerender(
+            <ChatMessage
+                sessionId="session-1"
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "",
+                    streaming: true,
+                }}
+            />,
+        );
+
+        expect(
+            screen.queryByRole("button", { name: "Скопировать ответ" }),
+        ).not.toBeInTheDocument();
     });
 });

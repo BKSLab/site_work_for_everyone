@@ -83,7 +83,10 @@ export function MessageFeedbackControls({
     }
 
     return (
-        <div className="mt-3 border-t border-white/10 pt-2">
+        /* Внешний отступ и разделитель задаёт общий футер сообщения
+           (`ChatMessage`), потому что рядом стоит кнопка копирования и
+           обе группы действий должны лежать на одной линии. */
+        <>
             <div
                 role="group"
                 aria-label="Оценить ответ Ассистента Веры"
@@ -126,10 +129,10 @@ export function MessageFeedbackControls({
                 {announcement}
             </span>
             {errorMessage && (
-                <p role="alert" className="mt-1 text-xs text-red-300">
+                <p role="alert" className="basis-full text-xs text-red-300">
                     {errorMessage}
                 </p>
             )}
-        </div>
+        </>
     );
 }

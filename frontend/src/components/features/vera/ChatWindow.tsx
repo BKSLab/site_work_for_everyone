@@ -36,13 +36,28 @@ const ChatMessageList = memo(function ChatMessageList({
     messages: VeraChatMessage[];
     sessionId: string;
 }) {
-    return messages.map((message) => (
-        <ChatMessage
-            key={message.id}
-            message={message}
-            sessionId={sessionId}
-        />
-    ));
+    if (messages.length === 0) return null;
+
+    /* Реплики объединены в список: скринридер сообщает их количество и
+       позицию, а по сообщениям становится доступна навигация по элементам
+       списка — без этого длинную консультацию можно читать только подряд.
+       `gap-4` повторяет прежний интервал родительского контейнера, чтобы
+       обёртка не меняла внешний вид. */
+    return (
+        <div
+            role="list"
+            aria-label="Сообщения диалога"
+            className="flex flex-col gap-4"
+        >
+            {messages.map((message) => (
+                <ChatMessage
+                    key={message.id}
+                    message={message}
+                    sessionId={sessionId}
+                />
+            ))}
+        </div>
+    );
 });
 
 export function ChatWindow() {

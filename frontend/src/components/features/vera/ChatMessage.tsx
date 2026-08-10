@@ -2,6 +2,7 @@ import Image from "next/image";
 import { memo } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { VeraChatMessage } from "@/hooks/useVeraChat";
+import { MessageCopyButton } from "./MessageCopyButton";
 import { MessageFeedbackControls } from "./MessageFeedbackControls";
 
 interface ChatMessageProps {
@@ -37,6 +38,7 @@ export const ChatMessage = memo(function ChatMessage({
 
     return (
         <div
+            role="listitem"
             className={cn(
                 "flex items-start gap-2.5",
                 isUser ? "justify-end" : "justify-start",
@@ -58,10 +60,14 @@ export const ChatMessage = memo(function ChatMessage({
             )}
             <div
                 className={cn(
-                    "min-w-0 max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                    "min-w-0 rounded-2xl px-4 py-3 text-sm leading-relaxed",
                     isUser
-                        ? "bg-accent/[0.14] text-foreground"
-                        : "border border-white/10 bg-white/[0.04] text-foreground",
+                        ? "max-w-[85%] bg-accent/[0.14] text-foreground"
+                        : // Ответ Веры длиннее вопроса, и на широком экране
+                          // 85% ширины дают неудобно длинную строку. 68ch
+                          // удерживает строку в комфортном для чтения
+                          // диапазоне, не сужая пузырь на мобильном.
+                          "max-w-[min(85%,68ch)] border border-white/10 bg-white/[0.04] text-foreground",
                 )}
             >
                 {!isUser && (
@@ -127,12 +133,17 @@ export const ChatMessage = memo(function ChatMessage({
                         {deliveryLabel}
                     </span>
                 )}
-                {canRate && (
-                    <MessageFeedbackControls
-                        sessionId={sessionId}
-                        requestId={message.requestId!}
-                        initialValue={message.feedbackValue}
-                    />
+                {!isUser && Boolean(message.content) && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+                        <MessageCopyButton text={message.content} />
+                        {canRate && (
+                            <MessageFeedbackControls
+                                sessionId={sessionId}
+                                requestId={message.requestId!}
+                                initialValue={message.feedbackValue}
+                            />
+                        )}
+                    </div>
                 )}
             </div>
         </div>
