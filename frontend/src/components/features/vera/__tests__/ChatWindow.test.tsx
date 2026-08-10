@@ -83,19 +83,46 @@ describe("ChatWindow accessibility", () => {
                 /при входе в аккаунт текущий диалог сохраняется/i,
             ),
         ).toBeVisible();
-        expect(
-            screen.getByRole("button", { name: "Новый диалог" }),
-        ).toHaveAttribute("aria-controls", "vera-chat-history");
     });
 
-    it("exposes an accessible busy state while starting a new dialog", async () => {
-        const startNewDialog = vi.fn().mockResolvedValue(true);
+    it("does not expose a new dialog action until a chat catalog exists", () => {
+        /* Кнопка «Новый диалог» скрыта намеренно: без списка чатов она
+           уводила предыдущий разговор из интерфейса после reload, и
+           пользователь видел это как потерю консультации. Серверные
+           create/close (VERA-029) при этом сохранены. */
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [],
+            sendMessage: vi.fn(),
+            startNewDialog: vi.fn(),
+            status: "idle",
+            deliveryState: "draft",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        expect(
+            screen.queryByRole("button", { name: "Новый диалог" }),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole("button", { name: "Создаю диалог…" }),
+        ).not.toBeInTheDocument();
+    });
+
+    it("keeps the composer disabled while an interrupted session create is recovered", () => {
+        /* Флаги остаются рабочими и без кнопки: незавершённое создание
+           сессии восстанавливается после перезагрузки страницы, и до его
+           завершения отправлять сообщение нельзя. */
         const chatState = {
             sessionId: "session-1",
             messages: [],
             sendMessage: vi.fn(),
-            startNewDialog,
-            isStartingNewDialog: false,
+            startNewDialog: vi.fn(),
+            isStartingNewDialog: true,
             status: "idle",
             deliveryState: "draft",
             error: null,
@@ -106,35 +133,17 @@ describe("ChatWindow accessibility", () => {
         useVeraChatMock.mockReturnValue(chatState);
         const { rerender } = render(<ChatWindow />);
 
-        fireEvent.click(
-            screen.getByRole("button", { name: "Новый диалог" }),
-        );
-        await waitFor(() => expect(startNewDialog).toHaveBeenCalledOnce());
-
-        useVeraChatMock.mockReturnValue({
-            ...chatState,
-            isStartingNewDialog: true,
-        });
-        rerender(<ChatWindow />);
-
-        const busyButton = screen.getByRole("button", {
-            name: "Создаю диалог…",
-        });
-        expect(busyButton).toBeDisabled();
-        expect(busyButton).toHaveAttribute("aria-busy", "true");
         expect(
             screen.getByLabelText("Сообщение для Ассистента Веры"),
         ).toBeDisabled();
 
         useVeraChatMock.mockReturnValue({
             ...chatState,
+            isStartingNewDialog: false,
             hasPendingNewDialog: true,
         });
         rerender(<ChatWindow />);
 
-        expect(
-            screen.getByRole("button", { name: "Новый диалог" }),
-        ).toBeEnabled();
         expect(
             screen.getByLabelText("Сообщение для Ассистента Веры"),
         ).toBeDisabled();

@@ -51,7 +51,12 @@ export function ChatWindow() {
         messages,
         previousSessionGroups = [],
         sendMessage,
-        startNewDialog = async () => false,
+        // `startNewDialog` намеренно не вызывается из UI: кнопка «Новый
+        // диалог» скрыта до появления полноценного каталога чатов, иначе
+        // предыдущий разговор исчезает из интерфейса после reload. Серверные
+        // create/close (VERA-029) остаются и используются lifecycle-логикой
+        // и TTL-rollover. Флаги ниже по-прежнему нужны: их выставляет
+        // восстановление незавершённого создания сессии после перезагрузки.
         isStartingNewDialog = false,
         hasPendingNewDialog = false,
         status,
@@ -204,14 +209,6 @@ export function ChatWindow() {
         isStartingNewDialog ||
         hasPendingNewDialog ||
         deliveryState === "unknown";
-    const blocksNewDialog =
-        isBusy || isStartingNewDialog || deliveryState === "unknown";
-
-    async function handleStartNewDialog() {
-        const started = await startNewDialog();
-        if (started) inputRef.current?.focus();
-    }
-
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
         const text = input.trim();
@@ -277,24 +274,6 @@ export function ChatWindow() {
                             продолжается.
                         </p>
                     </div>
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        aria-controls="vera-chat-history"
-                        aria-describedby="vera-login-dialog-policy"
-                        aria-busy={isStartingNewDialog}
-                        disabled={
-                            blocksNewDialog ||
-                            isHistoryLoading ||
-                            !sessionId
-                        }
-                        onClick={() => void handleStartNewDialog()}
-                        className="shrink-0 whitespace-nowrap px-3 py-2 text-xs sm:text-sm"
-                    >
-                        {isStartingNewDialog
-                            ? "Создаю диалог…"
-                            : "Новый диалог"}
-                    </Button>
                 </header>
 
                 <div
