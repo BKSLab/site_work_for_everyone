@@ -137,6 +137,7 @@ export type VeraFeedbackResponse = z.infer<
 
 export const veraSseEventSchema = z.discriminatedUnion("type", [
     z.object({ type: z.literal("token"), content: z.string() }),
+    z.object({ type: z.literal("heartbeat"), ts: z.number().int() }),
     z.object({ type: z.literal("done") }),
     z.object({ type: z.literal("error"), detail: z.string().optional() }),
 ]);

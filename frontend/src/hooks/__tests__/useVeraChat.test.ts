@@ -22,12 +22,16 @@ import { ApiRequestError } from "@/lib/api/client";
 import { useAuthStore } from "@/stores/auth";
 
 class FakeEventSource {
+    static CONNECTING = 0;
+    static OPEN = 1;
+    static CLOSED = 2;
     static urls: string[] = [];
     static instances: FakeEventSource[] = [];
 
     onmessage: ((event: MessageEvent) => void) | null = null;
     onerror: (() => void) | null = null;
     closed = false;
+    readyState = FakeEventSource.OPEN;
 
     constructor(url: string | URL) {
         FakeEventSource.urls.push(String(url));
@@ -36,9 +40,13 @@ class FakeEventSource {
 
     close() {
         this.closed = true;
+        this.readyState = FakeEventSource.CLOSED;
     }
 
     emit(data: object) {
+        if (!this.closed) {
+            this.readyState = FakeEventSource.OPEN;
+        }
         this.onmessage?.({ data: JSON.stringify(data) } as MessageEvent);
     }
 
@@ -47,6 +55,12 @@ class FakeEventSource {
     }
 
     fail() {
+        this.readyState = FakeEventSource.CLOSED;
+        this.onerror?.();
+    }
+
+    disconnect() {
+        this.readyState = FakeEventSource.CONNECTING;
         this.onerror?.();
     }
 }
@@ -597,9 +611,58 @@ describe("useVeraChat", () => {
         unmount();
     });
 
+    it("allows native EventSource reconnect while inactivity watchdog stays active", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Расскажите о квотах.");
+        });
+
+        act(() => {
+            vi.advanceTimersByTime(15_000);
+            FakeEventSource.instances[0].emit({
+                type: "heartbeat",
+                ts: 1_723_296_000,
+            });
+            FakeEventSource.instances[0].disconnect();
+            vi.advanceTimersByTime(44_999);
+        });
+
+        expect(FakeEventSource.instances[0].closed).toBe(false);
+        expect(result.current.status).toBe("long-running");
+        expect(result.current.error).toBeNull();
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "token",
+                content: "Соединение восстановлено.",
+            });
+        });
+        act(() => {
+            flushAnimationFrames();
+        });
+
+        expect(result.current.status).toBe("streaming");
+
+        act(() => {
+            FakeEventSource.instances[0].emit({ type: "done" });
+        });
+        expect(result.current.status).toBe("idle");
+        expect(result.current.messages[1].content).toBe(
+            "Соединение восстановлено.",
+        );
+
+        unmount();
+    });
+
     it.each([
         ["malformed JSON", "{"],
         ["an invalid event", JSON.stringify({ type: "token" })],
+        ["an invalid heartbeat", JSON.stringify({ type: "heartbeat" })],
     ])("handles %s from SSE as a controlled error", async (_name, data) => {
         const { result, unmount } = renderHook(() => useVeraChat());
 
@@ -623,7 +686,7 @@ describe("useVeraChat", () => {
         unmount();
     });
 
-    it("clears the pending answer when no SSE event arrives before timeout", async () => {
+    it("closes the stream when the first event does not arrive within 30 seconds", async () => {
         vi.useFakeTimers();
         const { result, unmount } = renderHook(() => useVeraChat());
 
@@ -635,15 +698,244 @@ describe("useVeraChat", () => {
         });
 
         act(() => {
-            vi.advanceTimersByTime(100_000);
+            vi.advanceTimersByTime(29_999);
+        });
+        expect(FakeEventSource.instances[0].closed).toBe(false);
+        expect(result.current.error).toBeNull();
+
+        act(() => {
+            vi.advanceTimersByTime(1);
         });
 
         expect(result.current.status).toBe("unavailable");
         expect(result.current.announcement).toBe("");
         expect(result.current.error).toBe(
-            "Ассистент Вера сейчас недоступен. Попробуйте позже.",
+            "Ассистент Вера не начал отвечать. Попробуйте позже.",
         );
         expect(result.current.messages).toHaveLength(1);
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "heartbeat",
+                ts: 1_723_296_000,
+            });
+            FakeEventSource.instances[0].emit({
+                type: "token",
+                content: "слишком поздно",
+            });
+            flushAnimationFrames();
+        });
+        expect(result.current.status).toBe("unavailable");
+        expect(result.current.messages).toHaveLength(1);
+
+        unmount();
+    });
+
+    it("uses heartbeat as silent activity and resets the inactivity timeout", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Отправьте консультацию на почту.");
+        });
+
+        act(() => {
+            vi.advanceTimersByTime(15_000);
+            FakeEventSource.instances[0].emit({
+                type: "heartbeat",
+                ts: 1_723_296_000,
+            });
+        });
+
+        expect(result.current.status).toBe("long-running");
+        expect(result.current.announcement).toBe(
+            "Ассистент Вера готовит ответ.",
+        );
+        expect(result.current.messages[1].content).toBe("");
+
+        act(() => {
+            vi.advanceTimersByTime(44_999);
+        });
+        expect(FakeEventSource.instances[0].closed).toBe(false);
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "heartbeat",
+                ts: 1_723_296_045,
+            });
+            vi.advanceTimersByTime(44_999);
+            FakeEventSource.instances[0].emit({
+                type: "future_progress",
+                percent: 90,
+            });
+        });
+        expect(FakeEventSource.instances[0].closed).toBe(false);
+
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(result.current.status).toBe("unavailable");
+        expect(result.current.error).toContain(
+            "Поток ответа перестал обновляться",
+        );
+
+        unmount();
+    });
+
+    it("resets inactivity on tokens and preserves a partial answer on timeout", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Расскажите о квотах.");
+        });
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "heartbeat",
+                ts: 1_723_296_000,
+            });
+        });
+        expect(result.current.status).toBe("long-running");
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "token",
+                content: "Первая ",
+            });
+            flushAnimationFrames();
+            vi.advanceTimersByTime(44_999);
+        });
+        expect(result.current.status).toBe("streaming");
+        expect(FakeEventSource.instances[0].closed).toBe(false);
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "token",
+                content: "часть.",
+            });
+            flushAnimationFrames();
+            vi.advanceTimersByTime(44_999);
+        });
+        expect(FakeEventSource.instances[0].closed).toBe(false);
+
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(result.current.messages[1]).toMatchObject({
+            content: "Первая часть.",
+            streaming: false,
+            feedbackEligible: false,
+        });
+        expect(result.current.error).toContain(
+            "Поток ответа перестал обновляться",
+        );
+
+        unmount();
+    });
+
+    it("ignores an unknown event without extending the first-event timeout", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Расскажите об отпуске.");
+        });
+
+        act(() => {
+            vi.advanceTimersByTime(29_000);
+            FakeEventSource.instances[0].emit({
+                type: "future_progress",
+                percent: 10,
+            });
+        });
+
+        expect(FakeEventSource.instances[0].closed).toBe(false);
+        expect(result.current.status).toBe("waiting");
+        expect(result.current.announcement).toBe(
+            "Ассистент Вера готовит ответ.",
+        );
+        expect(result.current.error).toBeNull();
+
+        act(() => {
+            vi.advanceTimersByTime(1_000);
+        });
+        expect(FakeEventSource.instances[0].closed).toBe(true);
+        expect(result.current.error).toBe(
+            "Ассистент Вера не начал отвечать. Попробуйте позже.",
+        );
+
+        unmount();
+    });
+
+    it("keeps the overall deadline independent from heartbeats", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Отправьте консультацию на почту.");
+        });
+
+        for (let index = 1; index <= 29; index += 1) {
+            act(() => {
+                vi.advanceTimersByTime(15_000);
+                FakeEventSource.instances[0].emit({
+                    type: "heartbeat",
+                    ts: 1_723_296_000 + index * 15,
+                });
+            });
+        }
+
+        act(() => {
+            vi.advanceTimersByTime(14_999);
+        });
+        expect(FakeEventSource.instances[0].closed).toBe(false);
+
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(FakeEventSource.instances[0].closed).toBe(true);
+        expect(result.current.error).toContain(
+            "Ответ готовится дольше ожидаемого",
+        );
+
+        unmount();
+    });
+
+    it("does not run watchdogs again after a terminal event", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Расскажите об отпуске.");
+        });
+
+        act(() => {
+            FakeEventSource.instances[0].emit({ type: "done" });
+            vi.advanceTimersByTime(450_000);
+            FakeEventSource.instances[0].fail();
+        });
+
+        expect(result.current.status).toBe("idle");
+        expect(result.current.error).toBeNull();
+        expect(result.current.announcement).toBe(
+            "Ответ Ассистента Веры готов.",
+        );
 
         unmount();
     });

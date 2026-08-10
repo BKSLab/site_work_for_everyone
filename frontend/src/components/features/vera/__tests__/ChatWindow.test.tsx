@@ -114,6 +114,44 @@ describe("ChatWindow accessibility", () => {
         );
     });
 
+    it("shows a non-live status for a long consultation", () => {
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [
+                {
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "",
+                    streaming: true,
+                },
+            ],
+            sendMessage: vi.fn(),
+            status: "long-running",
+            error: null,
+            announcement: "Ассистент Вера готовит ответ.",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        expect(
+            screen.getByText(/если вы попросили отправить консультацию/i),
+        ).toBeVisible();
+        expect(screen.getAllByRole("status")).toHaveLength(1);
+        expect(screen.getByRole("status")).toHaveTextContent(
+            "Ассистент Вера готовит ответ.",
+        );
+        expect(
+            screen.getByRole("region", {
+                name: "История переписки с Ассистентом Верой",
+            }),
+        ).toHaveAttribute("aria-busy", "true");
+        expect(
+            screen.getByRole("button", { name: "Отправить" }),
+        ).toBeDisabled();
+    });
+
     it("enables sending after the user enters a message", () => {
         useVeraChatMock.mockReturnValue({
             sessionId: "session-1",

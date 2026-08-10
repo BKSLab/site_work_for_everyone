@@ -15,6 +15,7 @@ import { veraApi } from "@/lib/api/vera";
 import {
     veraChatSchema,
     veraSseEventSchema,
+    type VeraSseEvent,
 } from "@/lib/schemas/vera";
 import { useAuthStore } from "@/stores/auth";
 
@@ -25,12 +26,12 @@ const SESSION_STORAGE_KEY = "vera_session_id";
 // клиенте разумно начинать видимо новый разговор).
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
-// Если за это время не пришло ни одного SSE-события (ни token, ни done,
-// ни error) — считаем, что agent_service/RabbitMQ недоступны с точки
-// зрения сайта (см. docs/VERA_AGENT_INTEGRATION_PLAN.md, "Обработка
-// деградации"). Значение с запасом: analyze_intent + call_kb_search
-// (пока нет первого токена) может занимать заметное время.
-const RESPONSE_TIMEOUT_MS = 100_000;
+// Agent присылает heartbeat каждые 15с. Поэтому 30с достаточно для первого
+// признака жизни, 45с допускают потерю одного heartbeat, а общий deadline
+// 450с оставляет клиенту 30с поверх server deadline 420с.
+const FIRST_EVENT_TIMEOUT_MS = 30_000;
+const INACTIVITY_TIMEOUT_MS = 45_000;
+const OVERALL_RESPONSE_DEADLINE_MS = 450_000;
 const HISTORY_POLL_INTERVAL_MS = 2_000;
 
 export interface VeraChatMessage {
@@ -54,7 +55,38 @@ export interface VeraSendMessageResult {
     restoreDraft: boolean;
 }
 
-type ChatStatus = "idle" | "waiting" | "streaming" | "unavailable";
+type ChatStatus =
+    | "idle"
+    | "waiting"
+    | "long-running"
+    | "streaming"
+    | "unavailable";
+
+type ParsedSseEvent =
+    | VeraSseEvent
+    | { type: "ignored"; originalType: string };
+
+function parseSseEvent(rawData: unknown): ParsedSseEvent | null {
+    if (
+        typeof rawData !== "object" ||
+        rawData === null ||
+        !("type" in rawData) ||
+        typeof rawData.type !== "string"
+    ) {
+        return null;
+    }
+
+    if (
+        !(["token", "heartbeat", "done", "error"] as string[]).includes(
+            rawData.type,
+        )
+    ) {
+        return { type: "ignored", originalType: rawData.type };
+    }
+
+    const parsedEvent = veraSseEventSchema.safeParse(rawData);
+    return parsedEvent.success ? parsedEvent.data : null;
+}
 
 function readOrCreateSessionId(): string {
     if (typeof window === "undefined") return "";
@@ -145,7 +177,15 @@ export function useVeraChat() {
     const [announcement, setAnnouncement] = useState("");
 
     const eventSourceRef = useRef<EventSource | null>(null);
-    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const firstEventTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
+    const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
+    const overallTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
     const isMountedRef = useRef(true);
     const messagesRevisionRef = useRef(0);
     const tokenBufferRef = useRef<{
@@ -221,9 +261,15 @@ export function useVeraChat() {
         // на сервере подписку.
         eventSourceRef.current?.close();
         eventSourceRef.current = null;
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
+        for (const timerRef of [
+            firstEventTimeoutRef,
+            inactivityTimeoutRef,
+            overallTimeoutRef,
+        ]) {
+            if (timerRef.current !== null) {
+                clearTimeout(timerRef.current);
+                timerRef.current = null;
+            }
         }
     }, []);
 
@@ -361,7 +407,10 @@ export function useVeraChat() {
 
                     setStatus("waiting");
                     setAnnouncement("Ассистент Вера готовит ответ.");
-                    if (Date.now() - startedAt >= RESPONSE_TIMEOUT_MS) {
+                    if (
+                        Date.now() - startedAt >=
+                        OVERALL_RESPONSE_DEADLINE_MS
+                    ) {
                         setMessages((current) =>
                             current.filter(
                                 (message) =>
@@ -548,56 +597,94 @@ export function useVeraChat() {
             );
             eventSourceRef.current = eventSource;
 
-            timeoutRef.current = setTimeout(() => {
+            let streamSettled = false;
+            const failStream = (message: string) => {
+                if (streamSettled || !isMountedRef.current) return;
+                streamSettled = true;
                 closeStream();
                 clearBufferedTokens();
                 finishAssistantMessageAfterError(assistantMessageId);
                 setStatus("unavailable");
                 setAnnouncement("");
-                setError("Ассистент Вера сейчас недоступен. Попробуйте позже.");
-            }, RESPONSE_TIMEOUT_MS);
+                setError(message);
+            };
+
+            const resetInactivityTimeout = () => {
+                if (inactivityTimeoutRef.current !== null) {
+                    clearTimeout(inactivityTimeoutRef.current);
+                }
+                inactivityTimeoutRef.current = setTimeout(() => {
+                    failStream(
+                        "Поток ответа перестал обновляться. Ответ появится в истории, если обработка завершится.",
+                    );
+                }, INACTIVITY_TIMEOUT_MS);
+            };
+
+            const markStreamActivity = () => {
+                if (firstEventTimeoutRef.current !== null) {
+                    clearTimeout(firstEventTimeoutRef.current);
+                    firstEventTimeoutRef.current = null;
+                }
+                resetInactivityTimeout();
+            };
+
+            firstEventTimeoutRef.current = setTimeout(() => {
+                failStream(
+                    "Ассистент Вера не начал отвечать. Попробуйте позже.",
+                );
+            }, FIRST_EVENT_TIMEOUT_MS);
+            overallTimeoutRef.current = setTimeout(() => {
+                failStream(
+                    "Ответ готовится дольше ожидаемого. Он появится в истории, если обработка завершится.",
+                );
+            }, OVERALL_RESPONSE_DEADLINE_MS);
+
+            let hasReceivedToken = false;
 
             eventSource.onmessage = (event) => {
-                if (timeoutRef.current) {
-                    clearTimeout(timeoutRef.current);
-                    timeoutRef.current = null;
-                }
+                if (streamSettled || !isMountedRef.current) return;
 
                 let rawData: unknown;
                 try {
                     rawData = JSON.parse(event.data);
                 } catch {
                     flushBufferedTokens();
-                    closeStream();
-                    finishAssistantMessageAfterError(assistantMessageId);
-                    setStatus("unavailable");
-                    setAnnouncement("");
-                    setError(
+                    failStream(
                         "Не удалось обработать ответ Ассистента Веры. Попробуйте ещё раз.",
                     );
                     return;
                 }
-                const parsedEvent = veraSseEventSchema.safeParse(rawData);
-                if (!parsedEvent.success) {
+                const data = parseSseEvent(rawData);
+                if (data === null) {
                     flushBufferedTokens();
-                    closeStream();
-                    finishAssistantMessageAfterError(assistantMessageId);
-                    setStatus("unavailable");
-                    setAnnouncement("");
-                    setError(
+                    failStream(
                         "Не удалось обработать ответ Ассистента Веры. Попробуйте ещё раз.",
                     );
                     return;
                 }
-                const data = parsedEvent.data;
+
+                if (data.type === "ignored") {
+                    return;
+                }
+
+                markStreamActivity();
+
+                if (data.type === "heartbeat") {
+                    if (!hasReceivedToken) {
+                        setStatus("long-running");
+                    }
+                    return;
+                }
 
                 if (data.type === "token") {
+                    hasReceivedToken = true;
                     setStatus("streaming");
                     bufferToken(assistantMessageId, data.content);
                     return;
                 }
 
                 if (data.type === "done") {
+                    streamSettled = true;
                     flushBufferedTokens();
                     setMessages((prev) =>
                         prev.map((m) =>
@@ -617,6 +704,7 @@ export function useVeraChat() {
                 }
 
                 // data.type === "error"
+                streamSettled = true;
                 flushBufferedTokens();
                 finishAssistantMessageAfterError(assistantMessageId);
                 setStatus("idle");
@@ -629,12 +717,15 @@ export function useVeraChat() {
             };
 
             eventSource.onerror = () => {
+                if (streamSettled || !isMountedRef.current) return;
+                if (eventSource.readyState !== EventSource.CLOSED) {
+                    // CONNECTING означает штатный browser reconnect. Ticket
+                    // допускает повторное предъявление, а watchdog закроет
+                    // поток, только если события действительно прекратятся.
+                    return;
+                }
                 flushBufferedTokens();
-                closeStream();
-                finishAssistantMessageAfterError(assistantMessageId);
-                setStatus("unavailable");
-                setAnnouncement("");
-                setError(
+                failStream(
                     "Не удалось получить ответ Ассистента Веры. Проверьте соединение.",
                 );
             };

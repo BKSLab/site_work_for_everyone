@@ -946,15 +946,15 @@ Frontend TTL для anonymous-сессии нужно считать по той
 
 **Критерий готовности.** Разделены timeout первого события, inactivity timeout и общий deadline. Inactivity-таймер сбрасывается на `token` и heartbeat. Неизвестный тип SSE-события не роняет поток в `error`. Долгая email-операция имеет отдельный пользовательский статус.
 
-**Отчёт исполнителя.** _Заполняется агентом сразу после реализации карточки._
+**Отчёт исполнителя.**
 
-- **Статус:** `не начато` | `сделано` | `заблокировано` | `не требуется`
-- **Изменённые файлы:**
-- **Суть изменения:**
-- **Миграции Alembic:**
-- **Тесты** (добавленные, команда запуска, результат)**:**
-- **Отклонения от предложенного решения и причина:**
-- **Осталось / связанные карточки:**
+- **Статус:** `сделано`.
+- **Изменённые файлы:** `frontend/src/hooks/useVeraChat.ts`, `frontend/src/hooks/__tests__/useVeraChat.test.ts`, `frontend/src/components/features/vera/ChatWindow.tsx`, `frontend/src/components/features/vera/__tests__/ChatWindow.test.tsx`, `frontend/src/lib/schemas/vera.ts`, `frontend/src/lib/schemas/__tests__/vera.test.ts`, `VERA_CHAT_TECHNICAL_AUDIT.md`.
+- **Суть изменения:** единый 100-секундный watchdog заменён на timeout первого события 30 секунд, inactivity timeout 45 секунд и абсолютный deadline 450 секунд, который не сбрасывают heartbeat. Token и heartbeat сбрасывают inactivity, неизвестные event types безопасно игнорируются и не продлевают watchdog, malformed known events остаются protocol error. Heartbeat добавлен в canonical Zod-схему и до первого token переводит UI в отдельный `long-running`; видимый статус честно предупреждает, что отправка консультации на почту может занять несколько минут, но не создаёт новый live-region и не меняет существующее announcement. Transient `EventSource.onerror` в состоянии `CONNECTING` оставляет штатный reconnect/`Last-Event-ID`, а `CLOSED`, inactivity и deadline завершают поток контролируемо.
+- **Миграции Alembic:** не требуются.
+- **Тесты** (добавленные, команда запуска, результат)**:** добавлены границы 29 999/30 000 мс, reset inactivity по heartbeat/token, длительные heartbeat до overall deadline, unknown/malformed events, late events после terminal, native reconnect, сохранение partial answer и отдельный не-live статус длительной операции. Выборочный `npm test -- src/hooks/__tests__/useVeraChat.test.ts` — `26 passed`; полный `npm test` — `150 passed`; `npm run lint` — `0 errors`, `26` существующих warnings; `npm run build` — успешно.
+- **Отклонения от предложенного решения и причина:** frontend не получает признак маршрута `consultation_email`, поэтому не применялась ненадёжная эвристика по тексту вопроса и не менялся SSE-контракт. Длительный статус формулируется условно и включается по heartbeat до первого token; сам heartbeat ничего не объявляет программам экранного доступа.
+- **Осталось / связанные карточки:** неоднозначный исход POST, явные delivery-состояния и сверка по истории выполняются отдельно в VERA-025.
 
 ### VERA-025 — Гонки между SSE и POST создают неоднозначный UI
 

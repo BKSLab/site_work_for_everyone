@@ -109,7 +109,7 @@ export function ChatWindow() {
                 behavior: "auto",
             });
         }
-    }, [isOlderHistoryLoading, messages]);
+    }, [isOlderHistoryLoading, messages, status]);
 
     function handleHistoryScroll() {
         const list = listRef.current;
@@ -142,7 +142,10 @@ export function ChatWindow() {
         void loadOlderHistory();
     }
 
-    const isBusy = status === "waiting" || status === "streaming";
+    const isBusy =
+        status === "waiting" ||
+        status === "long-running" ||
+        status === "streaming";
 
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
@@ -283,6 +286,19 @@ export function ChatWindow() {
                             messages={messages}
                             sessionId={sessionId}
                         />
+                        {status === "long-running" && (
+                            <div className="flex items-center gap-2 rounded-xl border border-accent/25 bg-accent/10 px-4 py-3 text-sm text-muted">
+                                <span
+                                    aria-hidden="true"
+                                    className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-accent motion-reduce:animate-none"
+                                />
+                                <span>
+                                    Запрос выполняется. Если вы попросили
+                                    отправить консультацию на почту, это может
+                                    занять несколько минут.
+                                </span>
+                            </div>
+                        )}
                     </div>
                     {!isNearHistoryBottom && messages.length > 0 && (
                         <Button

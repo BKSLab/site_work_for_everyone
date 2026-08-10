@@ -217,6 +217,7 @@ describe("Vera HTTP response schemas", () => {
 describe("veraSseEventSchema", () => {
     it.each([
         { type: "token", content: "Фрагмент" },
+        { type: "heartbeat", ts: 1_723_296_000 },
         { type: "done" },
         { type: "error", detail: "Не удалось ответить" },
     ])("accepts the $type event", (event) => {
@@ -226,6 +227,7 @@ describe("veraSseEventSchema", () => {
     it.each([
         { type: "token" },
         { type: "heartbeat" },
+        { type: "heartbeat", ts: "сейчас" },
         null,
         42,
     ])("rejects an invalid event: %j", (event) => {
