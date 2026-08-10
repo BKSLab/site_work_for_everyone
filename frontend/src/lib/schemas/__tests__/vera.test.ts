@@ -3,6 +3,8 @@ import {
     veraChatHistoryResponseSchema,
     veraChatResponseSchema,
     veraChatSchema,
+    veraChatSessionResolveResponseSchema,
+    veraChatSessionResolveSchema,
     veraCurrentChatSessionResponseSchema,
     veraErrorResponseSchema,
     veraFeedbackResponseSchema,
@@ -124,6 +126,18 @@ describe("Vera HTTP response schemas", () => {
                 request_id: "request-1",
                 stream_ticket: "signed.ticket",
                 stream_url: "/vera/sse/request-1",
+                session_id: "conversation-1",
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
+            }).success,
+        ).toBe(true);
+        expect(
+            veraChatSessionResolveResponseSchema.safeParse({
+                session_id: "conversation-2",
+                previous_session_id: "conversation-1",
+                boundary: "expired",
+                session_ttl_seconds: 86_400,
             }).success,
         ).toBe(true);
         expect(
@@ -180,6 +194,10 @@ describe("Vera HTTP response schemas", () => {
                 request_id: "request-1",
                 stream_ticket: "signed.ticket",
                 stream_url: "https://example.com/sse/request-1",
+                session_id: "conversation-1",
+                previous_session_id: null,
+                boundary: "retained",
+                session_ttl_seconds: 86_400,
             }).success,
         ).toBe(false);
     });
@@ -200,6 +218,18 @@ describe("Vera HTTP response schemas", () => {
                 ],
             }).success,
         ).toBe(true);
+        expect(
+            veraErrorResponseSchema.safeParse({
+                detail: "Публикация не началась.",
+                publish_state: "not_published",
+            }).success,
+        ).toBe(true);
+        expect(
+            veraErrorResponseSchema.safeParse({
+                detail: "Неизвестное состояние.",
+                publish_state: "maybe_published",
+            }).success,
+        ).toBe(false);
     });
 
     it("rejects a response that does not match its endpoint contract", () => {
@@ -209,6 +239,31 @@ describe("Vera HTTP response schemas", () => {
         expect(
             veraCurrentChatSessionResponseSchema.safeParse({
                 session_id: 42,
+            }).success,
+        ).toBe(false);
+    });
+});
+
+describe("veraChatSessionResolveSchema", () => {
+    it("requires current and replacement session ids", () => {
+        expect(
+            veraChatSessionResolveSchema.safeParse({
+                session_id: "conversation-1",
+                replacement_session_id: "conversation-2",
+            }).success,
+        ).toBe(true);
+        expect(
+            veraChatSessionResolveSchema.safeParse({
+                session_id: "conversation-1",
+            }).success,
+        ).toBe(false);
+    });
+
+    it("rejects an incomplete lifecycle response", () => {
+        expect(
+            veraChatSessionResolveResponseSchema.safeParse({
+                session_id: "conversation-1",
+                boundary: "retained",
             }).success,
         ).toBe(false);
     });

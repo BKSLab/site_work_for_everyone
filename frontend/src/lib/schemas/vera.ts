@@ -25,6 +25,15 @@ export const veraChatSchema = z.object({
 
 export type VeraChatFormData = z.infer<typeof veraChatSchema>;
 
+export const veraChatSessionResolveSchema = z.object({
+    session_id: z.string().min(1).max(100),
+    replacement_session_id: z.string().min(1).max(100),
+});
+
+export type VeraChatSessionResolveFormData = z.infer<
+    typeof veraChatSessionResolveSchema
+>;
+
 export const veraMessageFeedbackSchema = z.object({
     session_id: z.string().min(1).max(100),
     request_id: z.string().min(1).max(100),
@@ -66,11 +75,30 @@ const veraValidationErrorItemSchema = z.object({
 
 export const veraErrorResponseSchema = z.object({
     detail: z.union([z.string(), z.array(veraValidationErrorItemSchema)]),
+    publish_state: z.literal("not_published").optional(),
 }).passthrough();
 
 export type VeraErrorResponse = z.infer<typeof veraErrorResponseSchema>;
 
-export const veraChatResponseSchema = z.object({
+export const veraChatSessionLifecycleResponseSchema = z.object({
+    session_id: z.string().min(1).max(100),
+    previous_session_id: z.string().min(1).max(100).nullable(),
+    boundary: z.enum(["created", "retained", "expired"]),
+    session_ttl_seconds: z.number().int().positive(),
+}).passthrough();
+
+export type VeraChatSessionLifecycleResponse = z.infer<
+    typeof veraChatSessionLifecycleResponseSchema
+>;
+
+export const veraChatSessionResolveResponseSchema =
+    veraChatSessionLifecycleResponseSchema;
+
+export type VeraChatSessionResolveResponse = z.infer<
+    typeof veraChatSessionResolveResponseSchema
+>;
+
+export const veraChatResponseSchema = veraChatSessionLifecycleResponseSchema.extend({
     request_id: z.string().min(1).max(100),
     stream_ticket: z.string().min(1),
     stream_url: z.string().regex(/^\/vera\/sse\/[^?#]+$/),

@@ -1,4 +1,9 @@
 import asyncio
+import base64
+import hashlib
+import hmac
+import json
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, call, patch
@@ -9,12 +14,15 @@ from fastapi import FastAPI
 from main import app as backend_app
 from src.api.vera import router as vera_router
 from src.core.limiter import limiter
+from src.core.settings import get_settings
 from src.dependencies.jwt import get_optional_user_payload
 from src.dependencies.vera import (
+    get_vera_agent_client,
     get_vera_publisher,
     get_vera_stream_ticket_issuer,
 )
 from src.exceptions.services import VeraStreamTicketServiceError
+from src.schemas.vera import VeraChatSessionResolveResponseSchema
 from src.services.vera_publisher import VeraPublisherManager
 from src.services.vera_stream_ticket import VeraStreamTicketIssuer
 
@@ -38,6 +46,48 @@ class _FakePublisher:
 class _FailingTicketIssuer:
     def issue(self, **_kwargs) -> str:
         raise VeraStreamTicketServiceError("signing failed")
+
+
+class _FakeAgentClient:
+    async def resolve_chat_session(self, _data, **_owner):
+        return VeraChatSessionResolveResponseSchema(
+            session_id="session-1",
+            previous_session_id=None,
+            boundary="created",
+            session_ttl_seconds=86400,
+        )
+
+
+def _session_token(session_id: str, nonce: str) -> str:
+    payload = base64.urlsafe_b64encode(
+        json.dumps(
+            {
+                "session_id": session_id,
+                "nonce": nonce,
+                "exp": int(time.time()) + 60,
+            },
+            separators=(",", ":"),
+        ).encode()
+    ).decode().rstrip("=")
+    secret = get_settings().vera.session_signing_key.get_secret_value().encode()
+    signature = base64.urlsafe_b64encode(
+        hmac.new(secret, payload.encode(), hashlib.sha256).digest()
+    ).decode().rstrip("=")
+    return f"{payload}.{signature}"
+
+
+def _chat_owner_headers() -> dict[str, str]:
+    return {
+        "X-Vera-Session-Token": _session_token("session-1", "current"),
+        "X-Vera-Refreshed-Session-Token": _session_token(
+            "session-1",
+            "refreshed",
+        ),
+        "X-Vera-Replacement-Session-Token": _session_token(
+            "session-2",
+            "replacement",
+        ),
+    }
 
 
 async def _wait_until_ready(manager: VeraPublisherManager) -> None:
@@ -238,6 +288,9 @@ class VeraPublisherManagerTests(unittest.IsolatedAsyncioTestCase):
         test_app.dependency_overrides[get_vera_publisher] = (
             lambda: manager.publisher
         )
+        test_app.dependency_overrides[get_vera_agent_client] = (
+            _FakeAgentClient
+        )
         test_app.dependency_overrides[get_vera_stream_ticket_issuer] = lambda: (
             VeraStreamTicketIssuer("shared-test-key")
         )
@@ -250,9 +303,11 @@ class VeraPublisherManagerTests(unittest.IsolatedAsyncioTestCase):
                 "/api/vera/chat",
                 json={
                     "session_id": "session-1",
+                    "replacement_session_id": "session-2",
                     "request_id": "request-1",
                     "message": "Вопрос",
                 },
+                headers=_chat_owner_headers(),
             )
 
         self.assertEqual(response.status_code, 202)
@@ -285,6 +340,9 @@ class VeraPublisherManagerTests(unittest.IsolatedAsyncioTestCase):
             "sub": "user@example.com"
         }
         test_app.dependency_overrides[get_vera_publisher] = lambda: manager.publisher
+        test_app.dependency_overrides[get_vera_agent_client] = (
+            _FakeAgentClient
+        )
         test_app.dependency_overrides[get_vera_stream_ticket_issuer] = lambda: None
         transport = httpx.ASGITransport(app=test_app)
         async with httpx.AsyncClient(
@@ -295,12 +353,15 @@ class VeraPublisherManagerTests(unittest.IsolatedAsyncioTestCase):
                 "/api/vera/chat",
                 json={
                     "session_id": "session-1",
+                    "replacement_session_id": "session-2",
                     "request_id": "request-1",
                     "message": "Вопрос",
                 },
+                headers=_chat_owner_headers(),
             )
 
         self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["publish_state"], "not_published")
         self.assertEqual(publisher.published_requests, [])
         await manager.close()
 
@@ -327,6 +388,9 @@ class VeraPublisherManagerTests(unittest.IsolatedAsyncioTestCase):
             "sub": "user@example.com"
         }
         test_app.dependency_overrides[get_vera_publisher] = lambda: manager.publisher
+        test_app.dependency_overrides[get_vera_agent_client] = (
+            _FakeAgentClient
+        )
         test_app.dependency_overrides[get_vera_stream_ticket_issuer] = (
             _FailingTicketIssuer
         )
@@ -339,12 +403,15 @@ class VeraPublisherManagerTests(unittest.IsolatedAsyncioTestCase):
                 "/api/vera/chat",
                 json={
                     "session_id": "session-1",
+                    "replacement_session_id": "session-2",
                     "request_id": "request-1",
                     "message": "Вопрос",
                 },
+                headers=_chat_owner_headers(),
             )
 
         self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["publish_state"], "not_published")
         self.assertEqual(publisher.published_requests, [])
         await manager.close()
 

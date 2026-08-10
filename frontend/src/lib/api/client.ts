@@ -2,9 +2,26 @@ export class ApiRequestError extends Error {
     constructor(
         public status: number,
         public detail: string,
+        public metadata: {
+            publishState?: "not_published";
+            lifecycle?: {
+                session_id: string;
+                previous_session_id: string | null;
+                boundary: "created" | "retained" | "expired";
+                session_ttl_seconds: number;
+            };
+        } = {},
     ) {
         super(detail);
         this.name = "ApiRequestError";
+    }
+
+    get publishState(): "not_published" | undefined {
+        return this.metadata.publishState;
+    }
+
+    get lifecycle() {
+        return this.metadata.lifecycle;
     }
 }
 

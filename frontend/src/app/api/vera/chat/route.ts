@@ -6,11 +6,13 @@ import { logger } from "@/lib/utils/logger";
 import {
     veraChatResponseSchema,
     veraChatSchema,
+    veraChatSessionLifecycleResponseSchema,
 } from "@/lib/schemas/vera";
 import {
-    applyVeraOwnerCookies,
-    getVeraOwnerHeaders,
+    applyVeraLifecycleOwnerCookies,
+    getVeraLifecycleOwnerHeaders,
     getVeraOwnerUpstreamError,
+    isVeraLifecycleResponseBoundToOwner,
 } from "@/lib/utils/vera-owner-headers";
 import {
     getVeraErrorDetail,
@@ -58,7 +60,10 @@ export async function POST(request: NextRequest) {
 
     if (!AUTH_API_URL) {
         return NextResponse.json(
-            { detail: "Сервер не настроен." },
+            {
+                detail: "Сервер не настроен.",
+                publish_state: "not_published",
+            },
             { status: 503 },
         );
     }
@@ -70,6 +75,7 @@ export async function POST(request: NextRequest) {
     // клиентская валидация обойдена
     let body: string;
     let sessionId: string;
+    let replacementSessionId: string;
     try {
         const raw = await request.json();
         const result = veraChatSchema.safeParse(raw);
@@ -82,8 +88,12 @@ export async function POST(request: NextRequest) {
                 { status: 422 },
             );
         }
-        body = JSON.stringify(result.data);
         sessionId = result.data.session_id;
+        replacementSessionId = result.data.request_id;
+        body = JSON.stringify({
+            ...result.data,
+            replacement_session_id: replacementSessionId,
+        });
     } catch {
         return NextResponse.json(
             { detail: "Invalid request body" },
@@ -94,8 +104,16 @@ export async function POST(request: NextRequest) {
     // 4. Пробрасываем access_token cookie как Bearer — user_id для агента
     // определяется backend'ом из верифицированного JWT, не из тела запроса
     // (см. AGENT_VERA_ARCHITECTURE.md — user_id влияет на доступные тулы)
-    const owner = await getVeraOwnerHeaders(requestId, sessionId);
-    if (!owner.ok) return owner.response;
+    const owner = await getVeraLifecycleOwnerHeaders(
+        requestId,
+        sessionId,
+        replacementSessionId,
+    );
+    if (!owner.ok) {
+        return owner.response.status === 503
+            ? markAsNotPublished(owner.response, requestId)
+            : owner.response;
+    }
     const headers: HeadersInit = {
         "Content-Type": "application/json",
         "X-Request-ID": requestId,
@@ -124,12 +142,14 @@ export async function POST(request: NextRequest) {
                 requestId,
                 durationMs: Date.now() - startTime,
             });
-            return applyVeraOwnerCookies(
+            return applyVeraLifecycleOwnerCookies(
                 NextResponse.json(
                     { detail: "Сервер не отвечает. Попробуйте позже." },
                     { status: 504 },
                 ),
                 owner,
+                null,
+                "store",
             );
         }
         logger.error("Vera chat proxy connection error", {
@@ -137,12 +157,14 @@ export async function POST(request: NextRequest) {
             durationMs: Date.now() - startTime,
             error: error instanceof Error ? error.message : String(error),
         });
-        return applyVeraOwnerCookies(
+        return applyVeraLifecycleOwnerCookies(
             NextResponse.json(
                 { detail: "Ошибка соединения с сервером." },
                 { status: 502 },
             ),
             owner,
+            null,
+            "store",
         );
     } finally {
         clearTimeout(timeoutId);
@@ -152,7 +174,30 @@ export async function POST(request: NextRequest) {
         response,
         veraChatResponseSchema,
     );
-    if (!parsedResponse.success) {
+    const lifecycleResult = parsedResponse.success
+        ? veraChatSessionLifecycleResponseSchema.safeParse(
+              parsedResponse.data,
+          )
+        : null;
+    const hasLifecycleFields =
+        parsedResponse.success &&
+        typeof parsedResponse.data === "object" &&
+        parsedResponse.data !== null &&
+        [
+            "session_id",
+            "previous_session_id",
+            "boundary",
+            "session_ttl_seconds",
+        ].some((field) => field in parsedResponse.data);
+    const lifecycle = lifecycleResult?.success
+        ? lifecycleResult.data
+        : null;
+    if (
+        !parsedResponse.success ||
+        (hasLifecycleFields && lifecycle === null) ||
+        (lifecycle !== null &&
+            !isVeraLifecycleResponseBoundToOwner(lifecycle, owner))
+    ) {
         logger.error("Vera chat proxy invalid response", {
             requestId,
             status: response.status,
@@ -163,7 +208,12 @@ export async function POST(request: NextRequest) {
             { status: 502 },
         );
         invalidResponse.headers.set("X-Request-ID", requestId);
-        return applyVeraOwnerCookies(invalidResponse, owner);
+        return applyVeraLifecycleOwnerCookies(
+            invalidResponse,
+            owner,
+            null,
+            "store",
+        );
     }
     const data = parsedResponse.data;
 
@@ -191,9 +241,48 @@ export async function POST(request: NextRequest) {
         data,
         requestId,
     );
-    if (ownerError) return applyVeraOwnerCookies(ownerError, owner);
+    if (ownerError) {
+        return applyVeraLifecycleOwnerCookies(
+            ownerError,
+            owner,
+            null,
+            "clear",
+        );
+    }
 
     const res = NextResponse.json(data, { status: response.status });
     res.headers.set("X-Request-ID", requestId);
-    return applyVeraOwnerCookies(res, owner);
+    const isDefinitelyRejected =
+        [400, 401, 403, 409, 422, 429].includes(response.status);
+    return applyVeraLifecycleOwnerCookies(
+        res,
+        owner,
+        lifecycle,
+        response.ok || lifecycle !== null || isDefinitelyRejected
+            ? "clear"
+            : "store",
+    );
+}
+
+async function markAsNotPublished(
+    response: NextResponse,
+    requestId: string,
+): Promise<NextResponse> {
+    let detail = "Сервис сессий чата временно не настроен.";
+    try {
+        const body = (await response.clone().json()) as { detail?: unknown };
+        if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+        // Configuration failures are generated locally as JSON. Keep a safe
+        // fallback should that implementation detail ever change.
+    }
+    const marked = NextResponse.json(
+        { detail, publish_state: "not_published" },
+        { status: response.status },
+    );
+    marked.headers.set(
+        "X-Request-ID",
+        response.headers.get("X-Request-ID") ?? requestId,
+    );
+    return marked;
 }

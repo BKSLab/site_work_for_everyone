@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import {
+    Fragment,
     memo,
     useEffect,
     useRef,
@@ -48,6 +49,7 @@ export function ChatWindow() {
     const {
         sessionId,
         messages,
+        previousSessionGroups = [],
         sendMessage,
         status,
         deliveryState,
@@ -58,49 +60,63 @@ export function ChatWindow() {
         hasOlderHistory,
         isOlderHistoryLoading,
         loadOlderHistory,
+        olderPreviousHistorySessionId = null,
+        loadOlderPreviousHistory = () => undefined,
     } = useVeraChat();
     const [input, setInput] = useState("");
     const [isNearHistoryBottom, setIsNearHistoryBottom] = useState(true);
     const listRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
-    const previousScrollHeightRef = useRef<number | null>(null);
-    const previousFirstMessageIdRef = useRef<string | null>(null);
+    const pendingHistoryAnchorRef = useRef<{
+        kind: "current" | "previous";
+        sessionId?: string;
+        firstMessageId: string | null;
+        scrollHeight: number;
+    } | null>(null);
     const shouldAutoScrollRef = useRef(true);
+    const hasVisibleMessages =
+        messages.length > 0 ||
+        previousSessionGroups.some((group) => group.messages.length > 0);
 
     useEffect(() => {
         const list = listRef.current;
         if (!list) return;
 
-        if (previousScrollHeightRef.current !== null) {
-            const previousFirstMessageId =
-                previousFirstMessageIdRef.current;
-            const firstMessageId = messages[0]?.id ?? null;
+        const anchor = pendingHistoryAnchorRef.current;
+        if (anchor) {
+            const anchoredMessages =
+                anchor.kind === "current"
+                    ? messages
+                    : (previousSessionGroups.find(
+                          (group) => group.sessionId === anchor.sessionId,
+                      )?.messages ?? []);
+            const firstMessageId = anchoredMessages[0]?.id ?? null;
             const didPrepend =
-                previousFirstMessageId === null
-                    ? messages.length > 0
-                    : firstMessageId !== previousFirstMessageId &&
-                      messages.some(
-                          (message) =>
-                              message.id === previousFirstMessageId,
+                anchor.firstMessageId === null
+                    ? anchoredMessages.length > 0
+                    : firstMessageId !== anchor.firstMessageId &&
+                      anchoredMessages.some(
+                          (message) => message.id === anchor.firstMessageId,
                       );
 
             if (didPrepend) {
-                list.scrollTop +=
-                    list.scrollHeight - previousScrollHeightRef.current;
-                previousScrollHeightRef.current = null;
-                previousFirstMessageIdRef.current = null;
+                list.scrollTop += list.scrollHeight - anchor.scrollHeight;
+                pendingHistoryAnchorRef.current = null;
                 return;
             }
 
-            if (isOlderHistoryLoading) {
+            const isAnchoredHistoryLoading =
+                anchor.kind === "current"
+                    ? isOlderHistoryLoading
+                    : olderPreviousHistorySessionId === anchor.sessionId;
+            if (isAnchoredHistoryLoading) {
                 // Append/stream update во время загрузки не должен съесть
                 // marker будущего prepend или попасть в его высоту.
-                previousScrollHeightRef.current = list.scrollHeight;
+                anchor.scrollHeight = list.scrollHeight;
                 return;
             }
 
-            previousScrollHeightRef.current = null;
-            previousFirstMessageIdRef.current = null;
+            pendingHistoryAnchorRef.current = null;
             return;
         }
 
@@ -110,7 +126,13 @@ export function ChatWindow() {
                 behavior: "auto",
             });
         }
-    }, [isOlderHistoryLoading, messages, status]);
+    }, [
+        isOlderHistoryLoading,
+        messages,
+        olderPreviousHistorySessionId,
+        previousSessionGroups,
+        status,
+    ]);
 
     function handleHistoryScroll() {
         const list = listRef.current;
@@ -137,10 +159,28 @@ export function ChatWindow() {
 
     function handleLoadOlderHistory() {
         if (listRef.current) {
-            previousScrollHeightRef.current = listRef.current.scrollHeight;
-            previousFirstMessageIdRef.current = messages[0]?.id ?? null;
+            pendingHistoryAnchorRef.current = {
+                kind: "current",
+                firstMessageId: messages[0]?.id ?? null,
+                scrollHeight: listRef.current.scrollHeight,
+            };
         }
         void loadOlderHistory();
+    }
+
+    function handleLoadOlderPreviousHistory(group: {
+        sessionId: string;
+        messages: VeraChatMessage[];
+    }) {
+        if (listRef.current) {
+            pendingHistoryAnchorRef.current = {
+                kind: "previous",
+                sessionId: group.sessionId,
+                firstMessageId: group.messages[0]?.id ?? null,
+                scrollHeight: listRef.current.scrollHeight,
+            };
+        }
+        void loadOlderPreviousHistory(group.sessionId);
     }
 
     const isDeliveryProcessing = deliveryState
@@ -238,6 +278,53 @@ export function ChatWindow() {
                         onScroll={handleHistoryScroll}
                         className="vera-chat-scrollbar flex h-full min-h-0 w-full flex-col gap-4 overflow-y-auto p-4 sm:p-6"
                     >
+                        {previousSessionGroups.map((group) => (
+                            <Fragment key={group.sessionId}>
+                                {group.historyCursor != null && (
+                                    <div className="flex justify-center">
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            disabled={
+                                                olderPreviousHistorySessionId !==
+                                                null
+                                            }
+                                            onClick={() =>
+                                                handleLoadOlderPreviousHistory(
+                                                    group,
+                                                )
+                                            }
+                                        >
+                                            {olderPreviousHistorySessionId ===
+                                            group.sessionId
+                                                ? "Загружаю…"
+                                                : "Показать предыдущие в завершённом диалоге"}
+                                        </Button>
+                                    </div>
+                                )}
+                                <ChatMessageList
+                                    messages={group.messages}
+                                    sessionId={group.sessionId}
+                                />
+                                <div
+                                    role="separator"
+                                    aria-label="Начало нового диалога"
+                                    className="flex items-center gap-3 py-1 text-xs text-muted"
+                                >
+                                    <span
+                                        aria-hidden="true"
+                                        className="h-px flex-1 bg-border"
+                                    />
+                                    <span className="shrink-0">
+                                        Контекст предыдущего диалога завершён
+                                    </span>
+                                    <span
+                                        aria-hidden="true"
+                                        className="h-px flex-1 bg-border"
+                                    />
+                                </div>
+                            </Fragment>
+                        ))}
                         {hasOlderHistory && (
                             <div className="flex justify-center">
                                 <Button
@@ -313,7 +400,7 @@ export function ChatWindow() {
                             </div>
                         )}
                     </div>
-                    {!isNearHistoryBottom && messages.length > 0 && (
+                    {!isNearHistoryBottom && hasVisibleMessages && (
                         <Button
                             type="button"
                             variant="secondary"

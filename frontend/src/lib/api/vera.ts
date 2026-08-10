@@ -4,6 +4,11 @@ import {
     veraChatHistoryResponseSchema,
     type VeraChatResponse,
     veraChatResponseSchema,
+    type VeraChatSessionLifecycleResponse,
+    veraChatSessionLifecycleResponseSchema,
+    type VeraChatSessionResolveFormData,
+    type VeraChatSessionResolveResponse,
+    veraChatSessionResolveResponseSchema,
     type VeraCurrentChatSessionResponse,
     veraCurrentChatSessionResponseSchema,
     type VeraFeedbackResponse,
@@ -27,6 +32,8 @@ const VERA_STREAM_PREFIX = "/vera/sse/";
 export type {
     VeraChatHistoryResponse,
     VeraChatHistoryTurn,
+    VeraChatSessionLifecycleResponse,
+    VeraChatSessionResolveResponse,
     VeraCurrentChatSessionResponse,
 } from "@/lib/schemas/vera";
 
@@ -41,9 +48,16 @@ async function readVeraResponse<T>(
     }
 
     if (parsed.kind === "error") {
+        const lifecycle = veraChatSessionLifecycleResponseSchema.safeParse(
+            parsed.data,
+        );
         throw new ApiRequestError(
             response.status,
             getVeraErrorDetail(parsed.data),
+            {
+                publishState: parsed.data.publish_state,
+                lifecycle: lifecycle.success ? lifecycle.data : undefined,
+            },
         );
     }
 
@@ -63,6 +77,24 @@ function isStreamUrlForRequest(streamUrl: string, requestId: string): boolean {
     }
 }
 
+function isLifecycleBoundToRequest(
+    lifecycle: VeraChatSessionLifecycleResponse,
+    sessionId: string,
+    replacementSessionId: string,
+): boolean {
+    if (lifecycle.boundary === "expired") {
+        return (
+            lifecycle.session_id === replacementSessionId &&
+            lifecycle.previous_session_id === sessionId
+        );
+    }
+
+    return (
+        lifecycle.session_id === sessionId &&
+        lifecycle.previous_session_id === null
+    );
+}
+
 export const veraApi = {
     getCurrentSession: async (
         signal?: AbortSignal,
@@ -79,6 +111,48 @@ export const veraApi = {
         );
     },
 
+    resolveSession: async (
+        data: VeraChatSessionResolveFormData,
+        signal?: AbortSignal,
+    ): Promise<VeraChatSessionResolveResponse> => {
+        const response = await fetch(`${VERA_BASE}/session/resolve`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+            signal,
+        });
+        let resolution: VeraChatSessionResolveResponse;
+        try {
+            resolution = await readVeraResponse(
+                response,
+                veraChatSessionResolveResponseSchema,
+            );
+        } catch (error) {
+            if (
+                error instanceof ApiRequestError &&
+                error.lifecycle &&
+                !isLifecycleBoundToRequest(
+                    error.lifecycle,
+                    data.session_id,
+                    data.replacement_session_id,
+                )
+            ) {
+                throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
+            }
+            throw error;
+        }
+        if (
+            !isLifecycleBoundToRequest(
+                resolution,
+                data.session_id,
+                data.replacement_session_id,
+            )
+        ) {
+            throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
+        }
+        return resolution;
+    },
+
     sendMessage: async (
         data: VeraChatFormData,
         signal?: AbortSignal,
@@ -90,13 +164,34 @@ export const veraApi = {
             signal,
         });
 
-        const receipt = await readVeraResponse(
-            response,
-            veraChatResponseSchema,
-        );
+        let receipt: VeraChatResponse;
+        try {
+            receipt = await readVeraResponse(
+                response,
+                veraChatResponseSchema,
+            );
+        } catch (error) {
+            if (
+                error instanceof ApiRequestError &&
+                error.lifecycle &&
+                !isLifecycleBoundToRequest(
+                    error.lifecycle,
+                    data.session_id,
+                    data.request_id,
+                )
+            ) {
+                throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
+            }
+            throw error;
+        }
         if (
             receipt.request_id !== data.request_id ||
-            !isStreamUrlForRequest(receipt.stream_url, data.request_id)
+            !isStreamUrlForRequest(receipt.stream_url, data.request_id) ||
+            !isLifecycleBoundToRequest(
+                receipt,
+                data.session_id,
+                data.request_id,
+            )
         ) {
             throw new ApiRequestError(502, VERA_RESPONSE_CONTRACT_ERROR);
         }

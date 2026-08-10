@@ -3,6 +3,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Header, HTTPException, Path, Query, Request, status
+from fastapi.responses import JSONResponse
 
 from src.core.limiter import limiter
 from src.dependencies.jwt import OptionalUserPayloadDep
@@ -17,11 +18,17 @@ from src.exceptions.services import (
     VeraSessionTokenError,
     VeraStreamTicketServiceError,
 )
-from src.services.vera_session_access import resolve_vera_session_access
+from src.services.vera_session_access import (
+    VeraSessionLifecycleAccess,
+    resolve_vera_session_access,
+    resolve_vera_session_lifecycle_access,
+)
 from src.schemas.vera import (
     VeraChatAcceptedResponseSchema,
     VeraChatHistoryResponseSchema,
     VeraChatRequestSchema,
+    VeraChatSessionResolveRequestSchema,
+    VeraChatSessionResolveResponseSchema,
     VeraCurrentChatSessionResponseSchema,
     VeraFeedbackResponseSchema,
     VeraFeedbackSchema,
@@ -31,6 +38,60 @@ from src.schemas.vera import (
 
 router = APIRouter(prefix='/vera', tags=['Vera'])
 logger = logging.getLogger(__name__)
+
+
+def _get_effective_anonymous_token_hash(
+    boundary: str,
+    access: VeraSessionLifecycleAccess,
+) -> str | None:
+    """Выбирает owner hash, сохранённый Agent Service для effective session."""
+    if boundary == "expired":
+        return access.replacement_anonymous_token_hash
+    if boundary == "retained":
+        return access.refreshed_anonymous_token_hash
+    if access.user_id is not None:
+        return None
+    return access.anonymous_token_hash
+
+
+def _lifecycle_error_response(
+    *,
+    status_code: int,
+    detail: str,
+    resolved_session: VeraChatSessionResolveResponseSchema,
+    publish_state: str | None = None,
+) -> JSONResponse:
+    """Возвращает ошибку после resolve вместе с уже принятой границей.
+
+    BFF обязан обновить owner-cookie даже когда ticket или Rabbit publish
+    завершились ошибкой: lifecycle-транзакция Agent Service к этому моменту
+    уже зафиксирована и не может быть откатана backend'ом сайта.
+    """
+    content = {
+        "detail": detail,
+        **resolved_session.model_dump(mode="json"),
+    }
+    if publish_state is not None:
+        content["publish_state"] = publish_state
+    return JSONResponse(
+        status_code=status_code,
+        content=content,
+    )
+
+
+def _not_published_error_response(
+    *,
+    status_code: int,
+    detail: str,
+) -> JSONResponse:
+    """Помечает отказ, после которого Rabbit publish точно не начинался."""
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "detail": detail,
+            "publish_state": "not_published",
+        },
+    )
 
 
 @router.get(
@@ -80,6 +141,97 @@ async def get_current_vera_chat_session(
 
 
 @router.post(
+    path="/session/resolve",
+    status_code=status.HTTP_200_OK,
+    summary="Определить активную сессию диалога с Верой",
+    description=(
+        "Проверяет owner-token текущей и replacement-сессии, затем передаёт "
+        "Agent Service право определить серверную границу диалога."
+    ),
+    operation_id="resolveVeraChatSession",
+    response_description="Эффективная сессия и причина выбранной границы.",
+    response_model=VeraChatSessionResolveResponseSchema,
+    responses={
+        401: {"description": "Подписанный токен сессии не прошёл проверку."},
+        403: {"description": "Сессия принадлежит другому владельцу."},
+        409: {"description": "Replacement session ID уже занят."},
+        429: {"description": "Превышен лимит запросов."},
+        502: {"description": "Ошибка соединения с Agent Service."},
+        503: {"description": "Agent Service API не настроен."},
+        504: {"description": "Agent Service не ответил вовремя."},
+    },
+)
+@limiter.limit("60/minute")
+async def resolve_vera_chat_session(
+    request: Request,
+    data: VeraChatSessionResolveRequestSchema,
+    user_payload: OptionalUserPayloadDep,
+    agent_client: VeraAgentClientDep,
+    anonymous_token: Annotated[str, Header(alias="X-Vera-Session-Token")],
+    refreshed_anonymous_token: Annotated[
+        str,
+        Header(alias="X-Vera-Refreshed-Session-Token"),
+    ],
+    replacement_anonymous_token: Annotated[
+        str,
+        Header(alias="X-Vera-Replacement-Session-Token"),
+    ],
+) -> VeraChatSessionResolveResponseSchema:
+    """Проверяет owner-токены и получает server-side решение о сессии.
+
+    Args:
+        request: HTTP-запрос для rate limiter.
+        data: Текущий и replacement идентификаторы сессий.
+        user_payload: Payload проверенного JWT либо ``None``.
+        agent_client: HTTP-клиент Agent Service.
+        anonymous_token: Подписанный токен текущей сессии.
+        refreshed_anonymous_token: Новый токен текущей сессии.
+        replacement_anonymous_token: Токен replacement-сессии.
+
+    Returns:
+        Эффективную сессию и server-side TTL.
+    """
+    if agent_client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Agent Service API не настроен.",
+        )
+
+    try:
+        access = resolve_vera_session_lifecycle_access(
+            session_id=data.session_id,
+            replacement_session_id=data.replacement_session_id,
+            user_payload=user_payload,
+            anonymous_token=anonymous_token,
+            refreshed_anonymous_token=refreshed_anonymous_token,
+            replacement_anonymous_token=replacement_anonymous_token,
+        )
+        return await agent_client.resolve_chat_session(
+            data,
+            user_id=access.user_id,
+            anonymous_token_hash=access.anonymous_token_hash,
+            refreshed_anonymous_token_hash=(
+                access.refreshed_anonymous_token_hash
+            ),
+            replacement_anonymous_token_hash=(
+                access.replacement_anonymous_token_hash
+            ),
+        )
+    except VeraSessionTokenError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.detail,
+        ) from error
+    except VeraAgentServiceError as error:
+        log_method = logger.error if error.status_code >= 500 else logger.warning
+        log_method("Не удалось определить активную сессию Веры: %s", error)
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.detail,
+        ) from error
+
+
+@router.post(
     path="/chat",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=VeraChatAcceptedResponseSchema,
@@ -91,10 +243,55 @@ async def get_current_vera_chat_session(
         "agent_service, не этим эндпоинтом)."
     ),
     responses={
-        503: {
-            "description": "Ассистент временно недоступен (RabbitMQ недоступен).",
+        401: {
+            "description": "Подписанный токен сессии не прошёл проверку.",
+        },
+        403: {
+            "description": "Сессия принадлежит другому владельцу.",
+        },
+        409: {
+            "description": "Для истёкшей сессии уже создан другой successor.",
+        },
+        502: {
+            "description": (
+                "Agent Service недоступен или вернул некорректный lifecycle-ответ; "
+                "публикация не начиналась."
+            ),
             "content": {
-                "application/json": {"example": {"detail": "Ассистент временно недоступен."}}
+                "application/json": {
+                    "example": {
+                        "detail": "Ассистент временно недоступен.",
+                        "publish_state": "not_published",
+                    }
+                }
+            },
+        },
+        503: {
+            "description": (
+                "Ассистент временно недоступен. Ответ после lifecycle может "
+                "дополнительно содержать session_id, previous_session_id, "
+                "boundary и session_ttl_seconds."
+            ),
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Ассистент временно недоступен.",
+                        "publish_state": "not_published",
+                    }
+                }
+            },
+        },
+        504: {
+            "description": (
+                "Agent Service не ответил вовремя; публикация не начиналась."
+            ),
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Ассистент временно недоступен.",
+                        "publish_state": "not_published",
+                    }
+                }
             },
         },
         429: {
@@ -109,11 +306,20 @@ async def send_message(
     data: VeraChatRequestSchema,
     user_payload: OptionalUserPayloadDep,
     vera_publisher: VeraPublisherDep,
+    agent_client: VeraAgentClientDep,
     stream_ticket_issuer: VeraStreamTicketIssuerDep,
     anonymous_token: Annotated[
-        str | None,
+        str,
         Header(alias="X-Vera-Session-Token"),
-    ] = None,
+    ],
+    refreshed_anonymous_token: Annotated[
+        str,
+        Header(alias="X-Vera-Refreshed-Session-Token"),
+    ],
+    replacement_anonymous_token: Annotated[
+        str,
+        Header(alias="X-Vera-Replacement-Session-Token"),
+    ],
 ):
     """Публикует вопрос пользователя в очередь агента «Вера».
 
@@ -123,22 +329,31 @@ async def send_message(
     """
     if vera_publisher is None:
         logger.warning("Публикация в очередь Веры невозможна — publisher не инициализирован.")
-        raise HTTPException(
+        return _not_published_error_response(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Ассистент временно недоступен.",
         )
     if stream_ticket_issuer is None:
         logger.error("Выпуск stream ticket невозможен — не задан VERA_AGENT_API_KEY.")
-        raise HTTPException(
+        return _not_published_error_response(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ассистент временно недоступен.",
+        )
+    if agent_client is None:
+        logger.error("Resolve сессии Веры невозможен — Agent Service API не настроен.")
+        return _not_published_error_response(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Ассистент временно недоступен.",
         )
 
     try:
-        access = resolve_vera_session_access(
+        access = resolve_vera_session_lifecycle_access(
             session_id=data.session_id,
+            replacement_session_id=data.replacement_session_id,
             user_payload=user_payload,
             anonymous_token=anonymous_token,
+            refreshed_anonymous_token=refreshed_anonymous_token,
+            replacement_anonymous_token=replacement_anonymous_token,
         )
     except VeraSessionTokenError as error:
         raise HTTPException(
@@ -147,35 +362,72 @@ async def send_message(
         ) from error
 
     try:
-        stream_ticket = stream_ticket_issuer.issue(
-            request_id=data.request_id,
-            session_id=data.session_id,
+        resolved_session = await agent_client.resolve_chat_session(
+            VeraChatSessionResolveRequestSchema(
+                session_id=data.session_id,
+                replacement_session_id=data.replacement_session_id,
+            ),
             user_id=access.user_id,
             anonymous_token_hash=access.anonymous_token_hash,
+            refreshed_anonymous_token_hash=(
+                access.refreshed_anonymous_token_hash
+            ),
+            replacement_anonymous_token_hash=(
+                access.replacement_anonymous_token_hash
+            ),
+        )
+    except VeraAgentServiceError as error:
+        log_method = logger.error if error.status_code >= 500 else logger.warning
+        log_method("Не удалось определить активную сессию Веры: %s", error)
+        return _not_published_error_response(
+            status_code=error.status_code,
+            detail=error.detail,
+        )
+
+    effective_anonymous_token_hash = _get_effective_anonymous_token_hash(
+        resolved_session.boundary,
+        access,
+    )
+    try:
+        stream_ticket = stream_ticket_issuer.issue(
+            request_id=data.request_id,
+            session_id=resolved_session.session_id,
+            user_id=access.user_id,
+            anonymous_token_hash=effective_anonymous_token_hash,
         )
     except VeraStreamTicketServiceError as error:
         logger.error("Выпуск stream ticket Веры не удался: %s", error)
-        raise HTTPException(
+        return _lifecycle_error_response(
             status_code=error.status_code,
             detail=error.detail,
-        ) from error
+            resolved_session=resolved_session,
+            publish_state="not_published",
+        )
 
     try:
         await vera_publisher.publish_agent_request(
-            session_id=data.session_id,
+            session_id=resolved_session.session_id,
             request_id=data.request_id,
             user_id=access.user_id,
-            anonymous_token_hash=access.anonymous_token_hash,
+            anonymous_token_hash=effective_anonymous_token_hash,
             message=data.message,
         )
     except VeraPublisherError as error:
         logger.error("Публикация вопроса агенту «Вера» не удалась: %s", error)
-        raise HTTPException(status_code=error.status_code, detail=error.detail)
+        return _lifecycle_error_response(
+            status_code=error.status_code,
+            detail=error.detail,
+            resolved_session=resolved_session,
+        )
 
     return VeraChatAcceptedResponseSchema(
         request_id=data.request_id,
         stream_ticket=stream_ticket,
         stream_url=f"/vera/sse/{quote(data.request_id, safe='')}",
+        session_id=resolved_session.session_id,
+        previous_session_id=resolved_session.previous_session_id,
+        boundary=resolved_session.boundary,
+        session_ttl_seconds=resolved_session.session_ttl_seconds,
     )
 
 

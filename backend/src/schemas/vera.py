@@ -10,8 +10,28 @@ MAX_MESSAGE_LENGTH = 4000
 class VeraChatRequestSchema(BaseModel):
     """Схема запроса на публикацию вопроса агенту «Вера»."""
     session_id: str = Field(..., min_length=1, max_length=100)
+    replacement_session_id: str = Field(..., min_length=1, max_length=100)
     request_id: str = Field(..., min_length=1, max_length=100)
     message: str = Field(..., min_length=1, max_length=MAX_MESSAGE_LENGTH)
+
+
+VeraChatSessionBoundary = Literal["created", "retained", "expired"]
+
+
+class VeraChatSessionResolveRequestSchema(BaseModel):
+    """Кандидаты текущей и следующей сессии для server-side resolve."""
+
+    session_id: str = Field(..., min_length=1, max_length=100)
+    replacement_session_id: str = Field(..., min_length=1, max_length=100)
+
+
+class VeraChatSessionResolveResponseSchema(BaseModel):
+    """Результат определения серверной границы диалога."""
+
+    session_id: str
+    previous_session_id: str | None = None
+    boundary: VeraChatSessionBoundary
+    session_ttl_seconds: int = Field(..., ge=1)
 
 
 class VeraChatAcceptedResponseSchema(BaseModel):
@@ -20,6 +40,10 @@ class VeraChatAcceptedResponseSchema(BaseModel):
     request_id: str
     stream_ticket: str
     stream_url: str
+    session_id: str
+    previous_session_id: str | None = None
+    boundary: VeraChatSessionBoundary
+    session_ttl_seconds: int = Field(..., ge=1)
 
 
 class VeraChatHistoryTurnResponseSchema(BaseModel):

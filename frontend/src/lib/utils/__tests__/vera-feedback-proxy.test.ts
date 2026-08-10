@@ -366,7 +366,7 @@ describe("proxyVeraFeedback", () => {
         );
     });
 
-    it("deletes an expired per-session cookie while creating the current one", async () => {
+    it("preserves another expired proof while creating the current one", async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date("2026-08-09T00:00:00Z"));
         const expiredSessionId = "expired-session";
@@ -393,8 +393,8 @@ describe("proxyVeraFeedback", () => {
         });
 
         const setCookie = response.headers.get("set-cookie");
-        expect(setCookie).toContain(`${expiredCookieName}=;`);
-        expect(setCookie).toContain("Max-Age=0");
+        expect(setCookie).not.toContain(`${expiredCookieName}=;`);
+        expect(setCookie).not.toContain("Max-Age=0");
         expect(setCookie).toContain(
             `${getVeraSessionCookieName("current-session")}=`,
         );

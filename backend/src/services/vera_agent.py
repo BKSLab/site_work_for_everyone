@@ -3,10 +3,13 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
+from pydantic import ValidationError
 
 from src.exceptions.services import VeraAgentServiceError
 from src.schemas.vera import (
     VeraChatHistoryResponseSchema,
+    VeraChatSessionResolveRequestSchema,
+    VeraChatSessionResolveResponseSchema,
     VeraCurrentChatSessionResponseSchema,
     VeraFeedbackResponseSchema,
     VeraFeedbackSchema,
@@ -87,6 +90,75 @@ class VeraAgentClient:
             headers=self._access_headers(user_id, None),
         )
         return VeraCurrentChatSessionResponseSchema.model_validate(payload)
+
+    async def resolve_chat_session(
+        self,
+        data: VeraChatSessionResolveRequestSchema,
+        *,
+        user_id: str | None,
+        anonymous_token_hash: str,
+        refreshed_anonymous_token_hash: str,
+        replacement_anonymous_token_hash: str,
+    ) -> VeraChatSessionResolveResponseSchema:
+        """Определяет активную сессию до публикации сообщения.
+
+        Args:
+            data: Текущий и заранее выпущенный replacement session ID.
+            user_id: Идентификатор авторизованного владельца.
+            anonymous_token_hash: Хеш подписанного токена текущей сессии.
+            refreshed_anonymous_token_hash: Хеш нового токена текущей сессии.
+            replacement_anonymous_token_hash: Хеш токена replacement-сессии.
+
+        Returns:
+            Серверное решение о границе диалога и эффективной сессии.
+        """
+        headers = self._access_headers(user_id, anonymous_token_hash)
+        headers.update(
+            {
+                "X-Vera-Refreshed-Anonymous-Token-Hash": (
+                    refreshed_anonymous_token_hash
+                ),
+                "X-Vera-Replacement-Anonymous-Token-Hash": (
+                    replacement_anonymous_token_hash
+                ),
+            }
+        )
+        payload = await self._request(
+            method="POST",
+            path="/api/v1/chat/sessions/resolve",
+            body=data.model_dump(mode="json"),
+            headers=headers,
+        )
+        try:
+            resolution = VeraChatSessionResolveResponseSchema.model_validate(
+                payload
+            )
+        except ValidationError as error:
+            raise VeraAgentServiceError(
+                status_code=502,
+                detail="Agent Service вернул некорректную границу диалога.",
+                error_details="Lifecycle response schema validation failed.",
+            ) from error
+        if resolution.boundary == "expired":
+            is_bound = (
+                resolution.session_id == data.replacement_session_id
+                and resolution.previous_session_id == data.session_id
+            )
+        else:
+            is_bound = (
+                resolution.session_id == data.session_id
+                and resolution.previous_session_id is None
+            )
+        if not is_bound:
+            raise VeraAgentServiceError(
+                status_code=502,
+                detail="Agent Service вернул некорректную границу диалога.",
+                error_details=(
+                    "Lifecycle response is not bound to requested current "
+                    "and replacement session IDs."
+                ),
+            )
+        return resolution
 
     async def create_session_feedback(
         self,

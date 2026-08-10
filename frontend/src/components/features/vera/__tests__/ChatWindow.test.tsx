@@ -11,7 +11,10 @@ vi.mock("@/hooks/useVeraChat", () => ({
 }));
 
 vi.mock("../ChatMessage", () => ({
-    ChatMessage: (props: { message: { content: string } }) => {
+    ChatMessage: (props: {
+        message: { content: string };
+        sessionId: string;
+    }) => {
         chatMessageRenderMock(props);
         return <div>{props.message.content}</div>;
     },
@@ -75,6 +78,186 @@ describe("ChatWindow accessibility", () => {
         expect(
             screen.getByText(/консультацию можно отправить на почту/i),
         ).toBeInTheDocument();
+    });
+
+    it("shows an accessible context boundary in message order and keeps the old feedback session", () => {
+        useVeraChatMock.mockReturnValue({
+            sessionId: "current-session",
+            previousSessionGroups: [
+                {
+                    sessionId: "expired-session",
+                    historyCursor: null,
+                    messages: [
+                        {
+                            id: "old-answer",
+                            role: "assistant",
+                            content: "Ответ предыдущего диалога.",
+                        },
+                    ],
+                },
+            ],
+            messages: [
+                {
+                    id: "new-question",
+                    role: "user",
+                    content: "Вопрос нового диалога.",
+                },
+            ],
+            sendMessage: vi.fn(),
+            status: "idle",
+            deliveryState: "draft",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        const oldMessage = screen.getByText("Ответ предыдущего диалога.");
+        const separator = screen.getByRole("separator", {
+            name: "Начало нового диалога",
+        });
+        const newMessage = screen.getByText("Вопрос нового диалога.");
+        expect(separator).toHaveTextContent(
+            "Контекст предыдущего диалога завершён",
+        );
+        expect(
+            oldMessage.compareDocumentPosition(separator) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(
+            separator.compareDocumentPosition(newMessage) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(chatMessageRenderMock).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({ sessionId: "expired-session" }),
+        );
+        expect(chatMessageRenderMock).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({ sessionId: "current-session" }),
+        );
+    });
+
+    it("loads older messages for a completed predecessor", () => {
+        const loadOlderPreviousHistory = vi.fn();
+        useVeraChatMock.mockReturnValue({
+            sessionId: "current-session",
+            previousSessionGroups: [
+                {
+                    sessionId: "expired-session",
+                    historyCursor: 2,
+                    messages: [
+                        {
+                            id: "old-answer",
+                            role: "assistant",
+                            content: "Ответ предыдущего диалога.",
+                        },
+                    ],
+                },
+            ],
+            messages: [],
+            sendMessage: vi.fn(),
+            status: "idle",
+            deliveryState: "draft",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+            olderPreviousHistorySessionId: null,
+            loadOlderPreviousHistory,
+        });
+
+        render(<ChatWindow />);
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Показать предыдущие в завершённом диалоге",
+            }),
+        );
+
+        expect(loadOlderPreviousHistory).toHaveBeenCalledWith(
+            "expired-session",
+        );
+    });
+
+    it("preserves the viewport when predecessor history is prepended", () => {
+        const loadOlderPreviousHistory = vi.fn();
+        const group = {
+            sessionId: "expired-session",
+            historyCursor: 2,
+            messages: [
+                {
+                    id: "old-message-2",
+                    role: "assistant" as const,
+                    content: "Поздний ответ завершённого диалога.",
+                },
+            ],
+        };
+        const chatState = {
+            sessionId: "current-session",
+            previousSessionGroups: [group],
+            messages: [],
+            sendMessage: vi.fn(),
+            status: "idle",
+            deliveryState: "draft",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+            olderPreviousHistorySessionId: null,
+            loadOlderPreviousHistory,
+        };
+        useVeraChatMock.mockReturnValue(chatState);
+
+        const { rerender } = render(<ChatWindow />);
+        const history = screen.getByRole("region", {
+            name: "История переписки с Ассистентом Верой",
+        });
+        Object.defineProperties(history, {
+            scrollHeight: { configurable: true, value: 1_000 },
+            clientHeight: { configurable: true, value: 500 },
+            scrollTop: { configurable: true, writable: true, value: 200 },
+        });
+        const scrollToMock = vi.mocked(history.scrollTo);
+        scrollToMock.mockClear();
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Показать предыдущие в завершённом диалоге",
+            }),
+        );
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            olderPreviousHistorySessionId: "expired-session",
+        });
+        rerender(<ChatWindow />);
+
+        Object.defineProperty(history, "scrollHeight", {
+            configurable: true,
+            value: 1_400,
+        });
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            previousSessionGroups: [
+                {
+                    ...group,
+                    historyCursor: null,
+                    messages: [
+                        {
+                            id: "old-message-1",
+                            role: "assistant" as const,
+                            content: "Ранний ответ завершённого диалога.",
+                        },
+                        ...group.messages,
+                    ],
+                },
+            ],
+        });
+        rerender(<ChatWindow />);
+
+        expect(history.scrollTop).toBe(600);
+        expect(scrollToMock).not.toHaveBeenCalled();
     });
 
     it("keeps the input available while Vera is preparing an answer", () => {

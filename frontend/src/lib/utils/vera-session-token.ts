@@ -5,7 +5,10 @@ import {
     timingSafeEqual,
 } from "node:crypto";
 
-const SESSION_TOKEN_TTL_SECONDS = 24 * 60 * 60;
+// Lifetime of the signed owner proof, not of the chat session. The active
+// context boundary is resolved only by the server; an expired proof is used
+// solely by the lifecycle recovery handshake.
+export const VERA_OWNER_PROOF_CREDENTIAL_TTL_SECONDS = 24 * 60 * 60;
 export const VERA_SESSION_COOKIE_PREFIX = "vera_session_";
 
 interface VeraSessionTokenPayload {
@@ -25,7 +28,6 @@ export const VERA_SESSION_COOKIE_OPTIONS = {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/api/vera",
-    maxAge: SESSION_TOKEN_TTL_SECONDS,
 };
 
 export function getVeraSessionCookieName(sessionId: string): string {
@@ -53,7 +55,9 @@ export function createVeraSessionToken(sessionId: string): string {
         JSON.stringify({
             session_id: sessionId,
             nonce: randomUUID(),
-            exp: Math.floor(Date.now() / 1000) + SESSION_TOKEN_TTL_SECONDS,
+            exp:
+                Math.floor(Date.now() / 1000) +
+                VERA_OWNER_PROOF_CREDENTIAL_TTL_SECONDS,
         }),
     ).toString("base64url");
     const signature = createHmac("sha256", secret)

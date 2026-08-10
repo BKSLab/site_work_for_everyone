@@ -25,6 +25,10 @@ const chatReceipt = {
     request_id: "request-1",
     stream_ticket: "signed.ticket",
     stream_url: "/vera/sse/request-1",
+    session_id: "session-1",
+    previous_session_id: null,
+    boundary: "retained" as const,
+    session_ttl_seconds: 86_400,
 };
 
 describe("parseVeraJsonResponse", () => {

@@ -34,7 +34,19 @@ class _FakeConnection:
 class VeraRequestSchemaTests(unittest.TestCase):
     def test_request_id_is_required(self) -> None:
         with self.assertRaises(ValidationError):
-            VeraChatRequestSchema(session_id="conversation-1", message="Вопрос")
+            VeraChatRequestSchema(
+                session_id="conversation-1",
+                replacement_session_id="conversation-2",
+                message="Вопрос",
+            )
+
+    def test_replacement_session_id_is_required(self) -> None:
+        with self.assertRaises(ValidationError):
+            VeraChatRequestSchema(
+                session_id="conversation-1",
+                request_id="request-1",
+                message="Вопрос",
+            )
 
 
 class VeraFeedbackSchemaTests(unittest.TestCase):
