@@ -64,10 +64,11 @@ export const ChatMessage = memo(function ChatMessage({
                     isUser
                         ? "max-w-[85%] bg-accent/[0.14] text-foreground"
                         : // Ответ Веры длиннее вопроса, и на широком экране
-                          // 85% ширины дают неудобно длинную строку. 68ch
+                          // 90% ширины дают неудобно длинную строку. 74ch
                           // удерживает строку в комфортном для чтения
-                          // диапазоне, не сужая пузырь на мобильном.
-                          "max-w-[min(85%,68ch)] border border-white/10 bg-white/[0.04] text-foreground",
+                          // диапазоне, сохраняя достаточно места длинной
+                          // юридической консультации.
+                          "max-w-[min(90%,74ch)] border border-white/10 bg-white/[0.04] text-foreground",
                 )}
             >
                 {!isUser && (
