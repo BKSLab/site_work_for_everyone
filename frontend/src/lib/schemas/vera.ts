@@ -139,6 +139,12 @@ export const veraChatHistoryTurnSchema = z.object({
     answer: z.string().nullable(),
     status: z.string().min(1),
     feedback_value: z.enum(["up", "down"]).nullable(),
+    // Ответ построен на данных базы знаний. Поле необязательное: ответ
+    // сервиса без него не должен ломать разбор истории, а отсутствие
+    // признака читается как «база знаний не использовалась». Не `.default()`
+    // — он расходит input- и output-типы схемы, а обобщённый
+    // `readVeraResponse` работает с одним типом.
+    used_knowledge_base: z.boolean().optional(),
     created_at: veraDateTimeSchema,
     completed_at: veraDateTimeSchema.nullable(),
 }).passthrough();
@@ -192,7 +198,10 @@ export type VeraFeedbackResponse = z.infer<
 export const veraSseEventSchema = z.discriminatedUnion("type", [
     z.object({ type: z.literal("token"), content: z.string() }),
     z.object({ type: z.literal("heartbeat"), ts: z.number().int() }),
-    z.object({ type: z.literal("done") }),
+    z.object({
+        type: z.literal("done"),
+        used_knowledge_base: z.boolean().optional(),
+    }),
     z.object({ type: z.literal("error"), detail: z.string().optional() }),
 ]);
 

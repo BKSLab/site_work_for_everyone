@@ -27,6 +27,81 @@ describe("ChatMessage accessibility", () => {
             }));
     });
 
+    it("offers the simplify action only when the answer used the knowledge base", async () => {
+        const onSimplify = vi.fn();
+        const { rerender } = render(
+            <ChatMessage
+                sessionId="session-1"
+                canSimplify
+                onSimplify={onSimplify}
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "Квота составляет 2%. Основание: ст. 38.",
+                    requestId: "request-1",
+                    usedKnowledgeBase: true,
+                }}
+            />,
+        );
+
+        const button = screen.getByRole("button", {
+            name: "Объяснить проще ответ Ассистента Веры",
+        });
+        /* Видимый текст обязан входить в доступное имя (WCAG 2.5.3):
+           голосовое управление ищет кнопку по тому, что человек видит. */
+        expect(button).toHaveTextContent("Объяснить проще");
+
+        await userEvent.click(button);
+        expect(onSimplify).toHaveBeenCalledTimes(1);
+
+        rerender(
+            <ChatMessage
+                sessionId="session-1"
+                canSimplify={false}
+                onSimplify={onSimplify}
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "Здравствуйте! Чем помочь?",
+                    requestId: "request-1",
+                }}
+            />,
+        );
+
+        expect(
+            screen.queryByRole("button", {
+                name: "Объяснить проще ответ Ассистента Веры",
+            }),
+        ).not.toBeInTheDocument();
+    });
+
+    it("blocks the simplify action while another request is in flight", async () => {
+        const onSimplify = vi.fn();
+        render(
+            <ChatMessage
+                sessionId="session-1"
+                canSimplify
+                isSimplifyDisabled
+                onSimplify={onSimplify}
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "Квота составляет 2%.",
+                    requestId: "request-1",
+                    usedKnowledgeBase: true,
+                }}
+            />,
+        );
+
+        const button = screen.getByRole("button", {
+            name: "Объяснить проще ответ Ассистента Веры",
+        });
+        expect(button).toBeDisabled();
+
+        await userEvent.click(button);
+        expect(onSimplify).not.toHaveBeenCalled();
+    });
+
     it("adds a screen-reader sender label to a user message", () => {
         render(
             <ChatMessage

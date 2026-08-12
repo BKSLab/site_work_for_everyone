@@ -42,6 +42,21 @@ const POST_RECONCILIATION_LOOKUP_TIMEOUT_MS = 30_000;
 const ABANDONED_RECOVERY_DETAIL =
     "Не удалось восстановить незавершённую отправку. Начат новый диалог; исходный текст можно отправить повторно.";
 
+/**
+ * Текст, который отправляет кнопка «Объяснить проще» под ответом на основе
+ * базы знаний. Для агента это обычная реплика пользователя: отдельного поля
+ * в контракте очереди и отдельной ветки графа у кнопки нет, сценарий уже
+ * описан в системном промпте Веры.
+ *
+ * Формулировку нельзя менять, не сверившись с
+ * `vera_agent_service/app/graph/policy.py` (`SIMPLIFY_ANSWER_REQUEST`): в ней
+ * не должно быть слов вроде «право», «закон», «льгота», «квота». Иначе
+ * защита VERA-021 примет нажатие кнопки за новый правовой вопрос, уведёт его
+ * в поиск по базе знаний и вернёт второй развёрнутый ответ вместо
+ * переформулировки предыдущего.
+ */
+export const SIMPLIFY_ANSWER_REQUEST = "Объясни предыдущий ответ проще";
+
 export type VeraDeliveryState =
     | "draft"
     | "submitting"
@@ -107,6 +122,12 @@ export interface VeraChatMessage {
     feedbackEligible?: boolean;
     /** ранее сохранённая оценка ответа */
     feedbackValue?: "up" | "down";
+    /**
+     * Ответ построен на данных базы знаний. Только для таких ответов есть
+     * что упрощать: прямой ответ, честное «не нашлось» и недоступность
+     * поиска приходят с `false`.
+     */
+    usedKnowledgeBase?: boolean;
     /** состояние доставки исходного сообщения пользователя */
     deliveryStatus?: "sending" | "sent" | "rejected" | "unknown";
     /** состояние текущего ответа в явном автомате доставки */
@@ -560,6 +581,7 @@ function historyTurnToMessages(turn: VeraChatHistoryTurn): VeraChatMessage[] {
             feedbackEligible:
                 turn.status === "completed" && Boolean(turn.answer),
             feedbackValue: turn.feedback_value ?? undefined,
+            usedKnowledgeBase: turn.used_knowledge_base === true,
             deliveryState: turnDeliveryState,
         });
     }
@@ -3724,6 +3746,8 @@ export function useVeraChat() {
                                       streaming: false,
                                       feedbackEligible: true,
                                       deliveryState: "completed",
+                                      usedKnowledgeBase:
+                                          data.used_knowledge_base === true,
                                   }
                                 : m,
                         ),

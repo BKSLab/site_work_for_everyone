@@ -75,6 +75,14 @@ class VeraChatHistoryTurnResponseSchema(BaseModel):
     answer: str | None = None
     status: str
     feedback_value: Literal["up", "down"] | None = None
+    used_knowledge_base: bool = False
+    """Ответ построен на данных базы знаний.
+
+    Схема зеркалит контракт Agent Service и заново сериализует ответ, поэтому
+    отсутствующее здесь поле молча пропадёт по дороге к фронтенду. По этому
+    признаку клиент показывает под ответом кнопку «Объяснить проще».
+    """
+
     created_at: datetime
     completed_at: datetime | None = None
 

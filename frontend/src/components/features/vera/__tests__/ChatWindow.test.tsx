@@ -6,7 +6,11 @@ const { chatMessageRenderMock, useVeraChatMock } = vi.hoisted(() => ({
     useVeraChatMock: vi.fn(),
 }));
 
-vi.mock("@/hooks/useVeraChat", () => ({
+/* Подменяется только сам хук: `SIMPLIFY_ANSWER_REQUEST` берётся настоящий,
+   иначе тест на текст кнопки проверял бы копию строки, а не то, что реально
+   уйдёт агенту. */
+vi.mock("@/hooks/useVeraChat", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/hooks/useVeraChat")>()),
     useVeraChat: useVeraChatMock,
 }));
 
@@ -1042,5 +1046,153 @@ describe("ChatWindow accessibility", () => {
             top: 1_100,
             behavior: "auto",
         });
+    });
+
+    it("offers the simplify action only under the last knowledge-base answer", () => {
+        /* Агент упрощает последнюю реплику диалога, поэтому кнопка под более
+           старым ответом переформулировала бы не его. */
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [
+                {
+                    id: "assistant-1",
+                    role: "assistant" as const,
+                    content: "Старый ответ по базе знаний.",
+                    usedKnowledgeBase: true,
+                },
+                {
+                    id: "user-2",
+                    role: "user" as const,
+                    content: "А если сокращение?",
+                },
+                {
+                    id: "assistant-2",
+                    role: "assistant" as const,
+                    content: "Свежий ответ по базе знаний.",
+                    usedKnowledgeBase: true,
+                },
+            ],
+            sendMessage: vi.fn(),
+            status: "idle",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        const simplifiable = chatMessageRenderMock.mock.calls
+            .map(([props]) => props)
+            .filter((props) => props.canSimplify);
+        expect(simplifiable).toHaveLength(1);
+        expect(simplifiable[0].message.id).toBe("assistant-2");
+    });
+
+    it.each([
+        [
+            "an answer without knowledge base data",
+            { id: "assistant-1", role: "assistant" as const, content: "Привет!" },
+        ],
+        [
+            "an answer that is still streaming",
+            {
+                id: "assistant-1",
+                role: "assistant" as const,
+                content: "Квота",
+                usedKnowledgeBase: true,
+                streaming: true,
+            },
+        ],
+        [
+            "a user message",
+            { id: "user-1", role: "user" as const, content: "Какая квота?" },
+        ],
+    ])("hides the simplify action for %s", (_case, message) => {
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [message],
+            sendMessage: vi.fn(),
+            status: "idle",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        expect(
+            chatMessageRenderMock.mock.calls.some(([props]) => props.canSimplify),
+        ).toBe(false);
+    });
+
+    it("sends the prepared simplify request without touching the draft", async () => {
+        const sendMessage = vi.fn().mockResolvedValue({
+            outcome: "accepted",
+            restoreDraft: false,
+        });
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [
+                {
+                    id: "assistant-1",
+                    role: "assistant" as const,
+                    content: "Квота составляет 2%.",
+                    usedKnowledgeBase: true,
+                },
+            ],
+            sendMessage,
+            status: "idle",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+        const composer = screen.getByLabelText("Сообщение для Ассистента Веры");
+        fireEvent.change(composer, { target: { value: "Мой черновик" } });
+
+        const [props] = chatMessageRenderMock.mock.calls
+            .map(([renderProps]) => renderProps)
+            .filter((renderProps) => renderProps.canSimplify);
+        props.onSimplify();
+
+        await waitFor(() => {
+            expect(sendMessage).toHaveBeenCalledWith(
+                "Объясни предыдущий ответ проще",
+            );
+        });
+        /* Кнопка не должна затирать или отправлять начатый вопрос
+           пользователя. */
+        expect(composer).toHaveValue("Мой черновик");
+    });
+
+    it("blocks the simplify action while a response is in flight", () => {
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [
+                {
+                    id: "assistant-1",
+                    role: "assistant" as const,
+                    content: "Квота составляет 2%.",
+                    usedKnowledgeBase: true,
+                },
+            ],
+            sendMessage: vi.fn(),
+            status: "streaming",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        const [props] = chatMessageRenderMock.mock.calls
+            .map(([renderProps]) => renderProps)
+            .filter((renderProps) => renderProps.canSimplify);
+        expect(props.isSimplifyDisabled).toBe(true);
     });
 });

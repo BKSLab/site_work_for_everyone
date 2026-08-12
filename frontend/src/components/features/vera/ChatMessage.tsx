@@ -4,15 +4,23 @@ import { cn } from "@/lib/utils/cn";
 import type { VeraChatMessage } from "@/hooks/useVeraChat";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { MessageFeedbackControls } from "./MessageFeedbackControls";
+import { SimplifyAnswerButton } from "./SimplifyAnswerButton";
 
 interface ChatMessageProps {
     message: VeraChatMessage;
     sessionId: string;
+    /** показывать кнопку «Объяснить проще» под этим ответом */
+    canSimplify?: boolean;
+    isSimplifyDisabled?: boolean;
+    onSimplify?: () => void;
 }
 
 export const ChatMessage = memo(function ChatMessage({
     message,
     sessionId,
+    canSimplify = false,
+    isSimplifyDisabled = false,
+    onSimplify,
 }: ChatMessageProps) {
     const isUser = message.role === "user";
     const isPreparing = !isUser && message.streaming && !message.content;
@@ -136,6 +144,12 @@ export const ChatMessage = memo(function ChatMessage({
                 )}
                 {!isUser && Boolean(message.content) && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+                        {canSimplify && onSimplify && (
+                            <SimplifyAnswerButton
+                                disabled={isSimplifyDisabled}
+                                onSimplify={onSimplify}
+                            />
+                        )}
                         <MessageCopyButton text={message.content} />
                         {canRate && (
                             <MessageFeedbackControls

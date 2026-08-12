@@ -1190,6 +1190,7 @@ describe("useVeraChat", () => {
                 streaming: false,
                 feedbackEligible: true,
                 feedbackValue: "down",
+                usedKnowledgeBase: false,
                 deliveryState: "completed",
             },
         ]);
@@ -5050,6 +5051,46 @@ describe("useVeraChat", () => {
 
         unmount();
     });
+
+    it.each([
+        ["marks", true, true],
+        ["does not mark", false, false],
+        ["does not mark", undefined, false],
+    ])(
+        "%s the answer as knowledge-base backed from the done event (%s)",
+        async (_case, flag, expected) => {
+            const { result, unmount } = renderHook(() => useVeraChat());
+
+            await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+            await act(async () => {
+                await result.current.sendMessage("Какая квота?");
+            });
+
+            act(() => {
+                FakeEventSource.instances[0].open();
+                FakeEventSource.instances[0].emit({
+                    type: "token",
+                    content: "Квота составляет 2%.",
+                });
+                flushAnimationFrames();
+            });
+
+            act(() => {
+                FakeEventSource.instances[0].emit(
+                    flag === undefined
+                        ? { type: "done" }
+                        : { type: "done", used_knowledge_base: flag },
+                );
+            });
+
+            /* Признак решает, покажет ли UI под ответом кнопку «Объяснить
+               проще». Событие без поля — сервис прежней версии, база знаний
+               не подтверждена. */
+            expect(result.current.messages[1].usedKnowledgeBase).toBe(expected);
+
+            unmount();
+        },
+    );
 
     it("announces short response states without reading the full answer", async () => {
         const { result, unmount } = renderHook(() => useVeraChat());

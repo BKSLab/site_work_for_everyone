@@ -4,6 +4,7 @@ import Image from "next/image";
 import {
     Fragment,
     memo,
+    useCallback,
     useEffect,
     useRef,
     useState,
@@ -13,6 +14,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import {
+    SIMPLIFY_ANSWER_REQUEST,
     type VeraChatMessage,
     useVeraChat,
 } from "@/hooks/useVeraChat";
@@ -32,9 +34,19 @@ const SCROLL_BOTTOM_THRESHOLD_PX = 80;
 const ChatMessageList = memo(function ChatMessageList({
     messages,
     sessionId,
+    simplifiableMessageId = null,
+    isSimplifyDisabled = false,
+    onSimplify,
 }: {
     messages: VeraChatMessage[];
     sessionId: string;
+    /* Кнопку «Объяснить проще» получает ровно одно сообщение списка —
+       остальным передаётся `false`. Завершённые диалоги в
+       `previousSessionGroups` не передают этот проп вовсе: их контекст уже
+       закрыт, упрощать в них нечего. */
+    simplifiableMessageId?: string | null;
+    isSimplifyDisabled?: boolean;
+    onSimplify?: () => void;
 }) {
     if (messages.length === 0) return null;
 
@@ -54,6 +66,9 @@ const ChatMessageList = memo(function ChatMessageList({
                     key={message.id}
                     message={message}
                     sessionId={sessionId}
+                    canSimplify={message.id === simplifiableMessageId}
+                    isSimplifyDisabled={isSimplifyDisabled}
+                    onSimplify={onSimplify}
                 />
             ))}
         </div>
@@ -224,6 +239,30 @@ export function ChatWindow() {
         isStartingNewDialog ||
         hasPendingNewDialog ||
         deliveryState === "unknown";
+    const isSimplifyDisabled =
+        blocksSubmission || isHistoryLoading || !sessionId;
+    /* Упрощается последняя реплика диалога — именно её агент видит в истории.
+       Поэтому кнопку получает только последний завершённый ответ на основе
+       базы знаний: под более старым ответом она переформулировала бы не его.
+       После нажатия последним становится новый ответ (прямой, без базы
+       знаний), и кнопка исчезает сама — повторных упрощений не возникает. */
+    const lastMessage = messages[messages.length - 1];
+    const simplifiableMessageId =
+        lastMessage !== undefined &&
+        lastMessage.role === "assistant" &&
+        lastMessage.usedKnowledgeBase === true &&
+        !lastMessage.streaming &&
+        Boolean(lastMessage.content)
+            ? lastMessage.id
+            : null;
+
+    const handleSimplify = useCallback(() => {
+        if (blocksSubmission || isHistoryLoading || !sessionId) return;
+        /* Черновик в поле ввода не трогаем: пользователь мог начать писать
+           свой вопрос, и кнопка не должна его затирать или отправлять. */
+        void sendMessage(SIMPLIFY_ANSWER_REQUEST);
+    }, [blocksSubmission, isHistoryLoading, sendMessage, sessionId]);
+
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
         const text = input.trim();
@@ -420,6 +459,9 @@ export function ChatWindow() {
                         <ChatMessageList
                             messages={messages}
                             sessionId={sessionId}
+                            simplifiableMessageId={simplifiableMessageId}
+                            isSimplifyDisabled={isSimplifyDisabled}
+                            onSimplify={handleSimplify}
                         />
                         {status === "long-running" && (
                             <div className="flex items-center gap-2 rounded-xl border border-accent/25 bg-accent/10 px-4 py-3 text-sm text-muted">
