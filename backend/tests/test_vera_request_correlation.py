@@ -159,10 +159,10 @@ class VeraPublisherTests(unittest.IsolatedAsyncioTestCase):
             combined_logs,
         )
 
-    async def test_logs_do_not_contain_question_or_owner(self) -> None:
-        """Диагностика идёт по идентификаторам, персональные данные в логи
-        не попадают: текст вопроса, email владельца и хеш токена анонимной
-        сессии остаются только в payload очереди."""
+    async def test_logs_contain_full_payload_across_lines(self) -> None:
+        """Payload уходит в лог целиком и в читаемом виде: при разборе
+        диалога нужно видеть точный текст вопроса, который получил агент.
+        Персональные данные в логах — принятое следствие этого решения."""
         channel = _FakeChannel()
         publisher = VeraPublisher(
             connection=_FakeConnection(),
@@ -186,13 +186,20 @@ class VeraPublisherTests(unittest.IsolatedAsyncioTestCase):
             )
 
         combined_logs = "\n".join(captured_logs.output)
-        self.assertNotIn(question, combined_logs)
-        self.assertNotIn(owner_email, combined_logs)
-        self.assertNotIn(token_hash, combined_logs)
-        self.assertIn("authenticated=True", combined_logs)
-        self.assertIn(f"message_length={len(question)}", combined_logs)
+        self.assertIn(question, combined_logs)
+        self.assertIn(owner_email, combined_logs)
+        self.assertIn(token_hash, combined_logs)
 
-        # Сам payload очереди не урезается — ограничение касается только логов.
+        # Однострочный JSON в консоли нечитаем: поля payload должны стоять
+        # на отдельных строках, иначе текст вопроса в логе не найти.
+        publish_log = next(
+            line for line in captured_logs.output if "Отправка запроса" in line
+        )
+        self.assertIn("📤", publish_log)
+        payload_dump = publish_log.split("\n", 1)[1]
+        self.assertEqual(payload_dump.count("\n"), 4)
+        self.assertTrue(payload_dump.startswith("{'session_id':"))
+
         payload = json.loads(channel.default_exchange.message.body)
         self.assertEqual(payload["user_id"], owner_email)
         self.assertEqual(payload["message"], question)

@@ -3,6 +3,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import suppress
+from pprint import pformat
 
 import aio_pika
 from aio_pika.abc import AbstractRobustChannel, AbstractRobustConnection
@@ -79,19 +80,17 @@ class VeraPublisher:
         }
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
-        # Payload целиком в лог не пишется: он содержит текст вопроса,
-        # email владельца (`user_id`) и хеш токена анонимной сессии.
-        # Диагностика строится на идентификаторах и размерах — их достаточно,
-        # чтобы связать запись с записью в PostgreSQL агента и с SSE-потоком.
+        # Payload пишется в лог как есть, без урезания и маскирования:
+        # при разборе диалога нужно видеть точный текст вопроса, который
+        # ушёл агенту, а не только идентификаторы. Отсюда следует, что в
+        # логи попадают текст вопроса, email владельца (`user_id`) и хеш
+        # токена анонимной сессии — это осознанное решение, а не упущение.
+        # `pformat` разносит поля по строкам: однострочный JSON в консоли
+        # нечитаем, и найти в нём сообщение пользователя не получается.
         logger.info(
-            "Отправка запроса агенту «Вера» в RabbitMQ: "
-            "queue=%s, session_id=%s, request_id=%s, "
-            "authenticated=%s, message_length=%d",
+            "📤 Отправка запроса агенту «Вера» в RabbitMQ: queue=%s\n%s",
             self._queue_name,
-            session_id,
-            request_id,
-            user_id is not None,
-            len(message),
+            pformat(payload, sort_dicts=False),
         )
 
         try:
@@ -105,7 +104,7 @@ class VeraPublisher:
                 routing_key=self._queue_name,
             )
             logger.info(
-                "Запрос агенту «Вера» опубликован в RabbitMQ: "
+                "✅ Запрос агенту «Вера» опубликован в RabbitMQ: "
                 "queue=%s, session_id=%s, request_id=%s",
                 self._queue_name,
                 session_id,
