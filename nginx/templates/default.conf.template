@@ -1,6 +1,25 @@
+# Значение заголовка Connection для upstream. Отправлять «upgrade» на каждый
+# запрос нельзя: без заголовка Upgrade это нарушение протокола. Штатная схема
+# nginx — подставлять «upgrade» только когда клиент действительно апгрейдится.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# Схема и параметры TLS в логе. Без них 80-й и 443-й порты неразличимы в
+# access.log и нельзя отличить пользователя, пришедшего открытым текстом, от
+# обычного HTTPS-запроса. Упавший хендшейк сюда не попадёт вовсе: HTTP-запроса
+# не возникает, значит нет и строки лога — такие случаи видны только в
+# error_log на уровне info.
+log_format tls '$remote_addr - - [$time_local] "$request" $status $body_bytes_sent '
+               'scheme=$scheme tls=$ssl_protocol/$ssl_cipher '
+               '"$http_referer" "$http_user_agent"';
+
 server {
     listen 80;
     server_name work-for-everyone.ru www.work-for-everyone.ru;
+
+    access_log /var/log/nginx/access.log tls;
 
     # ACME challenge для certbot
     location /.well-known/acme-challenge/ {
@@ -27,9 +46,19 @@ server {
     ssl_certificate     /etc/letsencrypt/live/work-for-everyone.ru/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/work-for-everyone.ru/privkey.pem;
 
+    access_log /var/log/nginx/access.log tls;
+
     ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers on;
+    # Сертификат Let's Encrypt выпущен на ECDSA-ключе (дефолт certbot 2.x), но
+    # ECDHE-ECDSA-шифров в списке не было — TLS 1.2 полностью падал с
+    # handshake_failure, и HTTPS держался только на TLS 1.3, который директиву
+    # ssl_ciphers игнорирует и берёт свой набор. Клиенты без TLS 1.3 (антивирусы
+    # с проверкой соединений, корпоративные прокси, старый Android WebView) на
+    # сайт не попадали вовсе. ECDHE-RSA оставлены, чтобы конфиг пережил смену
+    # типа ключа при перевыпуске сертификата.
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305;
+    # Выбор шифра за клиентом: мобильные без AES в железе возьмут ChaCha20.
+    ssl_prefer_server_ciphers off;
 
     client_max_body_size 10m;
 
@@ -43,7 +72,7 @@ server {
     proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header Upgrade           $http_upgrade;
-    proxy_set_header Connection        "upgrade";
+    proxy_set_header Connection        $connection_upgrade;
 
     # Увеличенный таймаут для LLM-эндпоинтов
     location /api/v1/assistant/ {
