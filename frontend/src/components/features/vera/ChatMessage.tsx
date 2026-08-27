@@ -32,12 +32,12 @@ export const ChatMessage = memo(function ChatMessage({
     const isPreparing = !isUser && message.streaming && !message.content;
     const preparingText =
         waitingStage === "expected-delay"
-            ? "Проверяю информацию"
+            ? "Разбираюсь в вопросе"
             : waitingStage === "extended"
               ? "Готовлю ответ — нужно ещё немного времени"
               : message.waitingVariant === "simplify"
                 ? SIMPLIFY_WAITING_TEXT
-                : "Разбираюсь в вопросе";
+                : "Анализирую сообщение";
     const isUnknownAnswer =
         !isUser && !message.content && message.deliveryState === "unknown";
     const isFailedAnswer =

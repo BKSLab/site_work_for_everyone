@@ -381,7 +381,7 @@ describe("ChatWindow accessibility", () => {
             status: "waiting",
             waitingStage: "initial",
             error: null,
-            announcement: "Ассистент Вера разбирается в вопросе.",
+            announcement: "Ассистент Вера анализирует сообщение.",
             isHistoryLoading: false,
             historyError: null,
         });
@@ -400,7 +400,7 @@ describe("ChatWindow accessibility", () => {
             screen.getByRole("button", { name: "Отправить" }),
         ).toBeDisabled();
         expect(screen.getByRole("status")).toHaveTextContent(
-            "Ассистент Вера разбирается в вопросе.",
+            "Ассистент Вера анализирует сообщение.",
         );
     });
 
@@ -455,7 +455,7 @@ describe("ChatWindow accessibility", () => {
             deliveryState: "processing",
             waitingStage: "expected-delay",
             error: null,
-            announcement: "Ассистент Вера проверяет информацию.",
+            announcement: "Ассистент Вера разбирается в вопросе.",
             isHistoryLoading: false,
             historyError: null,
         };
@@ -559,7 +559,7 @@ describe("ChatWindow accessibility", () => {
     it.each([
         [
             "expected-delay",
-            "Ассистент Вера проверяет информацию.",
+            "Ассистент Вера разбирается в вопросе.",
         ],
         [
             "extended",

@@ -440,7 +440,7 @@ describe("useVeraChat", () => {
         [
             12_000,
             "expected-delay",
-            "Ассистент Вера проверяет информацию.",
+            "Ассистент Вера разбирается в вопросе.",
         ],
         [
             25_000,
@@ -5231,7 +5231,7 @@ describe("useVeraChat", () => {
 
         const payload = sendMessageMock.mock.calls[0][0];
         expect(result.current.announcement).toBe(
-            "Ассистент Вера разбирается в вопросе.",
+            "Ассистент Вера анализирует сообщение.",
         );
         expect(result.current.waitingStage).toBe("initial");
         expect(result.current.deliveryState).toBe("accepted");
@@ -5281,7 +5281,7 @@ describe("useVeraChat", () => {
         unmount();
     });
 
-    it("advances waiting UX at exactly 8 and 20 seconds independently of heartbeat", async () => {
+    it("advances waiting UX at exactly 6 and 20 seconds independently of heartbeat", async () => {
         vi.useFakeTimers();
         const { result, unmount } = renderHook(() => useVeraChat());
 
@@ -5294,11 +5294,11 @@ describe("useVeraChat", () => {
 
         expect(result.current.waitingStage).toBe("initial");
         expect(result.current.announcement).toBe(
-            "Ассистент Вера разбирается в вопросе.",
+            "Ассистент Вера анализирует сообщение.",
         );
 
         act(() => {
-            vi.advanceTimersByTime(7_999);
+            vi.advanceTimersByTime(5_999);
             FakeEventSource.instances[0].emit({
                 type: "heartbeat",
                 ts: 1_723_296_000,
@@ -5311,11 +5311,11 @@ describe("useVeraChat", () => {
         });
         expect(result.current.waitingStage).toBe("expected-delay");
         expect(result.current.announcement).toBe(
-            "Ассистент Вера проверяет информацию.",
+            "Ассистент Вера разбирается в вопросе.",
         );
 
         act(() => {
-            vi.advanceTimersByTime(11_999);
+            vi.advanceTimersByTime(13_999);
             FakeEventSource.instances[0].emit({
                 type: "heartbeat",
                 ts: 1_723_296_012,
@@ -5337,7 +5337,7 @@ describe("useVeraChat", () => {
     });
 
     it.each([
-        [7_000, "initial"],
+        [5_000, "initial"],
         [12_000, "expected-delay"],
     ] as const)(
         "clears waiting UX on the first token at %s ms and never restores it",
@@ -5394,7 +5394,7 @@ describe("useVeraChat", () => {
             await result.current.sendMessage("Первый вопрос.");
         });
         act(() => {
-            vi.advanceTimersByTime(7_999);
+            vi.advanceTimersByTime(5_999);
             FakeEventSource.instances[0].emit({ type: "done" });
         });
         expect(result.current.waitingStage).toBe("initial");
@@ -5407,11 +5407,11 @@ describe("useVeraChat", () => {
         });
         expect(result.current.waitingStage).toBe("initial");
         expect(result.current.announcement).toBe(
-            "Ассистент Вера разбирается в вопросе.",
+            "Ассистент Вера анализирует сообщение.",
         );
 
         act(() => {
-            vi.advanceTimersByTime(7_999);
+            vi.advanceTimersByTime(5_999);
         });
         expect(result.current.waitingStage).toBe("expected-delay");
 
@@ -5433,7 +5433,7 @@ describe("useVeraChat", () => {
         );
 
         act(() => {
-            vi.advanceTimersByTime(8_000);
+            vi.advanceTimersByTime(6_000);
         });
         expect(result.current.waitingStage).toBe("expected-delay");
 
@@ -5805,7 +5805,7 @@ describe("useVeraChat", () => {
         expect(result.current.status).toBe("waiting");
         expect(result.current.waitingStage).toBe("expected-delay");
         expect(result.current.announcement).toBe(
-            "Ассистент Вера проверяет информацию.",
+            "Ассистент Вера разбирается в вопросе.",
         );
         expect(result.current.messages[1].content).toBe("");
 

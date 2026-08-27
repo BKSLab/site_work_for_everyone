@@ -161,8 +161,8 @@ describe("ChatMessage accessibility", () => {
     });
 
     it.each([
-        ["initial", "Разбираюсь в вопросе"],
-        ["expected-delay", "Проверяю информацию"],
+        ["initial", "Анализирую сообщение"],
+        ["expected-delay", "Разбираюсь в вопросе"],
         ["extended", "Готовлю ответ — нужно ещё немного времени"],
     ] as const)(
         "shows the %s waiting stage inside the same non-live bubble",
@@ -204,7 +204,7 @@ describe("ChatMessage accessibility", () => {
             screen.getByText("Готовлю более простое объяснение"),
         ).toBeInTheDocument();
         expect(
-            screen.queryByText("Разбираюсь в вопросе"),
+            screen.queryByText("Анализирую сообщение"),
         ).not.toBeInTheDocument();
     });
 
@@ -223,7 +223,7 @@ describe("ChatMessage accessibility", () => {
             />,
         );
 
-        const initialLabel = screen.getByText("Разбираюсь в вопросе");
+        const initialLabel = screen.getByText("Анализирую сообщение");
         expect(initialLabel).toHaveClass(
             "[animation:vera-waiting-status-in_200ms_ease-out]",
             "motion-reduce:animate-none",
@@ -237,7 +237,7 @@ describe("ChatMessage accessibility", () => {
             />,
         );
 
-        const nextLabel = screen.getByText("Проверяю информацию");
+        const nextLabel = screen.getByText("Разбираюсь в вопросе");
         expect(nextLabel).not.toBe(initialLabel);
         expect(nextLabel).toHaveClass(
             "[animation:vera-waiting-status-in_200ms_ease-out]",
@@ -263,7 +263,7 @@ describe("ChatMessage accessibility", () => {
             screen.getByText(/статус ответа пока неизвестен/i),
         ).toBeInTheDocument();
         expect(
-            screen.queryByText("Разбираюсь в вопросе"),
+            screen.queryByText("Анализирую сообщение"),
         ).not.toBeInTheDocument();
     });
 

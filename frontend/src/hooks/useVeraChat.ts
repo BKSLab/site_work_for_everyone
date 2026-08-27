@@ -35,7 +35,7 @@ const FIRST_EVENT_TIMEOUT_MS = 30_000;
 const INACTIVITY_TIMEOUT_MS = 45_000;
 const OVERALL_RESPONSE_DEADLINE_MS = 450_000;
 const HISTORY_POLL_INTERVAL_MS = 2_000;
-const EXPECTED_DELAY_HINT_MS = 8_000;
+const EXPECTED_DELAY_HINT_MS = 6_000;
 const EXTENDED_DELAY_HINT_MS = 20_000;
 // BFF обрывает upstream через 15с; ещё 5с ограничивают browser blackhole,
 // после чего abort означает unknown transport outcome и запускает history lookup.
@@ -747,7 +747,7 @@ export function useVeraChat() {
                 if (!requestIsCurrent()) return;
                 setWaitingStage("expected-delay");
                 setAnnouncement(
-                    "Ассистент Вера проверяет информацию.",
+                    "Ассистент Вера разбирается в вопросе.",
                 );
             };
             const showExtendedDelay = () => {
@@ -772,7 +772,7 @@ export function useVeraChat() {
                 setAnnouncement(
                     waitingVariant === "simplify"
                         ? "Ассистент Вера готовит более простое объяснение."
-                        : "Ассистент Вера разбирается в вопросе.",
+                        : "Ассистент Вера анализирует сообщение.",
                 );
                 expectedDelayTimeoutRef.current = setTimeout(
                     showExpectedDelay,
@@ -3181,7 +3181,7 @@ export function useVeraChat() {
             setAnnouncement(
                 options.waitingVariant === "simplify"
                     ? "Ассистент Вера готовит более простое объяснение."
-                    : "Ассистент Вера разбирается в вопросе.",
+                    : "Ассистент Вера анализирует сообщение.",
             );
 
             const replacementSessionId =
