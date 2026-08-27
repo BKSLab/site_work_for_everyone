@@ -16,6 +16,7 @@ import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import {
     SIMPLIFY_ANSWER_REQUEST,
     type VeraChatMessage,
+    type VeraWaitingStage,
     useVeraChat,
 } from "@/hooks/useVeraChat";
 import { VERA_MESSAGE_MAX_LENGTH } from "@/lib/schemas/vera";
@@ -34,12 +35,14 @@ const SCROLL_BOTTOM_THRESHOLD_PX = 80;
 const ChatMessageList = memo(function ChatMessageList({
     messages,
     sessionId,
+    waitingStage = "initial",
     simplifiableMessageId = null,
     isSimplifyDisabled = false,
     onSimplify,
 }: {
     messages: VeraChatMessage[];
     sessionId: string;
+    waitingStage?: VeraWaitingStage;
     /* Кнопку «Объяснить проще» получает ровно одно сообщение списка —
        остальным передаётся `false`. Завершённые диалоги в
        `previousSessionGroups` не передают этот проп вовсе: их контекст уже
@@ -66,6 +69,13 @@ const ChatMessageList = memo(function ChatMessageList({
                     key={message.id}
                     message={message}
                     sessionId={sessionId}
+                    waitingStage={
+                        message.role === "assistant" &&
+                        message.streaming &&
+                        !message.content
+                            ? waitingStage
+                            : undefined
+                    }
                     canSimplify={message.id === simplifiableMessageId}
                     isSimplifyDisabled={isSimplifyDisabled}
                     onSimplify={onSimplify}
@@ -459,24 +469,11 @@ export function ChatWindow() {
                         <ChatMessageList
                             messages={messages}
                             sessionId={sessionId}
+                            waitingStage={waitingStage}
                             simplifiableMessageId={simplifiableMessageId}
                             isSimplifyDisabled={isSimplifyDisabled}
                             onSimplify={handleSimplify}
                         />
-                        {status === "waiting" &&
-                            waitingStage !== "initial" && (
-                                <div className="flex items-center gap-2 rounded-xl border border-accent/25 bg-accent/10 px-4 py-3 text-sm text-muted">
-                                    <span
-                                        aria-hidden="true"
-                                        className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-accent motion-reduce:animate-none"
-                                    />
-                                    <span>
-                                        {waitingStage === "expected-delay"
-                                            ? "Проверяю информацию. Подготовка ответа может занять до 20 секунд."
-                                            : "Запрос всё ещё выполняется. Ответ появится здесь и сохранится в истории."}
-                                    </span>
-                                </div>
-                            )}
                     </div>
                     {!isNearHistoryBottom && hasVisibleMessages && (
                         <Button

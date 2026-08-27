@@ -416,12 +416,12 @@ describe("useVeraChat", () => {
         [
             12_000,
             "expected-delay",
-            "Подготовка ответа занимает больше времени.",
+            "Ассистент Вера проверяет информацию.",
         ],
         [
             25_000,
             "extended",
-            "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+            "Ассистент Вера продолжает готовить ответ.",
         ],
     ] as const)(
         "restores pending waiting UX from a request created %s ms ago",
@@ -5207,7 +5207,7 @@ describe("useVeraChat", () => {
 
         const payload = sendMessageMock.mock.calls[0][0];
         expect(result.current.announcement).toBe(
-            "Ассистент Вера проверяет вопрос и готовит ответ.",
+            "Ассистент Вера разбирается в вопросе.",
         );
         expect(result.current.waitingStage).toBe("initial");
         expect(result.current.deliveryState).toBe("accepted");
@@ -5270,7 +5270,7 @@ describe("useVeraChat", () => {
 
         expect(result.current.waitingStage).toBe("initial");
         expect(result.current.announcement).toBe(
-            "Ассистент Вера проверяет вопрос и готовит ответ.",
+            "Ассистент Вера разбирается в вопросе.",
         );
 
         act(() => {
@@ -5287,7 +5287,7 @@ describe("useVeraChat", () => {
         });
         expect(result.current.waitingStage).toBe("expected-delay");
         expect(result.current.announcement).toBe(
-            "Подготовка ответа занимает больше времени.",
+            "Ассистент Вера проверяет информацию.",
         );
 
         act(() => {
@@ -5304,7 +5304,7 @@ describe("useVeraChat", () => {
         });
         expect(result.current.waitingStage).toBe("extended");
         expect(result.current.announcement).toBe(
-            "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+            "Ассистент Вера продолжает готовить ответ.",
         );
         expect(result.current.status).toBe("waiting");
 
@@ -5383,7 +5383,7 @@ describe("useVeraChat", () => {
         });
         expect(result.current.waitingStage).toBe("initial");
         expect(result.current.announcement).toBe(
-            "Ассистент Вера проверяет вопрос и готовит ответ.",
+            "Ассистент Вера разбирается в вопросе.",
         );
 
         act(() => {
@@ -5781,7 +5781,7 @@ describe("useVeraChat", () => {
         expect(result.current.status).toBe("waiting");
         expect(result.current.waitingStage).toBe("expected-delay");
         expect(result.current.announcement).toBe(
-            "Подготовка ответа занимает больше времени.",
+            "Ассистент Вера проверяет информацию.",
         );
         expect(result.current.messages[1].content).toBe("");
 
@@ -5893,7 +5893,7 @@ describe("useVeraChat", () => {
         expect(result.current.status).toBe("waiting");
         expect(result.current.waitingStage).toBe("extended");
         expect(result.current.announcement).toBe(
-            "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+            "Ассистент Вера продолжает готовить ответ.",
         );
         expect(result.current.error).toBeNull();
 

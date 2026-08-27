@@ -18,6 +18,7 @@ vi.mock("../ChatMessage", () => ({
     ChatMessage: (props: {
         message: { content: string };
         sessionId: string;
+        waitingStage?: string;
     }) => {
         chatMessageRenderMock(props);
         return <div>{props.message.content}</div>;
@@ -380,8 +381,7 @@ describe("ChatWindow accessibility", () => {
             status: "waiting",
             waitingStage: "initial",
             error: null,
-            announcement:
-                "Ассистент Вера проверяет вопрос и готовит ответ.",
+            announcement: "Ассистент Вера разбирается в вопросе.",
             isHistoryLoading: false,
             historyError: null,
         });
@@ -400,7 +400,7 @@ describe("ChatWindow accessibility", () => {
             screen.getByRole("button", { name: "Отправить" }),
         ).toBeDisabled();
         expect(screen.getByRole("status")).toHaveTextContent(
-            "Ассистент Вера проверяет вопрос и готовит ответ.",
+            "Ассистент Вера разбирается в вопросе.",
         );
     });
 
@@ -455,7 +455,7 @@ describe("ChatWindow accessibility", () => {
             deliveryState: "processing",
             waitingStage: "expected-delay",
             error: null,
-            announcement: "Подготовка ответа занимает больше времени.",
+            announcement: "Ассистент Вера проверяет информацию.",
             isHistoryLoading: false,
             historyError: null,
         };
@@ -471,12 +471,14 @@ describe("ChatWindow accessibility", () => {
         useVeraChatMock.mockReturnValue({
             ...chatState,
             waitingStage: "extended",
-            announcement:
-                "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+            announcement: "Ассистент Вера продолжает готовить ответ.",
         });
         rerender(<ChatWindow />);
 
         expect(composer).toHaveValue("Черновик следующего вопроса.");
+        expect(chatMessageRenderMock).toHaveBeenLastCalledWith(
+            expect.objectContaining({ waitingStage: "extended" }),
+        );
         expect(
             screen.getByRole("button", { name: "Отправить" }),
         ).toBeDisabled();
@@ -557,54 +559,59 @@ describe("ChatWindow accessibility", () => {
     it.each([
         [
             "expected-delay",
-            "Проверяю информацию. Подготовка ответа может занять до 20 секунд.",
-            "Подготовка ответа занимает больше времени.",
+            "Ассистент Вера проверяет информацию.",
         ],
         [
             "extended",
-            "Запрос всё ещё выполняется. Ответ появится здесь и сохранится в истории.",
-            "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+            "Ассистент Вера продолжает готовить ответ.",
         ],
     ] as const)(
-        "shows the non-live %s waiting status",
-        (waitingStage, visibleText, announcement) => {
-        useVeraChatMock.mockReturnValue({
-            sessionId: "session-1",
-            messages: [
-                {
-                    id: "assistant-1",
-                    role: "assistant",
-                    content: "",
-                    streaming: true,
-                },
-            ],
-            sendMessage: vi.fn(),
-            status: "waiting",
-            deliveryState: "processing",
-            waitingStage,
-            error: null,
-            announcement,
-            isHistoryLoading: false,
-            historyError: null,
-        });
+        "passes the %s stage into the existing Vera bubble",
+        (waitingStage, announcement) => {
+            useVeraChatMock.mockReturnValue({
+                sessionId: "session-1",
+                messages: [
+                    {
+                        id: "assistant-1",
+                        role: "assistant",
+                        content: "",
+                        streaming: true,
+                    },
+                ],
+                sendMessage: vi.fn(),
+                status: "waiting",
+                deliveryState: "processing",
+                waitingStage,
+                error: null,
+                announcement,
+                isHistoryLoading: false,
+                historyError: null,
+            });
 
-        render(<ChatWindow />);
+            render(<ChatWindow />);
 
-        expect(screen.getByText(visibleText)).toBeVisible();
-        expect(
-            screen.queryByText(/если вы попросили отправить консультацию/i),
-        ).not.toBeInTheDocument();
-        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-        expect(screen.getAllByRole("status")).toHaveLength(1);
-        expect(screen.getByRole("status")).toHaveTextContent(announcement);
-        expect(
-            screen.getByRole("region", {
-                name: "История переписки с Ассистентом Верой",
-            }),
-        ).toHaveAttribute("aria-busy", "true");
-        expect(
-            screen.getByRole("button", { name: "Отправить" }),
-        ).toBeDisabled();
+            expect(chatMessageRenderMock).toHaveBeenCalledWith(
+                expect.objectContaining({ waitingStage }),
+            );
+            expect(
+                screen.queryByText(/подготовка ответа может занять/i),
+            ).not.toBeInTheDocument();
+            expect(
+                screen.queryByText(/ответ появится здесь/i),
+            ).not.toBeInTheDocument();
+            expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+            expect(screen.getAllByRole("status")).toHaveLength(1);
+            expect(screen.getByRole("status")).toHaveTextContent(
+                announcement,
+            );
+            expect(
+                screen.getByRole("region", {
+                    name: "История переписки с Ассистентом Верой",
+                }),
+            ).toHaveAttribute("aria-busy", "true");
+            expect(
+                screen.getByRole("button", { name: "Отправить" }),
+            ).toBeDisabled();
         },
     );
 

@@ -733,14 +733,14 @@ export function useVeraChat() {
                 if (!requestIsCurrent()) return;
                 setWaitingStage("expected-delay");
                 setAnnouncement(
-                    "Подготовка ответа занимает больше времени.",
+                    "Ассистент Вера проверяет информацию.",
                 );
             };
             const showExtendedDelay = () => {
                 if (!requestIsCurrent()) return;
                 setWaitingStage("extended");
                 setAnnouncement(
-                    "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+                    "Ассистент Вера продолжает готовить ответ.",
                 );
             };
 
@@ -756,7 +756,7 @@ export function useVeraChat() {
             } else {
                 setWaitingStage("initial");
                 setAnnouncement(
-                    "Ассистент Вера проверяет вопрос и готовит ответ.",
+                    "Ассистент Вера разбирается в вопросе.",
                 );
                 expectedDelayTimeoutRef.current = setTimeout(
                     showExpectedDelay,
@@ -3160,7 +3160,7 @@ export function useVeraChat() {
             setError(null);
             setStatus("waiting");
             setAnnouncement(
-                "Ассистент Вера проверяет вопрос и готовит ответ.",
+                "Ассистент Вера разбирается в вопросе.",
             );
 
             const replacementSessionId =

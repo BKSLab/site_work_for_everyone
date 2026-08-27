@@ -1,7 +1,10 @@
 import Image from "next/image";
 import { memo } from "react";
 import { cn } from "@/lib/utils/cn";
-import type { VeraChatMessage } from "@/hooks/useVeraChat";
+import type {
+    VeraChatMessage,
+    VeraWaitingStage,
+} from "@/hooks/useVeraChat";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { MessageFeedbackControls } from "./MessageFeedbackControls";
 import { SimplifyAnswerButton } from "./SimplifyAnswerButton";
@@ -9,6 +12,7 @@ import { SimplifyAnswerButton } from "./SimplifyAnswerButton";
 interface ChatMessageProps {
     message: VeraChatMessage;
     sessionId: string;
+    waitingStage?: VeraWaitingStage;
     /** показывать кнопку «Объяснить проще» под этим ответом */
     canSimplify?: boolean;
     isSimplifyDisabled?: boolean;
@@ -18,12 +22,19 @@ interface ChatMessageProps {
 export const ChatMessage = memo(function ChatMessage({
     message,
     sessionId,
+    waitingStage = "initial",
     canSimplify = false,
     isSimplifyDisabled = false,
     onSimplify,
 }: ChatMessageProps) {
     const isUser = message.role === "user";
     const isPreparing = !isUser && message.streaming && !message.content;
+    const preparingText =
+        waitingStage === "expected-delay"
+            ? "Проверяю информацию"
+            : waitingStage === "extended"
+              ? "Готовлю ответ — нужно ещё немного времени"
+              : "Разбираюсь в вопросе";
     const isUnknownAnswer =
         !isUser && !message.content && message.deliveryState === "unknown";
     const isFailedAnswer =
@@ -92,7 +103,7 @@ export const ChatMessage = memo(function ChatMessage({
                 </span>
                 {isPreparing ? (
                     <span className="flex items-center gap-2 text-muted">
-                        <span>Проверяю вопрос и готовлю ответ</span>
+                        <span>{preparingText}</span>
                         <span
                             aria-hidden="true"
                             className="flex shrink-0 gap-1"

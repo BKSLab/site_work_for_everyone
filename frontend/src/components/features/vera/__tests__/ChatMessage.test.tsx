@@ -160,25 +160,30 @@ describe("ChatMessage accessibility", () => {
         expect(screen.getByText("Ассистент Вера:")).toHaveClass("sr-only");
     });
 
-    it("does not create a nested live region for the pending bubble", () => {
-        render(
-            <ChatMessage
-                sessionId="session-1"
-                message={{
-                    id: "assistant-1",
-                    role: "assistant",
-                    content: "",
-                    streaming: true,
-                }}
-            />,
-        );
+    it.each([
+        ["initial", "Разбираюсь в вопросе"],
+        ["expected-delay", "Проверяю информацию"],
+        ["extended", "Готовлю ответ — нужно ещё немного времени"],
+    ] as const)(
+        "shows the %s waiting stage inside the same non-live bubble",
+        (waitingStage, text) => {
+            render(
+                <ChatMessage
+                    sessionId="session-1"
+                    waitingStage={waitingStage}
+                    message={{
+                        id: "assistant-1",
+                        role: "assistant",
+                        content: "",
+                        streaming: true,
+                    }}
+                />,
+            );
 
-        expect(
-            screen.getByText("Проверяю вопрос и готовлю ответ"),
-        ).toBeInTheDocument();
-        expect(screen.queryByText("Готовлю ответ")).not.toBeInTheDocument();
-        expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    });
+            expect(screen.getByText(text)).toBeInTheDocument();
+            expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        },
+    );
 
     it("keeps an empty answer visible when its outcome is unknown", () => {
         render(
@@ -198,7 +203,7 @@ describe("ChatMessage accessibility", () => {
             screen.getByText(/статус ответа пока неизвестен/i),
         ).toBeInTheDocument();
         expect(
-            screen.queryByText("Проверяю вопрос и готовлю ответ"),
+            screen.queryByText("Разбираюсь в вопросе"),
         ).not.toBeInTheDocument();
     });
 
