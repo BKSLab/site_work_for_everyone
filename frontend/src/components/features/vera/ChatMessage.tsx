@@ -1,9 +1,10 @@
 import Image from "next/image";
 import { memo } from "react";
 import { cn } from "@/lib/utils/cn";
-import type {
-    VeraChatMessage,
-    VeraWaitingStage,
+import {
+    SIMPLIFY_WAITING_TEXT,
+    type VeraChatMessage,
+    type VeraWaitingStage,
 } from "@/hooks/useVeraChat";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { MessageFeedbackControls } from "./MessageFeedbackControls";
@@ -34,7 +35,9 @@ export const ChatMessage = memo(function ChatMessage({
             ? "Проверяю информацию"
             : waitingStage === "extended"
               ? "Готовлю ответ — нужно ещё немного времени"
-              : "Разбираюсь в вопросе";
+              : message.waitingVariant === "simplify"
+                ? SIMPLIFY_WAITING_TEXT
+                : "Разбираюсь в вопросе";
     const isUnknownAnswer =
         !isUser && !message.content && message.deliveryState === "unknown";
     const isFailedAnswer =

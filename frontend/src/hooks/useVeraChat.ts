@@ -58,6 +58,14 @@ const ABANDONED_RECOVERY_DETAIL =
  * переформулировки предыдущего.
  */
 export const SIMPLIFY_ANSWER_REQUEST = "Объясни предыдущий ответ проще";
+export const SIMPLIFY_WAITING_TEXT = "Готовлю более простое объяснение";
+
+export type VeraWaitingVariant = "default" | "simplify";
+
+export interface VeraSendMessageOptions {
+    /** Клиентский вариант статуса; в API и текст сообщения не попадает. */
+    waitingVariant?: VeraWaitingVariant;
+}
 
 export type VeraDeliveryState =
     | "draft"
@@ -127,6 +135,8 @@ export interface VeraChatMessage {
     requestId?: string;
     /** true, пока ассистент ещё стримит токены в это сообщение */
     streaming?: boolean;
+    /** Вариант начального статуса для оптимистичного ответа. */
+    waitingVariant?: VeraWaitingVariant;
     /** true после подтверждённого completed через SSE или историю */
     feedbackEligible?: boolean;
     /** ранее сохранённая оценка ответа */
@@ -709,7 +719,11 @@ export function useVeraChat() {
     }, [clearWaitingTimers]);
 
     const startWaitingHints = useCallback(
-        (requestId: string, rawStartedAt: number) => {
+        (
+            requestId: string,
+            rawStartedAt: number,
+            waitingVariant: VeraWaitingVariant = "default",
+        ) => {
             if (
                 !isMountedRef.current ||
                 activeRequestIdRef.current !== requestId
@@ -756,7 +770,9 @@ export function useVeraChat() {
             } else {
                 setWaitingStage("initial");
                 setAnnouncement(
-                    "Ассистент Вера разбирается в вопросе.",
+                    waitingVariant === "simplify"
+                        ? "Ассистент Вера готовит более простое объяснение."
+                        : "Ассистент Вера разбирается в вопросе.",
                 );
                 expectedDelayTimeoutRef.current = setTimeout(
                     showExpectedDelay,
@@ -3117,7 +3133,10 @@ export function useVeraChat() {
     ]);
 
     const sendMessage = useCallback(
-        async (text: string): Promise<VeraSendMessageResult> => {
+        async (
+            text: string,
+            options: VeraSendMessageOptions = {},
+        ): Promise<VeraSendMessageResult> => {
             if (readPendingNewDialog()) {
                 setError(
                     "Завершите создание нового диалога перед отправкой сообщения.",
@@ -3160,7 +3179,9 @@ export function useVeraChat() {
             setError(null);
             setStatus("waiting");
             setAnnouncement(
-                "Ассистент Вера разбирается в вопросе.",
+                options.waitingVariant === "simplify"
+                    ? "Ассистент Вера готовит более простое объяснение."
+                    : "Ассистент Вера разбирается в вопросе.",
             );
 
             const replacementSessionId =
@@ -3332,11 +3353,16 @@ export function useVeraChat() {
                     content: "",
                     requestId,
                     streaming: true,
+                    waitingVariant: options.waitingVariant,
                     feedbackEligible: false,
                     deliveryState: "submitting",
                 },
             ]);
-            startWaitingHints(requestId, requestStartedAt);
+            startWaitingHints(
+                requestId,
+                requestStartedAt,
+                options.waitingVariant,
+            );
 
             const applyPublishedLifecycle = (
                 lifecycle: VeraChatSessionLifecycleResponse,

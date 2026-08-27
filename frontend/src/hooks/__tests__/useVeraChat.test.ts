@@ -221,6 +221,30 @@ describe("useVeraChat", () => {
         unmount();
     });
 
+    it("uses the simplify waiting status only when explicitly requested by the UI", async () => {
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await waitFor(() => expect(result.current.sessionId).toBeTruthy());
+        await act(async () => {
+            await result.current.sendMessage(
+                "Объясни предыдущий ответ проще",
+                { waitingVariant: "simplify" },
+            );
+        });
+
+        expect(result.current.messages[1]).toMatchObject({
+            role: "assistant",
+            content: "",
+            streaming: true,
+            waitingVariant: "simplify",
+        });
+        expect(result.current.announcement).toBe(
+            "Ассистент Вера готовит более простое объяснение.",
+        );
+
+        unmount();
+    });
+
     it("opens EventSource only after the publication receipt arrives", async () => {
         let resolvePublication!: () => void;
         sendMessageMock.mockImplementationOnce(

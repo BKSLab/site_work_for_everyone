@@ -185,6 +185,29 @@ describe("ChatMessage accessibility", () => {
         },
     );
 
+    it("shows a dedicated initial status for the simplify button request", () => {
+        render(
+            <ChatMessage
+                sessionId="session-1"
+                waitingStage="initial"
+                message={{
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: "",
+                    streaming: true,
+                    waitingVariant: "simplify",
+                }}
+            />,
+        );
+
+        expect(
+            screen.getByText("Готовлю более простое объяснение"),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByText("Разбираюсь в вопросе"),
+        ).not.toBeInTheDocument();
+    });
+
     it("keeps an empty answer visible when its outcome is unknown", () => {
         render(
             <ChatMessage

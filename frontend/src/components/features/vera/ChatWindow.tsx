@@ -270,7 +270,9 @@ export function ChatWindow() {
         if (blocksSubmission || isHistoryLoading || !sessionId) return;
         /* Черновик в поле ввода не трогаем: пользователь мог начать писать
            свой вопрос, и кнопка не должна его затирать или отправлять. */
-        void sendMessage(SIMPLIFY_ANSWER_REQUEST);
+        void sendMessage(SIMPLIFY_ANSWER_REQUEST, {
+            waitingVariant: "simplify",
+        });
     }, [blocksSubmission, isHistoryLoading, sendMessage, sessionId]);
 
     async function handleSubmit(event: FormEvent) {

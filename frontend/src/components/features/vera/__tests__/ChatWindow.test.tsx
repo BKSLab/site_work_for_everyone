@@ -1230,6 +1230,7 @@ describe("ChatWindow accessibility", () => {
         await waitFor(() => {
             expect(sendMessage).toHaveBeenCalledWith(
                 "Объясни предыдущий ответ проще",
+                { waitingVariant: "simplify" },
             );
         });
         /* Кнопка не должна затирать или отправлять начатый вопрос
