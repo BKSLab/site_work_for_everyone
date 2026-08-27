@@ -106,7 +106,12 @@ export const ChatMessage = memo(function ChatMessage({
                 </span>
                 {isPreparing ? (
                     <span className="flex items-center gap-2 text-muted">
-                        <span>{preparingText}</span>
+                        <span
+                            key={`${waitingStage}:${message.waitingVariant ?? "default"}`}
+                            className="inline-block [animation:vera-waiting-status-in_200ms_ease-out] motion-reduce:animate-none"
+                        >
+                            {preparingText}
+                        </span>
                         <span
                             aria-hidden="true"
                             className="flex shrink-0 gap-1"

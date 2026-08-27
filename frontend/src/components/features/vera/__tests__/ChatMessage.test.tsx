@@ -208,6 +208,43 @@ describe("ChatMessage accessibility", () => {
         ).not.toBeInTheDocument();
     });
 
+    it("animates each waiting-stage label while respecting reduced motion", () => {
+        const message = {
+            id: "assistant-1",
+            role: "assistant" as const,
+            content: "",
+            streaming: true,
+        };
+        const { rerender } = render(
+            <ChatMessage
+                sessionId="session-1"
+                waitingStage="initial"
+                message={message}
+            />,
+        );
+
+        const initialLabel = screen.getByText("Разбираюсь в вопросе");
+        expect(initialLabel).toHaveClass(
+            "[animation:vera-waiting-status-in_200ms_ease-out]",
+            "motion-reduce:animate-none",
+        );
+
+        rerender(
+            <ChatMessage
+                sessionId="session-1"
+                waitingStage="expected-delay"
+                message={message}
+            />,
+        );
+
+        const nextLabel = screen.getByText("Проверяю информацию");
+        expect(nextLabel).not.toBe(initialLabel);
+        expect(nextLabel).toHaveClass(
+            "[animation:vera-waiting-status-in_200ms_ease-out]",
+            "motion-reduce:animate-none",
+        );
+    });
+
     it("keeps an empty answer visible when its outcome is unknown", () => {
         render(
             <ChatMessage
