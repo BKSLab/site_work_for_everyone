@@ -108,11 +108,13 @@ function historyWithTurn({
     requestId,
     status,
     answer,
+    createdAt = "2026-08-10T10:00:00Z",
 }: {
     sessionId: string;
     requestId: string;
     status: string;
     answer: string | null;
+    createdAt?: string;
 }) {
     return {
         session_id: sessionId,
@@ -124,7 +126,7 @@ function historyWithTurn({
                 answer,
                 status,
                 feedback_value: null,
-                created_at: "2026-08-10T10:00:00Z",
+                created_at: createdAt,
                 completed_at:
                     status === "processing"
                         ? null
@@ -410,6 +412,108 @@ describe("useVeraChat", () => {
         secondHook.unmount();
     });
 
+    it.each([
+        [
+            12_000,
+            "expected-delay",
+            "Подготовка ответа занимает больше времени.",
+        ],
+        [
+            25_000,
+            "extended",
+            "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+        ],
+    ] as const)(
+        "restores pending waiting UX from a request created %s ms ago",
+        async (elapsed, expectedStage, expectedAnnouncement) => {
+            vi.useFakeTimers();
+            const now = new Date("2026-08-27T10:00:00Z").getTime();
+            vi.setSystemTime(now);
+            window.sessionStorage.setItem(
+                "vera_session_id",
+                JSON.stringify({ id: "conversation-1" }),
+            );
+            window.sessionStorage.setItem(
+                "vera_pending_request",
+                JSON.stringify({
+                    sessionId: "conversation-1",
+                    requestId: "pending-request",
+                    message: "Восстановите мой вопрос.",
+                    createdAt: now - elapsed,
+                }),
+            );
+            getHistoryMock.mockImplementation(
+                () => new Promise(() => undefined),
+            );
+
+            const { result, unmount } = renderHook(() => useVeraChat());
+            await act(async () => {
+                for (let index = 0; index < 8; index += 1) {
+                    await Promise.resolve();
+                }
+            });
+
+            expect(result.current.status).toBe("waiting");
+            expect(result.current.waitingStage).toBe(expectedStage);
+            expect(result.current.announcement).toBe(expectedAnnouncement);
+
+            if (elapsed === 12_000) {
+                act(() => {
+                    vi.advanceTimersByTime(7_999);
+                });
+                expect(result.current.waitingStage).toBe("expected-delay");
+
+                act(() => {
+                    vi.advanceTimersByTime(1);
+                });
+                expect(result.current.waitingStage).toBe("extended");
+            }
+
+            unmount();
+        },
+    );
+
+    it("restores waiting UX from the processing turn creation time", async () => {
+        vi.useFakeTimers();
+        const now = new Date("2026-08-27T10:00:00Z").getTime();
+        vi.setSystemTime(now);
+        window.sessionStorage.setItem(
+            "vera_session_id",
+            JSON.stringify({ id: "conversation-1" }),
+        );
+        getHistoryMock.mockResolvedValue(
+            historyWithTurn({
+                sessionId: "conversation-1",
+                requestId: "processing-request",
+                status: "processing",
+                answer: null,
+                createdAt: new Date(now - 12_000).toISOString(),
+            }),
+        );
+
+        const { result, unmount } = renderHook(() => useVeraChat());
+        await act(async () => {
+            for (let index = 0; index < 8; index += 1) {
+                await Promise.resolve();
+            }
+        });
+
+        expect(result.current.deliveryState).toBe("processing");
+        expect(result.current.waitingStage).toBe("expected-delay");
+
+        act(() => {
+            vi.advanceTimersByTime(7_999);
+        });
+        expect(result.current.waitingStage).toBe("expected-delay");
+
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(result.current.waitingStage).toBe("extended");
+
+        unmount();
+    });
+
     it("clears an inaccessible pending journal without republishing it", async () => {
         const firstHook = renderHook(() => useVeraChat());
 
@@ -576,6 +680,7 @@ describe("useVeraChat", () => {
                 expect(result.current.error).toBe("Сообщение отклонено.");
             }
             expect(result.current.deliveryState).toBe("failed");
+            expect(result.current.waitingStage).toBe("initial");
             expect(FakeEventSource.instances).toEqual([]);
             expect(
                 window.sessionStorage.getItem("vera_pending_request"),
@@ -5102,8 +5207,9 @@ describe("useVeraChat", () => {
 
         const payload = sendMessageMock.mock.calls[0][0];
         expect(result.current.announcement).toBe(
-            "Ассистент Вера готовит ответ.",
+            "Ассистент Вера проверяет вопрос и готовит ответ.",
         );
+        expect(result.current.waitingStage).toBe("initial");
         expect(result.current.deliveryState).toBe("accepted");
 
         act(() => {
@@ -5143,9 +5249,185 @@ describe("useVeraChat", () => {
         expect(result.current.messages[1].feedbackEligible).toBe(true);
         expect(result.current.messages[1].deliveryState).toBe("completed");
         expect(result.current.deliveryState).toBe("completed");
+        expect(result.current.waitingStage).toBe("initial");
         expect(
             window.sessionStorage.getItem("vera_pending_request"),
         ).toBeNull();
+
+        unmount();
+    });
+
+    it("advances waiting UX at exactly 8 and 20 seconds independently of heartbeat", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Расскажите об отпуске.");
+        });
+
+        expect(result.current.waitingStage).toBe("initial");
+        expect(result.current.announcement).toBe(
+            "Ассистент Вера проверяет вопрос и готовит ответ.",
+        );
+
+        act(() => {
+            vi.advanceTimersByTime(7_999);
+            FakeEventSource.instances[0].emit({
+                type: "heartbeat",
+                ts: 1_723_296_000,
+            });
+        });
+        expect(result.current.waitingStage).toBe("initial");
+
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(result.current.waitingStage).toBe("expected-delay");
+        expect(result.current.announcement).toBe(
+            "Подготовка ответа занимает больше времени.",
+        );
+
+        act(() => {
+            vi.advanceTimersByTime(11_999);
+            FakeEventSource.instances[0].emit({
+                type: "heartbeat",
+                ts: 1_723_296_012,
+            });
+        });
+        expect(result.current.waitingStage).toBe("expected-delay");
+
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(result.current.waitingStage).toBe("extended");
+        expect(result.current.announcement).toBe(
+            "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+        );
+        expect(result.current.status).toBe("waiting");
+
+        unmount();
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it.each([
+        [7_000, "initial"],
+        [12_000, "expected-delay"],
+    ] as const)(
+        "clears waiting UX on the first token at %s ms and never restores it",
+        async (tokenAt, stageBeforeToken) => {
+            vi.useFakeTimers();
+            const { result, unmount } = renderHook(() => useVeraChat());
+
+            await act(async () => {
+                await Promise.resolve();
+            });
+            await act(async () => {
+                await result.current.sendMessage(
+                    "Расскажите об отпуске.",
+                );
+            });
+
+            act(() => {
+                vi.advanceTimersByTime(tokenAt);
+            });
+            expect(result.current.waitingStage).toBe(stageBeforeToken);
+
+            act(() => {
+                FakeEventSource.instances[0].emit({
+                    type: "token",
+                    content: "Ответ начался.",
+                });
+                flushAnimationFrames();
+            });
+            expect(result.current.status).toBe("streaming");
+            expect(result.current.waitingStage).toBe("initial");
+            expect(result.current.announcement).toBe("");
+
+            act(() => {
+                vi.advanceTimersByTime(20_000);
+            });
+            expect(result.current.waitingStage).toBe("initial");
+            expect(result.current.announcement).toBe("");
+
+            act(() => {
+                FakeEventSource.instances[0].emit({ type: "done" });
+            });
+            unmount();
+        },
+    );
+
+    it("does not let a completed request timer change the next request", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Первый вопрос.");
+        });
+        act(() => {
+            vi.advanceTimersByTime(7_999);
+            FakeEventSource.instances[0].emit({ type: "done" });
+        });
+        expect(result.current.waitingStage).toBe("initial");
+
+        await act(async () => {
+            await result.current.sendMessage("Второй вопрос.");
+        });
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(result.current.waitingStage).toBe("initial");
+        expect(result.current.announcement).toBe(
+            "Ассистент Вера проверяет вопрос и готовит ответ.",
+        );
+
+        act(() => {
+            vi.advanceTimersByTime(7_999);
+        });
+        expect(result.current.waitingStage).toBe("expected-delay");
+
+        unmount();
+    });
+
+    it("clears waiting UX as soon as an SSE error starts reconciliation", async () => {
+        vi.useFakeTimers();
+        const { result, unmount } = renderHook(() => useVeraChat());
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        await act(async () => {
+            await result.current.sendMessage("Расскажите о квотах.");
+        });
+        getHistoryMock.mockImplementationOnce(
+            () => new Promise(() => undefined),
+        );
+
+        act(() => {
+            vi.advanceTimersByTime(8_000);
+        });
+        expect(result.current.waitingStage).toBe("expected-delay");
+
+        act(() => {
+            FakeEventSource.instances[0].emit({
+                type: "error",
+                detail: "Генерация завершилась ошибкой.",
+            });
+        });
+        expect(result.current.waitingStage).toBe("initial");
+        expect(result.current.announcement).toBe(
+            "Проверяю итог обработки сообщения.",
+        );
+
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+        expect(result.current.waitingStage).toBe("initial");
 
         unmount();
     });
@@ -5366,7 +5648,7 @@ describe("useVeraChat", () => {
         });
 
         expect(FakeEventSource.instances[0].closed).toBe(false);
-        expect(result.current.status).toBe("long-running");
+        expect(result.current.status).toBe("waiting");
         expect(result.current.error).toBeNull();
 
         act(() => {
@@ -5410,6 +5692,7 @@ describe("useVeraChat", () => {
 
         expect(FakeEventSource.instances[0].closed).toBe(true);
         expect(result.current.status).toBe("unavailable");
+        expect(result.current.waitingStage).toBe("initial");
         expect(result.current.announcement).toBe("");
         expect(result.current.error).toBe(
             "Не удалось обработать ответ Ассистента Веры. Попробуйте ещё раз.",
@@ -5447,6 +5730,7 @@ describe("useVeraChat", () => {
         });
 
         expect(result.current.status).toBe("unavailable");
+        expect(result.current.waitingStage).toBe("initial");
         expect(result.current.announcement).toBe("");
         expect(result.current.error).toBe(
             "Ассистент Вера не начал отвечать. Попробуйте позже.",
@@ -5494,9 +5778,10 @@ describe("useVeraChat", () => {
             });
         });
 
-        expect(result.current.status).toBe("long-running");
+        expect(result.current.status).toBe("waiting");
+        expect(result.current.waitingStage).toBe("expected-delay");
         expect(result.current.announcement).toBe(
-            "Ассистент Вера готовит ответ.",
+            "Подготовка ответа занимает больше времени.",
         );
         expect(result.current.messages[1].content).toBe("");
 
@@ -5546,7 +5831,8 @@ describe("useVeraChat", () => {
                 ts: 1_723_296_000,
             });
         });
-        expect(result.current.status).toBe("long-running");
+        expect(result.current.status).toBe("waiting");
+        expect(result.current.waitingStage).toBe("initial");
 
         act(() => {
             FakeEventSource.instances[0].emit({
@@ -5605,8 +5891,9 @@ describe("useVeraChat", () => {
 
         expect(FakeEventSource.instances[0].closed).toBe(false);
         expect(result.current.status).toBe("waiting");
+        expect(result.current.waitingStage).toBe("extended");
         expect(result.current.announcement).toBe(
-            "Ассистент Вера готовит ответ.",
+            "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
         );
         expect(result.current.error).toBeNull();
 
@@ -5676,6 +5963,7 @@ describe("useVeraChat", () => {
         });
 
         expect(result.current.status).toBe("idle");
+        expect(result.current.waitingStage).toBe("initial");
         expect(result.current.error).toBeNull();
         expect(result.current.announcement).toBe(
             "Ответ Ассистента Веры готов.",

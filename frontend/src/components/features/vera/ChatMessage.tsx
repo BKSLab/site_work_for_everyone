@@ -92,7 +92,7 @@ export const ChatMessage = memo(function ChatMessage({
                 </span>
                 {isPreparing ? (
                     <span className="flex items-center gap-2 text-muted">
-                        <span>Готовлю ответ</span>
+                        <span>Проверяю вопрос и готовлю ответ</span>
                         <span
                             aria-hidden="true"
                             className="flex shrink-0 gap-1"

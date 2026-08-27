@@ -173,7 +173,10 @@ describe("ChatMessage accessibility", () => {
             />,
         );
 
-        expect(screen.getByText("Готовлю ответ")).toBeInTheDocument();
+        expect(
+            screen.getByText("Проверяю вопрос и готовлю ответ"),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Готовлю ответ")).not.toBeInTheDocument();
         expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
@@ -194,7 +197,9 @@ describe("ChatMessage accessibility", () => {
         expect(
             screen.getByText(/статус ответа пока неизвестен/i),
         ).toBeInTheDocument();
-        expect(screen.queryByText("Готовлю ответ")).not.toBeInTheDocument();
+        expect(
+            screen.queryByText("Проверяю вопрос и готовлю ответ"),
+        ).not.toBeInTheDocument();
     });
 
     it.each([

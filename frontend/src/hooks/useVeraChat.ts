@@ -35,6 +35,8 @@ const FIRST_EVENT_TIMEOUT_MS = 30_000;
 const INACTIVITY_TIMEOUT_MS = 45_000;
 const OVERALL_RESPONSE_DEADLINE_MS = 450_000;
 const HISTORY_POLL_INTERVAL_MS = 2_000;
+const EXPECTED_DELAY_HINT_MS = 8_000;
+const EXTENDED_DELAY_HINT_MS = 20_000;
 // BFF обрывает upstream через 15с; ещё 5с ограничивают browser blackhole,
 // после чего abort означает unknown transport outcome и запускает history lookup.
 const POST_RECEIPT_TIMEOUT_MS = 20_000;
@@ -97,6 +99,13 @@ const DELIVERY_STATES_ALLOWING_NEW_REQUEST = new Set<VeraDeliveryState>([
     "failed",
 ]);
 
+const DELIVERY_STATES_ENDING_WAIT = new Set<VeraDeliveryState>([
+    "draft",
+    "completed",
+    "failed",
+    "unknown",
+]);
+
 const FAILED_HISTORY_STATUSES = new Set([
     "generation_failed",
     "stream_interrupted",
@@ -139,6 +148,8 @@ export interface VeraSendMessageResult {
     restoreDraft: boolean;
 }
 
+export type VeraWaitingStage = "initial" | "expected-delay" | "extended";
+
 export interface VeraPreviousSessionGroup {
     sessionId: string;
     messages: VeraChatMessage[];
@@ -152,12 +163,7 @@ interface VeraPendingRequest {
     createdAt: number;
 }
 
-type ChatStatus =
-    | "idle"
-    | "waiting"
-    | "long-running"
-    | "streaming"
-    | "unavailable";
+type ChatStatus = "idle" | "waiting" | "streaming" | "unavailable";
 
 type ParsedSseEvent =
     | VeraSseEvent
@@ -630,6 +636,8 @@ export function useVeraChat() {
     const [status, setStatus] = useState<ChatStatus>("idle");
     const [deliveryState, setDeliveryState] =
         useState<VeraDeliveryState>("draft");
+    const [waitingStage, setWaitingStage] =
+        useState<VeraWaitingStage>("initial");
     const [error, setError] = useState<string | null>(null);
     // Единственный управляемый статус для программ экранного доступа.
     // Токены и полный ответ сюда не попадают: длинную консультацию пользователь
@@ -662,6 +670,13 @@ export function useVeraChat() {
     const overallTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
         null,
     );
+    const expectedDelayTimeoutRef = useRef<
+        ReturnType<typeof setTimeout> | null
+    >(null);
+    const extendedDelayTimeoutRef = useRef<
+        ReturnType<typeof setTimeout> | null
+    >(null);
+    const waitingRequestIdRef = useRef<string | null>(null);
     const isMountedRef = useRef(true);
     const messagesRevisionRef = useRef(0);
     const tokenBufferRef = useRef<{
@@ -673,6 +688,89 @@ export function useVeraChat() {
     useEffect(() => {
         sessionIdRef.current = sessionId;
     }, [sessionId]);
+
+    const clearWaitingTimers = useCallback(() => {
+        if (expectedDelayTimeoutRef.current !== null) {
+            clearTimeout(expectedDelayTimeoutRef.current);
+            expectedDelayTimeoutRef.current = null;
+        }
+        if (extendedDelayTimeoutRef.current !== null) {
+            clearTimeout(extendedDelayTimeoutRef.current);
+            extendedDelayTimeoutRef.current = null;
+        }
+    }, []);
+
+    const stopWaitingHints = useCallback(() => {
+        clearWaitingTimers();
+        waitingRequestIdRef.current = null;
+        if (isMountedRef.current) {
+            setWaitingStage("initial");
+        }
+    }, [clearWaitingTimers]);
+
+    const startWaitingHints = useCallback(
+        (requestId: string, rawStartedAt: number) => {
+            if (
+                !isMountedRef.current ||
+                activeRequestIdRef.current !== requestId
+            ) {
+                return;
+            }
+            clearWaitingTimers();
+            waitingRequestIdRef.current = requestId;
+
+            const now = Date.now();
+            const startedAt = Number.isFinite(rawStartedAt)
+                ? Math.min(rawStartedAt, now)
+                : now;
+            const elapsed = Math.max(0, now - startedAt);
+            const requestIsCurrent = () =>
+                isMountedRef.current &&
+                activeRequestIdRef.current === requestId &&
+                waitingRequestIdRef.current === requestId;
+
+            const showExpectedDelay = () => {
+                if (!requestIsCurrent()) return;
+                setWaitingStage("expected-delay");
+                setAnnouncement(
+                    "Подготовка ответа занимает больше времени.",
+                );
+            };
+            const showExtendedDelay = () => {
+                if (!requestIsCurrent()) return;
+                setWaitingStage("extended");
+                setAnnouncement(
+                    "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+                );
+            };
+
+            if (!requestIsCurrent()) return;
+
+            if (elapsed >= EXTENDED_DELAY_HINT_MS) {
+                showExtendedDelay();
+                return;
+            }
+
+            if (elapsed >= EXPECTED_DELAY_HINT_MS) {
+                showExpectedDelay();
+            } else {
+                setWaitingStage("initial");
+                setAnnouncement(
+                    "Ассистент Вера проверяет вопрос и готовит ответ.",
+                );
+                expectedDelayTimeoutRef.current = setTimeout(
+                    showExpectedDelay,
+                    EXPECTED_DELAY_HINT_MS - elapsed,
+                );
+            }
+
+            extendedDelayTimeoutRef.current = setTimeout(
+                showExtendedDelay,
+                EXTENDED_DELAY_HINT_MS - elapsed,
+            );
+        },
+        [clearWaitingTimers],
+    );
 
     const preservePreviousSession = useCallback(
         (
@@ -746,10 +844,11 @@ export function useVeraChat() {
             setHasPendingNewDialog(preservePendingNewDialog);
             setHistoryError(null);
             setError(null);
+            stopWaitingHints();
             setAnnouncement("");
             return true;
         },
-        [],
+        [stopWaitingHints],
     );
 
     const completeNewDialogOperation = useCallback(
@@ -855,6 +954,7 @@ export function useVeraChat() {
             setIsHistoryLoading(false);
             setHistoryError(null);
             setStatus("idle");
+            stopWaitingHints();
             deliveryStateRef.current = "draft";
             setDeliveryState("draft");
             setError(null);
@@ -883,6 +983,7 @@ export function useVeraChat() {
         },
         [
             preservePreviousSession,
+            stopWaitingHints,
             storeResolvedSession,
         ],
     );
@@ -917,6 +1018,7 @@ export function useVeraChat() {
             setIsHistoryLoading(false);
             setHistoryError(null);
             setStatus("idle");
+            stopWaitingHints();
             deliveryStateRef.current = "draft";
             setDeliveryState("draft");
             setError(null);
@@ -943,7 +1045,7 @@ export function useVeraChat() {
             setHasPendingNewDialog(false);
             return true;
         },
-        [preservePreviousSession, storeResolvedSession],
+        [preservePreviousSession, stopWaitingHints, storeResolvedSession],
     );
 
     const abandonRejectedLifecycleOperation = useCallback(
@@ -1088,6 +1190,7 @@ export function useVeraChat() {
                 }
                 setHasPendingNewDialog(false);
                 setStatus("idle");
+                stopWaitingHints();
                 deliveryStateRef.current = "draft";
                 setDeliveryState("draft");
                 setAnnouncement("");
@@ -1403,6 +1506,7 @@ export function useVeraChat() {
         [
             discardForeignOwnerArtifacts,
             preservePreviousSession,
+            stopWaitingHints,
             storeResolvedSession,
         ],
     );
@@ -1792,6 +1896,9 @@ export function useVeraChat() {
 
     const transitionDeliveryState = useCallback(
         (nextState: VeraDeliveryState) => {
+            if (DELIVERY_STATES_ENDING_WAIT.has(nextState)) {
+                stopWaitingHints();
+            }
             const currentState = deliveryStateRef.current;
             if (currentState === nextState) return;
             if (!canTransitionDeliveryState(currentState, nextState)) {
@@ -1800,13 +1907,19 @@ export function useVeraChat() {
             deliveryStateRef.current = nextState;
             setDeliveryState(nextState);
         },
-        [],
+        [stopWaitingHints],
     );
 
-    const restoreDeliveryState = useCallback((nextState: VeraDeliveryState) => {
-        deliveryStateRef.current = nextState;
-        setDeliveryState(nextState);
-    }, []);
+    const restoreDeliveryState = useCallback(
+        (nextState: VeraDeliveryState) => {
+            if (DELIVERY_STATES_ENDING_WAIT.has(nextState)) {
+                stopWaitingHints();
+            }
+            deliveryStateRef.current = nextState;
+            setDeliveryState(nextState);
+        },
+        [stopWaitingHints],
+    );
 
     const applyBufferedTokens = useCallback(() => {
         const buffered = tokenBufferRef.current;
@@ -2117,7 +2230,6 @@ export function useVeraChat() {
                         }
 
                         setStatus("waiting");
-                        setAnnouncement("Ассистент Вера готовит ответ.");
                     }
 
                     const now = Date.now();
@@ -2167,8 +2279,9 @@ export function useVeraChat() {
             activeRequestIdRef.current = null;
             closeStream();
             clearBufferedTokens();
+            stopWaitingHints();
         };
-    }, [clearBufferedTokens, closeStream]);
+    }, [clearBufferedTokens, closeStream, stopWaitingHints]);
 
     useEffect(() => {
         authUserIdRef.current = authUserId;
@@ -2201,6 +2314,7 @@ export function useVeraChat() {
         closeStream();
         clearBufferedTokens();
         activeRequestIdRef.current = null;
+        stopWaitingHints();
         sessionIdRef.current = "";
         controlledSessionTransitionRef.current = null;
         window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -2228,6 +2342,7 @@ export function useVeraChat() {
         closeStream,
         isAuthLoading,
         restoreDeliveryState,
+        stopWaitingHints,
     ]);
 
     useEffect(() => {
@@ -2590,8 +2705,9 @@ export function useVeraChat() {
                     restoreDeliveryState("submitting");
                     setMessages(pendingRequestToMessages(pendingRequest));
                     setStatus("waiting");
-                    setAnnouncement(
-                        "Проверяю ранее отправленное сообщение.",
+                    startWaitingHints(
+                        pendingRequest.requestId,
+                        pendingRequest.createdAt,
                     );
                     await reconcileAmbiguousPublication({
                         requestStartedAt: Math.min(
@@ -2677,6 +2793,8 @@ export function useVeraChat() {
                                     : "unknown";
                             restoreDeliveryState(restoredTerminalState);
                         }
+                        activeRequestIdRef.current = null;
+                        stopWaitingHints();
                         if (restoredTerminalState === "unknown") {
                             setStatus("unavailable");
                             setAnnouncement("");
@@ -2686,16 +2804,34 @@ export function useVeraChat() {
                             return;
                         }
                         setStatus("idle");
-                        if (history.turns.length > 0) {
-                            setAnnouncement("История диалога восстановлена.");
-                        }
+                        setAnnouncement(
+                            history.turns.length > 0
+                                ? "История диалога восстановлена."
+                                : "",
+                        );
                         return;
                     }
 
-                    restoredProcessingRequestId = processingTurn.request_id;
+                    if (
+                        restoredProcessingRequestId !==
+                        processingTurn.request_id
+                    ) {
+                        restoredProcessingRequestId =
+                            processingTurn.request_id;
+                        activeRequestIdRef.current =
+                            processingTurn.request_id;
+                        const parsedCreatedAt = Date.parse(
+                            processingTurn.created_at,
+                        );
+                        startWaitingHints(
+                            processingTurn.request_id,
+                            Number.isFinite(parsedCreatedAt)
+                                ? parsedCreatedAt
+                                : Date.now(),
+                        );
+                    }
                     restoreDeliveryState("processing");
                     setStatus("waiting");
-                    setAnnouncement("Ассистент Вера готовит ответ.");
                     if (
                         Date.now() - startedAt >=
                         OVERALL_RESPONSE_DEADLINE_MS
@@ -2743,6 +2879,7 @@ export function useVeraChat() {
             activeRequestIdRef.current = null;
             closeStream();
             clearBufferedTokens();
+            stopWaitingHints();
         };
     }, [
         clearBufferedTokens,
@@ -2750,6 +2887,8 @@ export function useVeraChat() {
         reconcileAmbiguousPublication,
         restoreDeliveryState,
         sessionId,
+        startWaitingHints,
+        stopWaitingHints,
     ]);
 
     const loadOlderHistory = useCallback(async () => {
@@ -2896,6 +3035,7 @@ export function useVeraChat() {
 
         isStartingNewDialogRef.current = true;
         setIsStartingNewDialog(true);
+        stopWaitingHints();
         setError(null);
         setHistoryError(null);
         setAnnouncement("Создаю новый диалог.");
@@ -2973,6 +3113,7 @@ export function useVeraChat() {
         previousSessionGroups,
         runPendingNewDialogOperation,
         sessionId,
+        stopWaitingHints,
     ]);
 
     const sendMessage = useCallback(
@@ -3018,7 +3159,9 @@ export function useVeraChat() {
             transitionDeliveryState("submitting");
             setError(null);
             setStatus("waiting");
-            setAnnouncement("Ассистент Вера готовит ответ.");
+            setAnnouncement(
+                "Ассистент Вера проверяет вопрос и готовит ответ.",
+            );
 
             const replacementSessionId =
                 readOrCreateSessionReplacementId(sessionId);
@@ -3193,6 +3336,7 @@ export function useVeraChat() {
                     deliveryState: "submitting",
                 },
             ]);
+            startWaitingHints(requestId, requestStartedAt);
 
             const applyPublishedLifecycle = (
                 lifecycle: VeraChatSessionLifecycleResponse,
@@ -3703,15 +3847,16 @@ export function useVeraChat() {
 
                 if (data.type === "heartbeat") {
                     markProcessing();
-                    if (!hasReceivedToken) {
-                        setStatus("long-running");
-                    }
                     return;
                 }
 
                 if (data.type === "token") {
                     markProcessing();
                     transitionDeliveryState("streaming");
+                    if (!hasReceivedToken) {
+                        stopWaitingHints();
+                        setAnnouncement("");
+                    }
                     hasReceivedToken = true;
                     setStatus("streaming");
                     setMessages((prev) =>
@@ -3763,6 +3908,7 @@ export function useVeraChat() {
                 streamSettled = true;
                 flushBufferedTokens();
                 closeStream();
+                stopWaitingHints();
                 setStatus("waiting");
                 setAnnouncement("Проверяю итог обработки сообщения.");
                 setError(null);
@@ -3815,6 +3961,8 @@ export function useVeraChat() {
             preservePreviousSession,
             reconcileAmbiguousPublication,
             storeResolvedSession,
+            startWaitingHints,
+            stopWaitingHints,
             transitionDeliveryState,
         ],
     );
@@ -3829,6 +3977,7 @@ export function useVeraChat() {
         hasPendingNewDialog,
         status,
         deliveryState,
+        waitingStage,
         error,
         announcement,
         isHistoryLoading,

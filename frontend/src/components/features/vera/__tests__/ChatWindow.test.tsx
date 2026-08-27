@@ -378,8 +378,10 @@ describe("ChatWindow accessibility", () => {
             ],
             sendMessage: vi.fn(),
             status: "waiting",
+            waitingStage: "initial",
             error: null,
-            announcement: "Ассистент Вера готовит ответ.",
+            announcement:
+                "Ассистент Вера проверяет вопрос и готовит ответ.",
             isHistoryLoading: false,
             historyError: null,
         });
@@ -398,7 +400,7 @@ describe("ChatWindow accessibility", () => {
             screen.getByRole("button", { name: "Отправить" }),
         ).toBeDisabled();
         expect(screen.getByRole("status")).toHaveTextContent(
-            "Ассистент Вера готовит ответ.",
+            "Ассистент Вера проверяет вопрос и готовит ответ.",
         );
     });
 
@@ -436,6 +438,49 @@ describe("ChatWindow accessibility", () => {
             expect(sendMessage).not.toHaveBeenCalled();
         },
     );
+
+    it("keeps the draft while the waiting stage changes", () => {
+        const chatState = {
+            sessionId: "session-1",
+            messages: [
+                {
+                    id: "assistant-1",
+                    role: "assistant" as const,
+                    content: "",
+                    streaming: true,
+                },
+            ],
+            sendMessage: vi.fn(),
+            status: "waiting",
+            deliveryState: "processing",
+            waitingStage: "expected-delay",
+            error: null,
+            announcement: "Подготовка ответа занимает больше времени.",
+            isHistoryLoading: false,
+            historyError: null,
+        };
+        useVeraChatMock.mockReturnValue(chatState);
+        const { rerender } = render(<ChatWindow />);
+        const composer = screen.getByLabelText(
+            "Сообщение для Ассистента Веры",
+        );
+
+        fireEvent.change(composer, {
+            target: { value: "Черновик следующего вопроса." },
+        });
+        useVeraChatMock.mockReturnValue({
+            ...chatState,
+            waitingStage: "extended",
+            announcement:
+                "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+        });
+        rerender(<ChatWindow />);
+
+        expect(composer).toHaveValue("Черновик следующего вопроса.");
+        expect(
+            screen.getByRole("button", { name: "Отправить" }),
+        ).toBeDisabled();
+    });
 
     it("does not submit a second request while delivery is unknown", () => {
         const sendMessage = vi.fn();
@@ -509,7 +554,20 @@ describe("ChatWindow accessibility", () => {
         },
     );
 
-    it("shows a non-live status for a long consultation", () => {
+    it.each([
+        [
+            "expected-delay",
+            "Проверяю информацию. Подготовка ответа может занять до 20 секунд.",
+            "Подготовка ответа занимает больше времени.",
+        ],
+        [
+            "extended",
+            "Запрос всё ещё выполняется. Ответ появится здесь и сохранится в истории.",
+            "Запрос всё ещё выполняется. Ответ сохранится в истории после завершения.",
+        ],
+    ] as const)(
+        "shows the non-live %s waiting status",
+        (waitingStage, visibleText, announcement) => {
         useVeraChatMock.mockReturnValue({
             sessionId: "session-1",
             messages: [
@@ -521,22 +579,24 @@ describe("ChatWindow accessibility", () => {
                 },
             ],
             sendMessage: vi.fn(),
-            status: "long-running",
+            status: "waiting",
+            deliveryState: "processing",
+            waitingStage,
             error: null,
-            announcement: "Ассистент Вера готовит ответ.",
+            announcement,
             isHistoryLoading: false,
             historyError: null,
         });
 
         render(<ChatWindow />);
 
+        expect(screen.getByText(visibleText)).toBeVisible();
         expect(
-            screen.getByText(/если вы попросили отправить консультацию/i),
-        ).toBeVisible();
+            screen.queryByText(/если вы попросили отправить консультацию/i),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
         expect(screen.getAllByRole("status")).toHaveLength(1);
-        expect(screen.getByRole("status")).toHaveTextContent(
-            "Ассистент Вера готовит ответ.",
-        );
+        expect(screen.getByRole("status")).toHaveTextContent(announcement);
         expect(
             screen.getByRole("region", {
                 name: "История переписки с Ассистентом Верой",
@@ -545,7 +605,8 @@ describe("ChatWindow accessibility", () => {
         expect(
             screen.getByRole("button", { name: "Отправить" }),
         ).toBeDisabled();
-    });
+        },
+    );
 
     it("enables sending after the user enters a message", () => {
         useVeraChatMock.mockReturnValue({

@@ -91,6 +91,7 @@ export function ChatWindow() {
         hasPendingNewDialog = false,
         status,
         deliveryState,
+        waitingStage = "initial",
         error,
         announcement,
         isHistoryLoading,
@@ -232,7 +233,6 @@ export function ChatWindow() {
     const isBusy =
         isDeliveryProcessing ||
         status === "waiting" ||
-        status === "long-running" ||
         status === "streaming";
     const blocksSubmission =
         isBusy ||
@@ -463,19 +463,20 @@ export function ChatWindow() {
                             isSimplifyDisabled={isSimplifyDisabled}
                             onSimplify={handleSimplify}
                         />
-                        {status === "long-running" && (
-                            <div className="flex items-center gap-2 rounded-xl border border-accent/25 bg-accent/10 px-4 py-3 text-sm text-muted">
-                                <span
-                                    aria-hidden="true"
-                                    className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-accent motion-reduce:animate-none"
-                                />
-                                <span>
-                                    Запрос выполняется. Если вы попросили
-                                    отправить консультацию на почту, это может
-                                    занять несколько минут.
-                                </span>
-                            </div>
-                        )}
+                        {status === "waiting" &&
+                            waitingStage !== "initial" && (
+                                <div className="flex items-center gap-2 rounded-xl border border-accent/25 bg-accent/10 px-4 py-3 text-sm text-muted">
+                                    <span
+                                        aria-hidden="true"
+                                        className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-accent motion-reduce:animate-none"
+                                    />
+                                    <span>
+                                        {waitingStage === "expected-delay"
+                                            ? "Проверяю информацию. Подготовка ответа может занять до 20 секунд."
+                                            : "Запрос всё ещё выполняется. Ответ появится здесь и сохранится в истории."}
+                                    </span>
+                                </div>
+                            )}
                     </div>
                     {!isNearHistoryBottom && hasVisibleMessages && (
                         <Button
