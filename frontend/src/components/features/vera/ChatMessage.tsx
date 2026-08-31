@@ -69,7 +69,7 @@ export const ChatMessage = memo(function ChatMessage({
             {!isUser && (
                 <span
                     aria-hidden="true"
-                    className="mt-0.5 h-9 w-9 shrink-0 overflow-hidden rounded-full ring-2 ring-accent/40 shadow-[0_0_14px_rgba(245,184,0,0.2)]"
+                    className="mt-0.5 hidden h-9 w-9 shrink-0 overflow-hidden rounded-full ring-2 ring-accent/40 shadow-[0_0_14px_rgba(245,184,0,0.2)] sm:block"
                 >
                     <Image
                         src="/logo_ai_assistant.png"
@@ -82,15 +82,15 @@ export const ChatMessage = memo(function ChatMessage({
             )}
             <div
                 className={cn(
-                    "min-w-0 rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                    "min-w-0 rounded-2xl px-3 py-2.5 text-sm leading-relaxed sm:px-4 sm:py-3",
                     isUser
-                        ? "max-w-[85%] bg-accent/[0.14] text-foreground"
+                        ? "max-w-[90%] bg-accent/[0.14] text-foreground sm:max-w-[85%]"
                         : // Ответ Веры длиннее вопроса, и на широком экране
                           // 90% ширины дают неудобно длинную строку. 74ch
                           // удерживает строку в комфортном для чтения
                           // диапазоне, сохраняя достаточно места длинной
                           // юридической консультации.
-                          "max-w-[min(90%,74ch)] border border-white/10 bg-white/[0.04] text-foreground",
+                          "max-w-full border border-white/10 bg-white/[0.04] text-foreground sm:max-w-[min(90%,74ch)]",
                 )}
             >
                 {!isUser && (
@@ -152,8 +152,7 @@ export const ChatMessage = memo(function ChatMessage({
                     Boolean(message.content) &&
                     message.deliveryState === "unknown" && (
                         <span className="mt-2 block text-xs text-muted">
-                            Статус ответа неизвестен; текст может быть
-                            неполным.
+                            Статус ответа неизвестен; текст может быть неполным.
                         </span>
                     )}
                 {isUser && deliveryLabel && (
@@ -162,7 +161,7 @@ export const ChatMessage = memo(function ChatMessage({
                     </span>
                 )}
                 {!isUser && Boolean(message.content) && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-2 sm:mt-3 sm:gap-2">
                         {canSimplify && onSimplify && (
                             <SimplifyAnswerButton
                                 disabled={isSimplifyDisabled}

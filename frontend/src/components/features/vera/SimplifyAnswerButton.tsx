@@ -47,7 +47,7 @@ export function SimplifyAnswerButton({
             disabled={disabled}
             onClick={onSimplify}
             className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
+                "inline-flex h-11 items-center gap-2 rounded-lg border px-2.5 text-xs transition-colors sm:h-9 sm:px-3 sm:text-sm",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                 "border-accent/30 bg-accent/[0.06] text-foreground",
                 "hover:border-accent/60 hover:bg-accent/[0.12]",

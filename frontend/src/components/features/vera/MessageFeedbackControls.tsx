@@ -92,7 +92,10 @@ export function MessageFeedbackControls({
                 aria-label="Оценить ответ Ассистента Веры"
                 className="flex items-center gap-1"
             >
-                <span className="mr-1 text-xs text-muted" aria-hidden="true">
+                <span
+                    className="mr-1 hidden text-xs text-muted sm:inline"
+                    aria-hidden="true"
+                >
                     Как вам ответ?
                 </span>
                 {(["up", "down"] as const).map((direction) => {
@@ -112,7 +115,7 @@ export function MessageFeedbackControls({
                             disabled={isPending}
                             onClick={() => void submitFeedback(direction)}
                             className={cn(
-                                "inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors",
+                                "inline-flex h-11 w-11 items-center justify-center rounded-lg border transition-colors sm:h-9 sm:w-9",
                                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                                 "disabled:cursor-wait disabled:opacity-60",
                                 isSelected

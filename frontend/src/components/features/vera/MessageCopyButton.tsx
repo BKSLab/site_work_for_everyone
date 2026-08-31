@@ -78,7 +78,7 @@ export function MessageCopyButton({ text }: MessageCopyButtonProps) {
                 title="Скопировать ответ"
                 onClick={() => void copyAnswer()}
                 className={cn(
-                    "inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors",
+                    "inline-flex h-11 w-11 items-center justify-center rounded-lg border transition-colors sm:h-9 sm:w-9",
                     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                     isCopied
                         ? "border-accent bg-accent/15 text-accent"

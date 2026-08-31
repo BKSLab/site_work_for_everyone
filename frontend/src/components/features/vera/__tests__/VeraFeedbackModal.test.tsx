@@ -77,6 +77,29 @@ describe("VeraFeedbackModal", () => {
         ).not.toBeRequired();
     });
 
+    it("offers a compact mobile trigger without duplicating the card copy", async () => {
+        const user = userEvent.setup();
+        render(<VeraFeedbackModal sessionId="session-1" compactOnMobile />);
+
+        const compactTrigger = screen.getByRole("button", {
+            name: "Открыть форму отзыва об Ассистенте Вере",
+        });
+        expect(compactTrigger).toHaveTextContent("Отзыв");
+        expect(
+            screen.getByRole("region", {
+                name: "Нам важно ваше мнение об Ассистенте Вере",
+            }),
+        ).toHaveClass("max-sm:hidden");
+
+        await user.click(compactTrigger);
+
+        expect(
+            screen.getByRole("dialog", {
+                name: "Отзыв об Ассистенте Вере",
+            }),
+        ).toBeInTheDocument();
+    });
+
     it("allows sending an empty questionnaire with the session id", async () => {
         const user = userEvent.setup();
         render(<VeraFeedbackModal sessionId="session-1" />);

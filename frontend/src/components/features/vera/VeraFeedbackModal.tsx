@@ -9,6 +9,8 @@ import { Modal } from "@/components/ui/Modal";
 
 interface VeraFeedbackModalProps {
     sessionId: string;
+    /** Компактный trigger в шапке чата и полная карточка только на desktop. */
+    compactOnMobile?: boolean;
 }
 
 const AUDIENCE_OPTIONS = [
@@ -94,7 +96,10 @@ function RatingFieldset({
     );
 }
 
-export function VeraFeedbackModal({ sessionId }: VeraFeedbackModalProps) {
+export function VeraFeedbackModal({
+    sessionId,
+    compactOnMobile = false,
+}: VeraFeedbackModalProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [audience, setAudience] = useState<Audience>();
     const [usefulness, setUsefulness] = useState<number>();
@@ -174,9 +179,36 @@ export function VeraFeedbackModal({ sessionId }: VeraFeedbackModalProps) {
 
     return (
         <>
+            {compactOnMobile && (
+                <button
+                    type="button"
+                    aria-label="Открыть форму отзыва об Ассистенте Вере"
+                    title="Оставить отзыв"
+                    onClick={() => setIsOpen(true)}
+                    disabled={!sessionId}
+                    className="absolute right-3 top-1 z-10 flex h-11 items-center gap-1.5 rounded-lg border border-accent/35 bg-accent/[0.07] px-2.5 text-xs font-semibold text-accent transition-colors hover:border-accent/60 hover:bg-accent/[0.12] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 sm:hidden"
+                >
+                    <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
+                        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+                        <path d="M8 9h8M8 13h5" />
+                    </svg>
+                    <span>Отзыв</span>
+                </button>
+            )}
             <section
                 aria-labelledby="vera-feedback-invitation-heading"
-                className="relative overflow-hidden rounded-2xl bg-[linear-gradient(115deg,#624900_0%,#d69f00_18%,#ffe891_36%,#8a6800_54%,#f5b800_76%,#5a4300_100%)] p-px shadow-[0_8px_32px_rgba(0,0,0,0.28)]"
+                className={`relative overflow-hidden rounded-2xl bg-[linear-gradient(115deg,#624900_0%,#d69f00_18%,#ffe891_36%,#8a6800_54%,#f5b800_76%,#5a4300_100%)] p-px shadow-[0_8px_32px_rgba(0,0,0,0.28)] ${
+                    compactOnMobile ? "max-sm:hidden" : ""
+                }`}
             >
                 <div className="relative flex flex-col gap-4 rounded-[calc(1rem-1px)] bg-[linear-gradient(160deg,#151515,#0f0f0f)] p-6 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
@@ -216,7 +248,7 @@ export function VeraFeedbackModal({ sessionId }: VeraFeedbackModalProps) {
                 containerClassName={
                     successMessage
                         ? undefined
-                        : "max-h-[calc(100vh-2rem)] max-w-3xl overflow-y-auto"
+                        : "max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto"
                 }
             >
                 {successMessage ? (

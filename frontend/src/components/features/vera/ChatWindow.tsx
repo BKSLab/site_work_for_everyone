@@ -31,6 +31,7 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 const SCROLL_BOTTOM_THRESHOLD_PX = 80;
+const MOBILE_COUNTER_VISIBLE_FROM = Math.floor(VERA_MESSAGE_MAX_LENGTH * 0.8);
 
 const ChatMessageList = memo(function ChatMessageList({
     messages,
@@ -113,6 +114,8 @@ export function ChatWindow() {
         loadOlderPreviousHistory = () => undefined,
     } = useVeraChat();
     const [input, setInput] = useState("");
+    const [showAllSuggestedQuestions, setShowAllSuggestedQuestions] =
+        useState(false);
     const [isNearHistoryBottom, setIsNearHistoryBottom] = useState(true);
     const listRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -176,6 +179,8 @@ export function ChatWindow() {
             });
         }
     }, [
+        error,
+        historyError,
         isOlderHistoryLoading,
         messages,
         olderPreviousHistorySessionId,
@@ -233,17 +238,12 @@ export function ChatWindow() {
     }
 
     const isDeliveryProcessing = deliveryState
-        ? [
-              "submitting",
-              "accepted",
-              "processing",
-              "streaming",
-          ].includes(deliveryState)
+        ? ["submitting", "accepted", "processing", "streaming"].includes(
+              deliveryState,
+          )
         : false;
     const isBusy =
-        isDeliveryProcessing ||
-        status === "waiting" ||
-        status === "streaming";
+        isDeliveryProcessing || status === "waiting" || status === "streaming";
     const blocksSubmission =
         isBusy ||
         isStartingNewDialog ||
@@ -251,6 +251,7 @@ export function ChatWindow() {
         deliveryState === "unknown";
     const isSimplifyDisabled =
         blocksSubmission || isHistoryLoading || !sessionId;
+    const shouldShowMobileCounter = input.length >= MOBILE_COUNTER_VISIBLE_FROM;
     /* Упрощается последняя реплика диалога — именно её агент видит в истории.
        Поэтому кнопку получает только последний завершённый ответ на основе
        базы знаний: под более старым ответом она переформулировала бы не его.
@@ -306,15 +307,15 @@ export function ChatWindow() {
     }
 
     return (
-        <div className="flex w-full min-w-0 max-w-full flex-col gap-4">
+        <div className="relative flex w-full min-w-0 max-w-full flex-col gap-4 max-sm:h-full max-sm:min-h-0 max-sm:flex-1 max-sm:gap-0">
             <section
                 aria-label="Чат с Ассистентом Верой"
-                className="flex h-[calc(100dvh-7rem)] min-h-[34rem] w-full min-w-0 max-w-full flex-col overflow-hidden rounded-2xl border border-white/15 bg-surface shadow-[0_16px_48px_rgba(0,0,0,0.3)]"
+                className="flex h-[calc(100dvh-7rem)] min-h-[34rem] w-full min-w-0 max-w-full flex-col overflow-hidden rounded-2xl border border-white/15 bg-surface shadow-[0_16px_48px_rgba(0,0,0,0.3)] max-sm:h-auto max-sm:min-h-0 max-sm:flex-1 max-sm:rounded-none max-sm:border-x-0 max-sm:border-y-0 max-sm:shadow-none"
             >
-                <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 sm:px-5">
+                <header className="flex shrink-0 items-center gap-2.5 border-b border-border px-3 py-2 pr-24 sm:gap-3 sm:px-5 sm:py-3 sm:pr-5">
                     <span
                         aria-hidden="true"
-                        className="h-11 w-11 shrink-0 overflow-hidden rounded-full ring-1 ring-accent/45"
+                        className="h-9 w-9 shrink-0 overflow-hidden rounded-full ring-1 ring-accent/45 sm:h-11 sm:w-11"
                     >
                         <Image
                             src="/logo_ai_assistant.png"
@@ -326,15 +327,15 @@ export function ChatWindow() {
                         />
                     </span>
                     <div className="min-w-0 flex-1">
-                        <h1 className="text-base font-bold text-foreground">
+                        <h1 className="text-sm font-bold text-foreground sm:text-base">
                             Ассистент Вера
                         </h1>
-                        <p className="truncate text-xs text-muted sm:text-sm">
+                        <p className="truncate text-[11px] text-muted sm:text-sm">
                             Консультант по трудовым правам
                         </p>
                         <p
                             id="vera-login-dialog-policy"
-                            className="mt-1 text-[11px] leading-snug text-muted"
+                            className="mt-1 hidden text-[11px] leading-snug text-muted sm:block"
                         >
                             При входе в аккаунт текущий диалог сохраняется и
                             продолжается.
@@ -362,7 +363,7 @@ export function ChatWindow() {
                             isBusy || isStartingNewDialog || isHistoryLoading
                         }
                         onScroll={handleHistoryScroll}
-                        className="vera-chat-scrollbar flex h-full min-h-0 w-full flex-col gap-4 overflow-y-auto p-4 sm:p-6"
+                        className="vera-chat-scrollbar flex h-full min-h-0 w-full flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:gap-4 sm:p-6"
                     >
                         {previousSessionGroups.map((group) => (
                             <Fragment key={group.sessionId}>
@@ -435,9 +436,9 @@ export function ChatWindow() {
                             </div>
                         )}
                         {!isHistoryLoading && messages.length === 0 && (
-                            <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-5 py-6 text-center">
+                            <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-4 py-3 text-center sm:gap-5 sm:py-6">
                                 <div className="space-y-2">
-                                    <h2 className="text-xl font-bold text-foreground sm:text-2xl">
+                                    <h2 className="text-lg font-bold text-foreground sm:text-2xl">
                                         Чем я могу помочь?
                                     </h2>
                                     <p className="mx-auto max-w-lg text-sm leading-relaxed text-muted">
@@ -447,24 +448,47 @@ export function ChatWindow() {
                                     </p>
                                 </div>
                                 <div
+                                    id="vera-suggested-questions"
                                     role="group"
                                     aria-label="Примеры вопросов"
                                     className="grid w-full gap-2 sm:grid-cols-2"
                                 >
-                                    {SUGGESTED_QUESTIONS.map((question) => (
+                                    {SUGGESTED_QUESTIONS.map(
+                                        (question, index) => (
+                                            <button
+                                                key={question}
+                                                type="button"
+                                                onClick={() =>
+                                                    selectSuggestedQuestion(
+                                                        question,
+                                                    )
+                                                }
+                                                className={`min-h-11 rounded-xl border border-border bg-white/[0.03] px-3 py-2.5 text-left text-sm leading-snug text-muted transition-colors hover:border-accent/50 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:px-4 sm:py-3 ${
+                                                    index >= 2 &&
+                                                    !showAllSuggestedQuestions
+                                                        ? "max-sm:hidden"
+                                                        : ""
+                                                }`}
+                                            >
+                                                {question}
+                                            </button>
+                                        ),
+                                    )}
+                                    {!showAllSuggestedQuestions && (
                                         <button
-                                            key={question}
                                             type="button"
+                                            aria-expanded="false"
+                                            aria-controls="vera-suggested-questions"
                                             onClick={() =>
-                                                selectSuggestedQuestion(
-                                                    question,
+                                                setShowAllSuggestedQuestions(
+                                                    true,
                                                 )
                                             }
-                                            className="min-h-11 rounded-xl border border-border bg-white/[0.03] px-4 py-3 text-left text-sm leading-snug text-muted transition-colors hover:border-accent/50 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                            className="min-h-11 rounded-xl border border-accent/30 bg-accent/[0.05] px-3 py-2.5 text-sm font-semibold text-accent transition-colors hover:border-accent/60 hover:bg-accent/[0.1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:hidden"
                                         >
-                                            {question}
+                                            Ещё примеры вопросов
                                         </button>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -476,6 +500,22 @@ export function ChatWindow() {
                             isSimplifyDisabled={isSimplifyDisabled}
                             onSimplify={handleSimplify}
                         />
+                        {(error || historyError) && (
+                            <div className="space-y-2 pt-1">
+                                {error && (
+                                    <ErrorMessage
+                                        title="Ассистент Вера временно недоступен"
+                                        message={error}
+                                    />
+                                )}
+                                {historyError && (
+                                    <ErrorMessage
+                                        title="Не удалось восстановить историю"
+                                        message={historyError}
+                                    />
+                                )}
+                            </div>
+                        )}
                     </div>
                     {!isNearHistoryBottom && hasVisibleMessages && (
                         <Button
@@ -490,32 +530,15 @@ export function ChatWindow() {
                     )}
                 </div>
 
-                {(error || historyError) && (
-                    <div className="space-y-2 border-t border-border px-3 py-2 sm:px-4">
-                        {error && (
-                            <ErrorMessage
-                                title="Ассистент Вера временно недоступен"
-                                message={error}
-                            />
-                        )}
-                        {historyError && (
-                            <ErrorMessage
-                                title="Не удалось восстановить историю"
-                                message={historyError}
-                            />
-                        )}
-                    </div>
-                )}
-
                 <form
                     aria-label="Отправка сообщения Ассистенту Вере"
                     onSubmit={handleSubmit}
-                    className="min-w-0 shrink-0 border-t border-border bg-background/45 p-3 sm:p-4"
+                    className="vera-chat-composer min-w-0 shrink-0 border-t border-border bg-background/45 p-2 sm:p-4"
                 >
                     <label htmlFor="vera-chat-input" className="sr-only">
                         Сообщение для Ассистента Веры
                     </label>
-                    <div className="flex min-w-0 items-end gap-2 rounded-2xl border border-border bg-surface-hover/45 p-2 pl-4 focus-within:border-accent/60 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+                    <div className="flex min-w-0 items-end gap-2 rounded-2xl border border-border bg-surface-hover/45 p-1.5 pl-3 focus-within:border-accent/60 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent sm:p-2 sm:pl-4">
                         {/* Счётчик символов намеренно не входит в
                             `aria-describedby`: его текст меняется на каждое
                             нажатие, а скринридер при изменении описания
@@ -527,9 +550,7 @@ export function ChatWindow() {
                             ref={inputRef}
                             id="vera-chat-input"
                             value={input}
-                            onChange={(event) =>
-                                setInput(event.target.value)
-                            }
+                            onChange={(event) => setInput(event.target.value)}
                             onKeyDown={handleInputKeyDown}
                             disabled={
                                 isHistoryLoading ||
@@ -538,9 +559,10 @@ export function ChatWindow() {
                             }
                             maxLength={VERA_MESSAGE_MAX_LENGTH}
                             rows={1}
+                            enterKeyHint="send"
                             aria-describedby="vera-chat-input-hint"
                             placeholder="Напишите вопрос Ассистенту Вере…"
-                            className="max-h-36 min-h-7 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 [field-sizing:content]"
+                            className="max-h-24 min-h-7 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 [field-sizing:content] sm:max-h-36"
                         />
                         <Button
                             type="submit"
@@ -570,21 +592,26 @@ export function ChatWindow() {
                             </svg>
                         </Button>
                     </div>
-                    <div className="flex items-start justify-between gap-3 px-2 pt-2 text-xs leading-relaxed text-muted">
+                    <div className="flex items-start justify-between gap-2 px-1 pt-1.5 text-[11px] leading-relaxed text-muted sm:gap-3 sm:px-2 sm:pt-2 sm:text-xs">
                         <p id="vera-chat-input-hint" className="break-words">
-                            <span className="block">
+                            <span className="block sm:hidden">
+                                Вера может ошибаться — проверяйте важное.
+                            </span>
+                            <span className="hidden sm:block">
                                 Enter — отправить, Shift+Enter — новая строка.
                                 Ассистент Вера может ошибаться — проверяйте
                                 важную информацию.
                             </span>
-                            <span className="mt-0.5 block">
+                            <span className="mt-0.5 hidden sm:block">
                                 Консультацию можно отправить на почту —
                                 попросите об этом в сообщении и укажите адрес.
                             </span>
                         </p>
                         <span
                             id="vera-chat-input-counter"
-                            className="shrink-0 tabular-nums"
+                            className={`shrink-0 tabular-nums ${
+                                shouldShowMobileCounter ? "" : "max-sm:sr-only"
+                            }`}
                         >
                             {`${input.length} / ${VERA_MESSAGE_MAX_LENGTH}`}
                         </span>
@@ -592,8 +619,8 @@ export function ChatWindow() {
                 </form>
             </section>
 
-            <div className="flex justify-end">
-                <VeraFeedbackModal sessionId={sessionId} />
+            <div className="flex justify-end max-sm:h-0">
+                <VeraFeedbackModal sessionId={sessionId} compactOnMobile />
             </div>
         </div>
     );

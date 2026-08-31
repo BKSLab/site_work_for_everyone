@@ -74,7 +74,7 @@ export function Header() {
                 onClick={closeMenu}
             />
         )}
-        <header className="sticky top-0 z-40 border-b border-white/10 bg-background/60 backdrop-blur-md backdrop-saturate-150">
+        <header className="site-header sticky top-0 z-40 border-b border-white/10 bg-background/60 backdrop-blur-md backdrop-saturate-150">
             {/* ── Строка шапки ─────────────────────────────────────────────── */}
             <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
 
@@ -179,7 +179,7 @@ export function Header() {
                     aria-expanded={menuOpen}
                     aria-controls="mobile-menu"
                     onClick={() => setMenuOpen((v) => !v)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-muted transition-colors hover:border-white/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-muted transition-colors hover:border-white/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
                 >
                     {menuOpen ? (
                         /* X */

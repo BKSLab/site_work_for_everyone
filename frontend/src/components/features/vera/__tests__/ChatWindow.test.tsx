@@ -71,9 +71,7 @@ describe("ChatWindow accessibility", () => {
             "true",
         );
         expect(screen.queryByRole("log")).not.toBeInTheDocument();
-        const composer = screen.getByLabelText(
-            "Сообщение для Ассистента Веры",
-        );
+        const composer = screen.getByLabelText("Сообщение для Ассистента Веры");
         expect(composer).toHaveAttribute(
             "aria-describedby",
             "vera-chat-input-hint",
@@ -84,10 +82,23 @@ describe("ChatWindow accessibility", () => {
             screen.getByText(/консультацию можно отправить на почту/i),
         ).toBeInTheDocument();
         expect(
-            screen.getByText(
-                /при входе в аккаунт текущий диалог сохраняется/i,
-            ),
+            screen.getByText(/при входе в аккаунт текущий диалог сохраняется/i),
         ).toBeVisible();
+
+        const chat = screen.getByRole("region", {
+            name: "Чат с Ассистентом Верой",
+        });
+        expect(chat).toHaveClass(
+            "max-sm:flex-1",
+            "max-sm:min-h-0",
+            "max-sm:rounded-none",
+        );
+        expect(composer).toHaveAttribute("enterKeyHint", "send");
+        expect(composer).toHaveClass("max-h-24", "sm:max-h-36");
+        expect(
+            screen.getByText("Вера может ошибаться — проверяйте важное."),
+        ).toHaveClass("sm:hidden");
+        expect(screen.getByText("0 / 4000")).toHaveClass("max-sm:sr-only");
     });
 
     it("keeps the character counter out of the composer description while typing", () => {
@@ -106,9 +117,7 @@ describe("ChatWindow accessibility", () => {
             historyError: null,
         });
         render(<ChatWindow />);
-        const composer = screen.getByLabelText(
-            "Сообщение для Ассистента Веры",
-        );
+        const composer = screen.getByLabelText("Сообщение для Ассистента Веры");
 
         fireEvent.change(composer, { target: { value: "Как" } });
 
@@ -424,7 +433,9 @@ describe("ChatWindow accessibility", () => {
 
             fireEvent.change(
                 screen.getByLabelText("Сообщение для Ассистента Веры"),
-                { target: { value: "Новый вопрос." } },
+                {
+                    target: { value: "Новый вопрос." },
+                },
             );
 
             expect(
@@ -461,9 +472,7 @@ describe("ChatWindow accessibility", () => {
         };
         useVeraChatMock.mockReturnValue(chatState);
         const { rerender } = render(<ChatWindow />);
-        const composer = screen.getByLabelText(
-            "Сообщение для Ассистента Веры",
-        );
+        const composer = screen.getByLabelText("Сообщение для Ассистента Веры");
 
         fireEvent.change(composer, {
             target: { value: "Черновик следующего вопроса." },
@@ -544,11 +553,11 @@ describe("ChatWindow accessibility", () => {
 
             fireEvent.change(
                 screen.getByLabelText("Сообщение для Ассистента Веры"),
-                { target: { value: "Новый вопрос." } },
+                {
+                    target: { value: "Новый вопрос." },
+                },
             );
-            fireEvent.click(
-                screen.getByRole("button", { name: "Отправить" }),
-            );
+            fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
             await waitFor(() => {
                 expect(sendMessage).toHaveBeenCalledWith("Новый вопрос.");
@@ -557,14 +566,8 @@ describe("ChatWindow accessibility", () => {
     );
 
     it.each([
-        [
-            "expected-delay",
-            "Ассистент Вера разбирается в вопросе.",
-        ],
-        [
-            "extended",
-            "Ассистент Вера продолжает готовить ответ.",
-        ],
+        ["expected-delay", "Ассистент Вера разбирается в вопросе."],
+        ["extended", "Ассистент Вера продолжает готовить ответ."],
     ] as const)(
         "passes the %s stage into the existing Vera bubble",
         (waitingStage, announcement) => {
@@ -601,9 +604,7 @@ describe("ChatWindow accessibility", () => {
             ).not.toBeInTheDocument();
             expect(screen.queryByRole("alert")).not.toBeInTheDocument();
             expect(screen.getAllByRole("status")).toHaveLength(1);
-            expect(screen.getByRole("status")).toHaveTextContent(
-                announcement,
-            );
+            expect(screen.getByRole("status")).toHaveTextContent(announcement);
             expect(
                 screen.getByRole("region", {
                     name: "История переписки с Ассистентом Верой",
@@ -632,7 +633,7 @@ describe("ChatWindow accessibility", () => {
         fireEvent.change(
             screen.getByLabelText("Сообщение для Ассистента Веры"),
             {
-            target: { value: "Расскажите о квотах." },
+                target: { value: "Расскажите о квотах." },
             },
         );
 
@@ -658,9 +659,7 @@ describe("ChatWindow accessibility", () => {
 
         render(<ChatWindow />);
 
-        const composer = screen.getByLabelText(
-            "Сообщение для Ассистента Веры",
-        );
+        const composer = screen.getByLabelText("Сообщение для Ассистента Веры");
         fireEvent.change(composer, {
             target: { value: "Расскажите об отпуске." },
         });
@@ -704,6 +703,35 @@ describe("ChatWindow accessibility", () => {
         ).toHaveFocus();
     });
 
+    it("reveals the less common suggested questions on demand on mobile", () => {
+        useVeraChatMock.mockReturnValue({
+            sessionId: "session-1",
+            messages: [],
+            sendMessage: vi.fn(),
+            status: "idle",
+            error: null,
+            announcement: "",
+            isHistoryLoading: false,
+            historyError: null,
+        });
+
+        render(<ChatWindow />);
+
+        const lessCommonQuestion = screen.getByRole("button", {
+            name: "Какие льготы положены работнику?",
+        });
+        expect(lessCommonQuestion).toHaveClass("max-sm:hidden");
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Ещё примеры вопросов" }),
+        );
+
+        expect(lessCommonQuestion).not.toHaveClass("max-sm:hidden");
+        expect(
+            screen.queryByRole("button", { name: "Ещё примеры вопросов" }),
+        ).not.toBeInTheDocument();
+    });
+
     it("sends with Enter and keeps Shift+Enter for a new line", () => {
         const sendMessage = vi.fn();
         useVeraChatMock.mockReturnValue({
@@ -719,9 +747,7 @@ describe("ChatWindow accessibility", () => {
 
         render(<ChatWindow />);
 
-        const composer = screen.getByLabelText(
-            "Сообщение для Ассистента Веры",
-        );
+        const composer = screen.getByLabelText("Сообщение для Ассистента Веры");
         fireEvent.change(composer, {
             target: { value: "Расскажите о льготах." },
         });
@@ -749,9 +775,15 @@ describe("ChatWindow accessibility", () => {
 
         render(<ChatWindow />);
 
-        expect(screen.getByRole("alert")).toHaveTextContent(
+        const alert = screen.getByRole("alert");
+        expect(alert).toHaveTextContent(
             "Не удалось получить ответ Ассистента Веры.",
         );
+        expect(
+            screen.getByRole("region", {
+                name: "История переписки с Ассистентом Верой",
+            }),
+        ).toContainElement(alert);
     });
 
     it("offers a separate feedback action below the chat", () => {
@@ -832,7 +864,9 @@ describe("ChatWindow accessibility", () => {
 
         fireEvent.change(
             screen.getByLabelText("Сообщение для Ассистента Веры"),
-            { target: { value: "Новый вопрос" } },
+            {
+                target: { value: "Новый вопрос" },
+            },
         );
 
         expect(chatMessageRenderMock).toHaveBeenCalledTimes(renderCount);
@@ -1160,7 +1194,11 @@ describe("ChatWindow accessibility", () => {
     it.each([
         [
             "an answer without knowledge base data",
-            { id: "assistant-1", role: "assistant" as const, content: "Привет!" },
+            {
+                id: "assistant-1",
+                role: "assistant" as const,
+                content: "Привет!",
+            },
         ],
         [
             "an answer that is still streaming",
@@ -1191,7 +1229,9 @@ describe("ChatWindow accessibility", () => {
         render(<ChatWindow />);
 
         expect(
-            chatMessageRenderMock.mock.calls.some(([props]) => props.canSimplify),
+            chatMessageRenderMock.mock.calls.some(
+                ([props]) => props.canSimplify,
+            ),
         ).toBe(false);
     });
 

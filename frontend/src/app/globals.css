@@ -29,6 +29,67 @@ body {
   color: var(--foreground);
 }
 
+/* На мобильном маршрут чата работает как приложение, а не как длинная
+   контентная страница. Высоту распределяет flex-контейнер body: шапка
+   остаётся сверху, main получает всё остальное пространство, а прокручивается
+   только история сообщений. */
+@media (max-width: 639px) {
+  body:has(.vera-chat-page) {
+    display: flex;
+    height: 100dvh;
+    min-height: 100dvh;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  body:has(.vera-chat-page) .site-header {
+    flex-shrink: 0;
+  }
+
+  body:has(.vera-chat-page) .site-header > div {
+    padding: 0.375rem 0.75rem;
+  }
+
+  body:has(.vera-chat-page)
+    .site-header
+    a[aria-label="Работа для всех — главная страница"] {
+    padding: 0.25rem 0.5rem;
+  }
+
+  body:has(.vera-chat-page)
+    .site-header
+    a[aria-label="Работа для всех — главная страница"]
+    img {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  body:has(.vera-chat-page) #main-content {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  body:has(.vera-chat-page) .site-footer {
+    display: none;
+  }
+
+  .vera-chat-composer {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Когда экранная клавиатура действительно уменьшила viewport, служебная
+   шапка и свернутое предупреждение уступают место переписке. На обычной
+   высоте навигация остаётся на месте и не скачет сразу после фокуса. */
+@media (max-width: 639px) and (max-height: 600px) {
+  body:has(.vera-chat-page .vera-chat-composer:focus-within) .site-header,
+  body:has(.vera-chat-page .vera-chat-composer:focus-within)
+    .vera-chat-scope-notice {
+    display: none;
+  }
+}
+
 .vera-chat-scrollbar {
   scrollbar-color: color-mix(in srgb, var(--accent) 75%, transparent) var(--surface);
   scrollbar-width: thin;
