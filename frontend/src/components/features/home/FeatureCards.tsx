@@ -1,10 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { FC, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils/cn";
+import styles from "./FeatureCards.module.css";
 
 // ─── Данные ───────────────────────────────────────────────────────────────────
 
 interface Feature {
+    id: string;
     title: string;
     description: string;
     icon: ReactNode;
@@ -14,8 +17,9 @@ interface Feature {
 
 const FEATURES: Feature[] = [
     {
+        id: "sources",
         title: "Два источника",
-        description: "hh.ru и Работа России в одном поиске",
+        description: "Находите вакансии с hh.ru и Работы России",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="9" cy="12" r="6" />
@@ -24,8 +28,9 @@ const FEATURES: Feature[] = [
         ),
     },
     {
+        id: "search",
         title: "Поиск и фильтры",
-        description: "По региону, ключевому слову и источнику",
+        description: "Фильтруйте по региону, словам и источнику",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="8" />
@@ -34,8 +39,9 @@ const FEATURES: Feature[] = [
         ),
     },
     {
+        id: "details",
         title: "Карточка вакансии",
-        description: "Описание, зарплата, контакты работодателя",
+        description: "Изучайте условия, зарплату и контакты",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -46,8 +52,9 @@ const FEATURES: Feature[] = [
         ),
     },
     {
+        id: "favorites",
         title: "Избранное",
-        description: "Сохраняйте вакансии и возвращайтесь к ним",
+        description: "Сохраняйте вакансии, чтобы вернуться позже",
         href: "/favorites",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -56,8 +63,9 @@ const FEATURES: Feature[] = [
         ),
     },
     {
+        id: "letter",
         title: "Сопроводительное письмо",
-        description: "Ассистент Вера подготовит письмо под конкретную вакансию",
+        description: "Получайте письмо под выбранную вакансию",
         href: "/assistant",
         ai: true,
         icon: (
@@ -68,8 +76,9 @@ const FEATURES: Feature[] = [
         ),
     },
     {
+        id: "resume",
         title: "Советы по резюме",
-        description: "Персональные рекомендации Ассистента Веры для каждой вакансии",
+        description: "Улучшайте резюме под требования вакансии",
         href: "/assistant",
         ai: true,
         icon: (
@@ -80,8 +89,9 @@ const FEATURES: Feature[] = [
         ),
     },
     {
+        id: "rights",
         title: "Консультация по правам",
-        description: "Вопросы про квоты, льготы и трудоустройство — без регистрации",
+        description: "Узнавайте о трудовых правах без регистрации",
         href: "/assistant/chat",
         ai: true,
         icon: (
@@ -92,286 +102,101 @@ const FEATURES: Feature[] = [
     },
 ];
 
-// ─── Позиции на орбите (% от контейнера, r=39) ───────────────────────────────
-// 7 узлов, шаг 360/7 ≈ 51.43°, от -90° (12:00) по часовой стрелке
+// ─── Планеты возможностей ─────────────────────────────────────────────────────
 
-const ORBIT_POSITIONS = [
-    { x: 50.0, y: 11.0 }, // -90.0°  — Два источника
-    { x: 80.5, y: 25.7 }, // -38.6°  — Поиск и фильтры
-    { x: 88.0, y: 58.7 }, //  12.9°  — Карточка вакансии
-    { x: 66.9, y: 85.1 }, //  64.3°  — Избранное
-    { x: 33.1, y: 85.1 }, // 115.7°  — Письмо
-    { x: 12.0, y: 58.7 }, // 167.1°  — Резюме
-    { x: 19.5, y: 25.7 }, // 218.6°  — Консультация по правам
-];
-
-// ─── Маленькая карточка-узел ──────────────────────────────────────────────────
-
-function FeatureNode({ feature, index }: { feature: Feature; index: number }) {
-    const { x, y } = ORBIT_POSITIONS[index];
-
-    const inner = (
-        <div className="flex flex-col items-center gap-1.5 text-center">
-            <span className={feature.ai ? "text-accent" : "text-accent/70"}>
-                {feature.icon}
+function FeaturePlanet({ feature }: { feature: Feature }) {
+    const content = (
+        <>
+            <span className={styles.sphere} aria-hidden="true">
+                {(feature.id === "favorites" || feature.id === "letter") && (
+                    <span className={styles.planetRing} />
+                )}
+                <span className={styles.planetIcon}>{feature.icon}</span>
             </span>
-            <span className="text-[clamp(11px,1.2vw,15px)] font-semibold leading-tight text-foreground">
-                {feature.title}
-            </span>
-            <span className="text-[clamp(10px,0.95vw,13px)] leading-snug text-muted">
-                {feature.description}
-            </span>
-            {feature.ai && (
-                <span className="rounded-full border border-accent/30 bg-accent/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-accent/80">
-                    Ассистент Вера
-                </span>
-            )}
-        </div>
+            <div className={styles.caption}>
+                {feature.ai && <span className={styles.eyebrow}>Ассистент Вера</span>}
+                <h3 className={styles.title}>
+                    {feature.title}
+                    {feature.href && (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M7 17 17 7M7 7h10v10" />
+                        </svg>
+                    )}
+                </h3>
+                <span className={styles.description}>{feature.description}</span>
+            </div>
+        </>
     );
 
-    const nodeClass =
-        "group absolute w-[22%] min-w-[160px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/12 bg-white/[0.05] px-5 py-5 backdrop-blur-sm transition-all duration-200 hover:border-accent/30 hover:bg-white/[0.09] hover:shadow-[0_0_24px_rgba(245,184,0,0.12)]";
-
-    // aria-hidden — скринридеры используют скрытый список в OrbitalDiagram
-    return feature.href ? (
-        <Link
-            href={feature.href}
-            className={nodeClass}
-            style={{ left: `${x}%`, top: `${y}%` }}
-            aria-hidden="true"
-            tabIndex={-1}
-        >
-            {inner}
-        </Link>
-    ) : (
-        <div
-            aria-hidden="true"
-            className={nodeClass}
-            style={{ left: `${x}%`, top: `${y}%` }}
-        >
-            {inner}
-        </div>
+    return (
+        <li className={styles.planet} data-planet={feature.id} data-ai={feature.ai || undefined}>
+            {feature.href ? (
+                <Link href={feature.href} className={cn(styles.planetContent, styles.planetLink)}>
+                    {content}
+                </Link>
+            ) : (
+                <div className={styles.planetContent}>{content}</div>
+            )}
+        </li>
     );
 }
 
-// ─── Орбитальная схема (desktop) ──────────────────────────────────────────────
-
-function OrbitalDiagram() {
+export function FeatureCards() {
     return (
-        <div className="relative mx-auto aspect-square w-full">
-            {/* Скрытый список для скринридеров — визуальная схема недоступна */}
-            <ul aria-label="Возможности сервиса" className="sr-only">
-                <li>
-                    <a href="/assistant">Ассистент Вера — карьерный консультант в центре системы</a>
-                </li>
-                {FEATURES.map((f) => (
-                    <li key={f.title}>
-                        {f.href ? (
-                            <a href={f.href}>
-                                {f.title}{f.ai ? " (Ассистент Вера)" : ""} — {f.description}
-                            </a>
-                        ) : (
-                            <span>{f.title} — {f.description}</span>
-                        )}
-                    </li>
-                ))}
-            </ul>
-            {/* SVG: орбитальное кольцо + линии-спицы */}
+        <div className={styles.scene}>
             <svg
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 h-full w-full"
-                viewBox="0 0 100 100"
+                className={styles.orbits}
+                viewBox="0 0 1000 700"
                 fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
             >
-                {/* Орбитальное кольцо */}
-                <circle
-                    cx="50"
-                    cy="50"
-                    r="39"
-                    stroke="rgba(245,184,0,0.12)"
-                    strokeWidth="0.4"
-                    strokeDasharray="2.5 2.5"
-                />
-                {/* Внутреннее свечение центра */}
-                <circle
-                    cx="50"
-                    cy="50"
-                    r="10"
-                    stroke="rgba(245,184,0,0.15)"
-                    strokeWidth="0.3"
-                />
-
-                {/* Линии-спицы от центра к каждому узлу */}
-                {ORBIT_POSITIONS.map((pos, i) => (
-                    <line
-                        key={i}
-                        x1="50"
-                        y1="50"
-                        x2={pos.x}
-                        y2={pos.y}
-                        stroke="rgba(245,184,0,0.18)"
-                        strokeWidth="0.35"
-                        strokeDasharray="1.5 1.8"
-                    />
-                ))}
-
-                {/* Точки на орбите */}
-                {ORBIT_POSITIONS.map((pos, i) => (
-                    <circle
-                        key={i}
-                        cx={pos.x}
-                        cy={pos.y}
-                        r="0.9"
-                        fill="rgba(245,184,0,0.5)"
-                    />
-                ))}
-
-                {/* Точка в центре */}
-                <circle cx="50" cy="50" r="1.2" fill="rgba(245,184,0,0.6)" />
+                <defs>
+                    <linearGradient id="feature-orbit-light" x1="100" y1="60" x2="850" y2="650" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#F5B800" stopOpacity="0.04" />
+                        <stop offset="0.48" stopColor="#F5B800" stopOpacity="0.36" />
+                        <stop offset="1" stopColor="#F5B800" stopOpacity="0.07" />
+                    </linearGradient>
+                </defs>
+                <ellipse cx="480" cy="335" rx="465" ry="245" transform="rotate(-17 480 335)" stroke="url(#feature-orbit-light)" />
+                <ellipse cx="480" cy="335" rx="365" ry="220" transform="rotate(25 480 335)" stroke="url(#feature-orbit-light)" />
+                <ellipse cx="480" cy="335" rx="250" ry="135" transform="rotate(-24 480 335)" stroke="rgba(245,184,0,0.13)" strokeDasharray="2 8" />
+                <path d="M79 455C205 585 626 655 914 323" stroke="rgba(245,184,0,0.11)" />
+                <g fill="#F0F0F0">
+                    <circle cx="91" cy="130" r="1.2" opacity="0.35" />
+                    <circle cx="368" cy="56" r="1" opacity="0.25" />
+                    <circle cx="788" cy="91" r="1.4" opacity="0.3" />
+                    <circle cx="947" cy="181" r="1" opacity="0.3" />
+                    <circle cx="355" cy="235" r="1" opacity="0.3" />
+                    <circle cx="696" cy="345" r="1.4" opacity="0.2" />
+                    <circle cx="57" cy="552" r="1" opacity="0.25" />
+                    <circle cx="453" cy="632" r="1.4" opacity="0.3" />
+                    <circle cx="926" cy="610" r="1.2" opacity="0.35" />
+                </g>
             </svg>
 
-            {/* Центральный узел: Ассистент Вера (aria-hidden — дублирует скрытый список) */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" aria-hidden="true">
-                <Link
-                    href="/assistant"
-                    className="group flex flex-col items-center gap-3"
-                    tabIndex={-1}
-                >
-                    {/* Внешнее медленное кольцо */}
-                    <span
-                        aria-hidden="true"
-                        className="absolute h-[15%] w-[15%] rounded-full ring-1 ring-accent/20 animate-ping"
-                        style={{ animationDuration: "3.5s" }}
-                    />
-                    {/* Среднее кольцо */}
-                    <span className="relative flex items-center justify-center">
-                        <span
-                            aria-hidden="true"
-                            className="absolute h-[140%] w-[140%] rounded-full ring-1 ring-accent/15 ring-offset-0"
-                        />
-                        {/* Основное кольцо + аватар */}
-                        <span className="relative flex h-[20vw] w-[20vw] max-h-[200px] max-w-[200px] min-h-[120px] min-w-[120px] items-center justify-center rounded-full ring-2 ring-accent/60 shadow-[0_0_64px_rgba(245,184,0,0.4)] transition-all duration-300 group-hover:ring-accent group-hover:shadow-[0_0_90px_rgba(245,184,0,0.6)]">
-                            <span
-                                aria-hidden="true"
-                                className="absolute inset-0 rounded-full bg-accent/10 animate-pulse"
-                                style={{ animationDuration: "3s" }}
-                            />
-                            <Image
-                                src="/logo_ai_assistant.png"
-                                alt=""
-                                aria-hidden="true"
-                                width={200}
-                                height={200}
-                                className="relative h-full w-full rounded-full object-cover"
-                            />
-                        </span>
-                    </span>
-                    {/* Подпись */}
-                    <span className="flex flex-col items-center gap-1.5">
-                        <span className="text-[clamp(16px,1.8vw,24px)] font-bold text-foreground tracking-wide">
-                            Ассистент Вера
-                        </span>
-                        <span className="rounded-full border border-accent/35 bg-accent/10 px-4 py-1 text-[clamp(10px,1vw,14px)] font-semibold uppercase tracking-widest text-accent/90 backdrop-blur-sm">
-                            Карьерный консультант
-                        </span>
-                    </span>
-                </Link>
-            </div>
-
-            {/* Узлы функций */}
-            {FEATURES.map((feature, i) => (
-                <FeatureNode key={feature.title} feature={feature} index={i} />
-            ))}
-        </div>
-    );
-}
-
-// ─── Мобильная сетка ──────────────────────────────────────────────────────────
-
-function MobileGrid() {
-    return (
-        <div className="flex flex-col gap-4">
-            {/* Центральный элемент */}
-            <Link
-                href="/assistant"
-                className="group flex items-center gap-4 rounded-2xl border border-accent/25 bg-accent/[0.06] px-5 py-4 transition-all duration-200 hover:border-accent/50 hover:bg-accent/[0.10]"
-            >
-                <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full ring-1 ring-accent/50 shadow-[0_0_20px_rgba(245,184,0,0.2)]">
-                    <span aria-hidden="true" className="absolute inset-0 rounded-full bg-accent/10 animate-pulse" style={{ animationDuration: "3s" }} />
+            <Link href="/assistant" className={styles.hub}>
+                <span className={styles.hubVisual}>
+                    <span className={styles.hubHalo} aria-hidden="true" />
                     <Image
                         src="/logo_ai_assistant.png"
                         alt=""
                         aria-hidden="true"
-                        width={48}
-                        height={48}
-                        className="relative rounded-full"
+                        width={180}
+                        height={180}
+                        className={styles.hubImage}
                     />
                 </span>
-                <div>
-                    <p className="text-sm font-bold text-accent">Ассистент Вера — карьерный консультант</p>
-                    <p className="text-xs text-muted">Сопроводительные письма и советы по резюме</p>
-                </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="ml-auto shrink-0 text-accent/60">
-                    <path d="M9 18l6-6-6-6" />
-                </svg>
+                <span className={styles.hubCaption}>
+                    <span className={styles.hubTitle}>Ассистент Вера</span>
+                    <span className={styles.hubSubtitle}>Ваш карьерный навигатор</span>
+                </span>
             </Link>
 
-            {/* Сетка функций */}
-            <ul role="list" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {FEATURES.map((feature) => {
-                    const inner = (
-                        <>
-                            <span className={feature.ai ? "text-accent" : "text-accent/70"}>
-                                {feature.icon}
-                            </span>
-                            <div className="flex flex-col gap-0.5">
-                                <p className="text-[13px] font-semibold text-foreground leading-tight">
-                                    {feature.title}
-                                </p>
-                                <p className="text-[11px] text-muted leading-snug">
-                                    {feature.description}
-                                </p>
-                            </div>
-                            {feature.ai && (
-                                <span className="self-start rounded-full border border-accent/30 bg-accent/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-accent/80">
-                                    Ассистент Вера
-                                </span>
-                            )}
-                        </>
-                    );
-
-                    const cardClass =
-                        "flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-3.5 transition-all hover:border-white/20 hover:bg-white/[0.07]";
-
-                    return (
-                        <li key={feature.title}>
-                            {feature.href ? (
-                                <Link href={feature.href} className={cardClass}>
-                                    {inner}
-                                </Link>
-                            ) : (
-                                <div className={cardClass}>{inner}</div>
-                            )}
-                        </li>
-                    );
-                })}
+            <ul role="list" aria-label="Возможности сервиса" className={styles.planets}>
+                {FEATURES.map((feature) => (
+                    <FeaturePlanet key={feature.id} feature={feature} />
+                ))}
             </ul>
         </div>
     );
 }
-
-// ─── Экспорт ──────────────────────────────────────────────────────────────────
-
-export const FeatureCards: FC = () => {
-    return (
-        <>
-            <div className="hidden lg:block">
-                <OrbitalDiagram />
-            </div>
-            <div className="lg:hidden">
-                <MobileGrid />
-            </div>
-        </>
-    );
-};

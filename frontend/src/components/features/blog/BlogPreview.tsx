@@ -1,38 +1,101 @@
+import Image from "next/image";
 import Link from "next/link";
-import { getLatestPosts } from "@/lib/blog/posts";
-import { BlogCard } from "./BlogCard";
+import { getLatestPosts, type BlogPost } from "@/lib/blog/posts";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import styles from "./BlogPreview.module.css";
 
-export function BlogPreview() {
-    const posts = getLatestPosts(6);
+function PostMeta({ post }: { post: BlogPost }) {
+    return (
+        <span className={styles.meta}>
+            <span className={styles.tag} data-tone={post.tagColor}>{post.tag}</span>
+            <time dateTime={post.date}>
+                {new Date(post.date).toLocaleDateString("ru-RU", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                })}
+            </time>
+        </span>
+    );
+}
+
+function FeaturedPost({ post }: { post: BlogPost }) {
+    const titleId = `blog-featured-${post.slug}`;
 
     return (
-        <div className="flex flex-col gap-8">
-            {/* Заголовок секции */}
-            <div className="flex items-end justify-between gap-4">
-                <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-                        Блог
-                    </p>
-                    <h2 className="text-2xl font-black text-foreground">
-                        Полезные статьи для соискателей
-                    </h2>
-                </div>
-                <Link
-                    href="/blog"
-                    className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-muted transition-all hover:border-white/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                    Все статьи →
-                </Link>
+        <Link href={`/blog/${post.slug}`} aria-labelledby={titleId} className={styles.featured}>
+            <span className={styles.cover} aria-hidden="true">
+                {post.coverImage && (
+                    <Image
+                        src={post.coverImage}
+                        alt=""
+                        fill
+                        sizes="(max-width: 1023px) 100vw, 530px"
+                        className={styles.image}
+                    />
+                )}
+            </span>
+            <div className={styles.featuredBody}>
+                <PostMeta post={post} />
+                <h3 id={titleId} className={styles.featuredTitle}>{post.title}</h3>
+                <p className={styles.excerpt}>{post.excerpt}</p>
+                <span className={styles.readMore} aria-hidden="true">
+                    Читать статью <span>→</span>
+                </span>
             </div>
+        </Link>
+    );
+}
 
-            {/* Карточки */}
-            <ul role="list" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {posts.map((post) => (
-                    <li key={post.slug}>
-                        <BlogCard post={post} />
-                    </li>
-                ))}
-            </ul>
+function CompactPost({ post }: { post: BlogPost }) {
+    const titleId = `blog-preview-${post.slug}`;
+
+    return (
+        <li>
+            <Link href={`/blog/${post.slug}`} aria-labelledby={titleId} className={styles.compact}>
+                <span className={styles.thumbnail} aria-hidden="true">
+                    {post.coverImage && (
+                        <Image src={post.coverImage} alt="" fill sizes="72px" className={styles.image} />
+                    )}
+                </span>
+                <div className={styles.compactBody}>
+                    <PostMeta post={post} />
+                    <h3 id={titleId} className={styles.compactTitle}>{post.title}</h3>
+                </div>
+            </Link>
+        </li>
+    );
+}
+
+export function BlogPreview() {
+    const [featured, ...rest] = getLatestPosts(6);
+
+    return (
+        <div className={styles.preview}>
+            <SectionHeading
+                id="blog-heading"
+                icon={
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 6c-3-2-6-2-10-1v14c4-1 7-1 10 1 3-2 6-2 10-1V5c-4-1-7-1-10 1Z" />
+                        <path d="M12 6v14M5 9h3M5 12h3M16 9h3M16 12h3" />
+                    </svg>
+                }
+                action={<Link href="/blog" className={styles.allPosts}>Все материалы <span aria-hidden="true">→</span></Link>}
+            >
+                Полезные материалы
+            </SectionHeading>
+            {featured ? (
+                <div className={styles.layout}>
+                    <FeaturedPost post={featured} />
+                    {rest.length > 0 && (
+                        <ul role="list" aria-label="Другие статьи" className={styles.list}>
+                            {rest.map((post) => <CompactPost key={post.slug} post={post} />)}
+                        </ul>
+                    )}
+                </div>
+            ) : (
+                <p className={styles.empty}>Статьи скоро появятся.</p>
+            )}
         </div>
     );
 }

@@ -8,6 +8,8 @@ import { FocusScope } from "react-aria";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/auth";
 import { useLogout } from "@/hooks/useLogout";
+import { cn } from "@/lib/utils/cn";
+import styles from "./SiteChrome.module.css";
 
 function LoginLink() {
     const pathname = usePathname();
@@ -22,7 +24,7 @@ function LoginLink() {
     return (
         <Link
             href={href}
-            className="rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className={cn("rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", styles.accountButton)}
         >
             Войти
         </Link>
@@ -61,7 +63,7 @@ export function Header() {
     }
 
     const linkClass = (isActive: boolean) =>
-        `text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+        `${styles.navLink} text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
             isActive ? "text-accent font-semibold" : "text-muted hover:text-foreground"
         }`;
 
@@ -74,7 +76,7 @@ export function Header() {
                 onClick={closeMenu}
             />
         )}
-        <header className="site-header sticky top-0 z-40 border-b border-white/10 bg-background/60 backdrop-blur-md backdrop-saturate-150">
+        <header className={cn("site-header sticky top-0 z-40 border-b border-white/10 bg-background/60 backdrop-blur-md backdrop-saturate-150", styles.header)}>
             {/* ── Строка шапки ─────────────────────────────────────────────── */}
             <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
 
@@ -82,10 +84,10 @@ export function Header() {
                 <Link
                     href="/"
                     onClick={closeMenu}
-                    className="flex items-center gap-2.5 rounded-xl border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] px-3 py-2 backdrop-blur-md transition-all duration-200 hover:border-accent/35 hover:shadow-[0_0_22px_rgba(245,184,0,0.12)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className={cn("flex items-center gap-2.5 rounded-xl border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] px-3 py-2 backdrop-blur-md transition-all duration-200 hover:border-accent/35 hover:shadow-[0_0_22px_rgba(245,184,0,0.12)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", styles.brand)}
                     aria-label="Работа для всех — главная страница"
                 >
-                    <span className="flex shrink-0 items-center justify-center rounded-full ring-1 ring-accent/45 shadow-[0_0_16px_rgba(245,184,0,0.28)]">
+                    <span className={cn("flex shrink-0 items-center justify-center rounded-full ring-1 ring-accent/45 shadow-[0_0_16px_rgba(245,184,0,0.28)]", styles.brandLogo)}>
                         <Image
                             src="/logo.png"
                             alt=""
@@ -95,7 +97,7 @@ export function Header() {
                             className="rounded-full"
                         />
                     </span>
-                    <span className="text-sm font-bold text-accent drop-shadow-[0_0_8px_rgba(245,184,0,0.4)]">
+                    <span className={cn("text-sm font-bold text-accent drop-shadow-[0_0_8px_rgba(245,184,0,0.4)]", styles.brandName)}>
                         Работа для всех
                     </span>
                     <span
@@ -148,7 +150,7 @@ export function Header() {
                                         <button
                                             onClick={handleLogout}
                                             disabled={logoutMutation.isPending}
-                                            className="rounded bg-surface-hover px-3 py-1.5 text-sm font-medium text-foreground hover:bg-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+                                            className={cn("rounded bg-surface-hover px-3 py-1.5 text-sm font-medium text-foreground hover:bg-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50", styles.logoutButton)}
                                         >
                                             Выйти
                                         </button>
@@ -158,7 +160,7 @@ export function Header() {
                                         fallback={
                                             <Link
                                                 href="/auth/login"
-                                                className="rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                                className={cn("rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", styles.accountButton)}
                                             >
                                                 Войти
                                             </Link>
@@ -179,7 +181,7 @@ export function Header() {
                     aria-expanded={menuOpen}
                     aria-controls="mobile-menu"
                     onClick={() => setMenuOpen((v) => !v)}
-                    className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-muted transition-colors hover:border-white/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
+                    className={cn("flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-muted transition-colors hover:border-white/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden", styles.menuToggle)}
                 >
                     {menuOpen ? (
                         /* X */
@@ -203,7 +205,7 @@ export function Header() {
                 <FocusScope contain restoreFocus autoFocus>
                 <div
                     id="mobile-menu"
-                    className="border-t border-white/10 bg-background/95 backdrop-blur-md md:hidden"
+                    className={cn("border-t border-white/10 bg-background/95 backdrop-blur-md md:hidden", styles.mobileMenu)}
                     onKeyDown={(e) => { if (e.key === "Escape") setMenuOpen(false); }}
                 >
                     <nav aria-label="Мобильная навигация">
@@ -213,7 +215,7 @@ export function Header() {
                                     <Link
                                         href={href}
                                         onClick={closeMenu}
-                                        className={`block px-5 py-3.5 text-sm transition-colors hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${pathname === href ? "text-accent font-semibold" : "text-muted hover:text-foreground"}`}
+                                        className={`${styles.mobileLink} block px-5 py-3.5 text-sm transition-colors hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${pathname === href ? "text-accent font-semibold" : "text-muted hover:text-foreground"}`}
                                         aria-current={pathname === href ? "page" : undefined}
                                     >
                                         {label}
@@ -224,7 +226,7 @@ export function Header() {
                                 <Link
                                     href="/assistant"
                                     onClick={closeMenu}
-                                    className={`flex items-center gap-2.5 px-5 py-3.5 text-sm transition-colors hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${pathname.startsWith("/assistant") ? "text-accent font-semibold" : "text-muted hover:text-foreground"}`}
+                                    className={`${styles.mobileLink} flex items-center gap-2.5 px-5 py-3.5 text-sm transition-colors hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${pathname.startsWith("/assistant") ? "text-accent font-semibold" : "text-muted hover:text-foreground"}`}
                                     aria-current={pathname.startsWith("/assistant") ? "page" : undefined}
                                 >
                                     <span className="flex shrink-0 items-center justify-center rounded-full ring-1 ring-white/25">
@@ -248,7 +250,7 @@ export function Header() {
                                             <button
                                                 onClick={handleLogout}
                                                 disabled={logoutMutation.isPending}
-                                                className="rounded bg-surface-hover px-3 py-1.5 text-sm font-medium text-foreground hover:bg-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+                                                className={cn("rounded bg-surface-hover px-3 py-1.5 text-sm font-medium text-foreground hover:bg-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50", styles.logoutButton)}
                                             >
                                                 Выйти
                                             </button>
@@ -258,7 +260,7 @@ export function Header() {
                                             fallback={
                                                 <Link
                                                     href="/auth/login"
-                                                    className="inline-block rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20"
+                                                    className={cn("inline-block rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20", styles.accountButton)}
                                                 >
                                                     Войти
                                                 </Link>

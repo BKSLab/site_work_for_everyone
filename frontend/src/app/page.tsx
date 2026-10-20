@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { Container } from "@/components/layout/Container";
-import { SearchForm } from "@/components/features/search/SearchForm";
+import { SearchHero } from "@/components/features/home/SearchHero";
 import { FeatureCards } from "@/components/features/home/FeatureCards";
 import { BlogPreview } from "@/components/features/blog/BlogPreview";
 import { VeraChatBanner } from "@/components/features/vera/VeraChatBanner";
-import { FocusHeading } from "@/components/ui/FocusHeading";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 
 export const metadata: Metadata = {
     title: "Поиск вакансий",
@@ -33,56 +32,11 @@ export default function HomePage() {
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
             />
-            {/* ── Hero ─────────────────────────────────────────────── */}
-            <div className="flex flex-col items-center gap-8 pb-10 text-center">
-
-                {/* Логотип */}
-                <Image
-                    src="/logo.png"
-                    alt=""
-                    aria-hidden="true"
-                    width={144}
-                    height={144}
-                    className="mx-auto block rounded-full border-2 border-accent/60 shadow-[0_0_40px_rgba(245,184,0,0.32)]"
-                    priority
-                />
-
-                {/* Текст */}
-                <div className="flex flex-col gap-6">
-                    <FocusHeading className="text-3xl font-black leading-tight text-foreground sm:text-4xl">
-                        Поиск вакансий для людей с инвалидностью
-                    </FocusHeading>
-                    <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-lg text-foreground/70">
-                        Агрегируем вакансии из&nbsp;
-                        <span className="inline-flex items-center gap-1.5 rounded border border-accent/50 bg-white/10 px-2.5 py-1 text-sm font-semibold text-accent">
-                            <Image src="/hh.ru.png" alt="" width={16} height={16} className="rounded-sm" />
-                            hh.ru
-                        </span>
-                        &nbsp;и&nbsp;
-                        <span className="inline-flex items-center gap-1.5 rounded border border-accent/50 bg-white/10 px-2.5 py-1 text-sm font-semibold text-accent">
-                            <Image src="/trudvsem.ru.png" alt="" width={16} height={16} className="rounded-sm" />
-                            Работа России
-                        </span>
-                        &nbsp;в едином доступном интерфейсе
-                    </p>
-                </div>
-
-            </div>
-
-            {/* ── Форма поиска ─────────────────────────────────────── */}
-            <div className="mt-4">
-                <div className="mx-auto max-w-4xl rounded-2xl border border-white/20 bg-surface bg-[radial-gradient(ellipse_at_top,rgba(245,184,0,0.05),transparent_60%)] p-8 shadow-[0_1px_1px_rgba(255,255,255,0.05)_inset]">
-                    <SearchForm />
-                </div>
-            </div>
+            <SearchHero />
 
             {/* ── Ассистент Вера: консультация по трудовым вопросам ── */}
             <div className="mx-auto max-w-4xl">
-                <VeraChatBanner
-                    title="Есть вопросы по трудовым правам?"
-                    description="Ассистент Вера консультирует по правам людей с инвалидностью в сфере труда — соискателей, работников и работодателей. Спросите про квоты, льготы, увольнение или оформление сотрудника — бесплатно и без регистрации."
-                    ctaLabel="Спросить у Ассистента Веры"
-                />
+                <VeraChatBanner />
             </div>
 
             {/* ── Возможности сервиса ──────────────────────────────── */}
@@ -90,16 +44,23 @@ export default function HomePage() {
                 aria-labelledby="features-heading"
                 className="mt-20"
             >
-                <h2
+                <SectionHeading
                     id="features-heading"
-                    className="mb-8 text-center text-2xl font-black text-foreground"
+                    className="mb-8"
+                    icon={
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="3.5" />
+                            <ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-30 12 12)" />
+                            <circle cx="19" cy="5" r="1.3" fill="currentColor" stroke="none" />
+                        </svg>
+                    }
                 >
                     Возможности сервиса
-                </h2>
+                </SectionHeading>
                 <FeatureCards />
             </section>
 
-            {/* ── Блог ─────────────────────────────────────────────── */}
+            {/* ── Полезные материалы ───────────────────────────────── */}
             <section aria-labelledby="blog-heading" className="mt-24">
                 <BlogPreview />
             </section>

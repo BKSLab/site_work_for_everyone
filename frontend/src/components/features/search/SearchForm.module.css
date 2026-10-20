@@ -1,0 +1,46 @@
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+.field { min-width: 0; }
+
+.field input {
+  min-height: 3rem;
+  padding: 0.625rem 0.875rem;
+  border-color: rgba(255, 255, 255, 0.14);
+  border-radius: 0.75rem;
+  background: #101010;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.22);
+}
+
+.field input:focus-visible {
+  border-color: rgba(245, 184, 0, 0.55);
+}
+
+.field [role="listbox"],
+.field [role="status"] {
+  border-radius: 0.75rem;
+}
+
+.submit {
+  display: inline-flex;
+  width: 100%;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.75rem;
+  font-size: 0.9375rem;
+  white-space: nowrap;
+}
+
+.submit svg { flex: none; }
+
+@media (min-width: 768px) {
+  .form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: end;
+  }
+}

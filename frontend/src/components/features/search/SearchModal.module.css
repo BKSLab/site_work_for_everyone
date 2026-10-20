@@ -1,0 +1,147 @@
+.dialog {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  border-color: rgba(255, 255, 255, 0.14);
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(ellipse at 50% 25%, rgba(245, 184, 0, 0.055), transparent 65%),
+    linear-gradient(135deg, #1c1c1a, #111110);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.dialog:focus-visible {
+  outline: 2px solid rgba(245, 184, 0, 0.75);
+  outline-offset: 3px;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  text-align: center;
+}
+
+.scene {
+  position: relative;
+  width: 100%;
+  max-width: 21rem;
+  aspect-ratio: 1.45;
+  perspective: 650px;
+  transform-style: preserve-3d;
+  background: radial-gradient(ellipse, rgba(245, 184, 0, 0.08), transparent 70%);
+  pointer-events: none;
+}
+
+.outerOrbit {
+  position: absolute;
+  inset: 14% 3%;
+  border: 1px solid rgba(245, 184, 0, 0.09);
+  border-radius: 50%;
+  transform: rotate(18deg);
+}
+
+.orbitPlane {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 72%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(245, 184, 0, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(-16deg) rotateX(56deg);
+  transform-style: preserve-3d;
+}
+
+.traveler {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: orbit 18s linear var(--orbit-delay, 0s) infinite;
+}
+
+.opposite {
+  --orbit-delay: -9s;
+  transform: rotate(180deg);
+}
+
+.satellite {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border: 1px solid rgba(245, 184, 0, 0.25);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #38362e, #1b1b18 65%);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translate(-50%, -50%) rotateX(-56deg) rotate(16deg);
+  animation: sourceFace 18s linear var(--orbit-delay, 0s) infinite;
+}
+
+.opposite .satellite {
+  transform: translate(-50%, -50%) rotate(-180deg) rotateX(-56deg) rotate(16deg);
+}
+
+.russiaSatellite {
+  width: 5.5rem;
+  height: 3.125rem;
+  border-radius: 1rem;
+}
+
+.hhLogo { width: 2rem; height: 2rem; }
+.russiaLogo { width: 4.25rem; height: auto; border-radius: 0.25rem; }
+
+.core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 5.25rem;
+  height: 5.25rem;
+  place-items: center;
+  border: 1px solid rgba(245, 184, 0, 0.5);
+  border-radius: 50%;
+  background: radial-gradient(circle at 28% 20%, #6e613b, #2a271b 38%, #10100d 75%);
+  color: var(--accent);
+  box-shadow:
+    8px 14px 24px rgba(0, 0, 0, 0.45),
+    0 0 32px rgba(245, 184, 0, 0.09),
+    inset 0 1px 2px rgba(255, 237, 185, 0.3);
+  transform: translate(-50%, -50%);
+}
+
+.core::before {
+  position: absolute;
+  inset: 0.375rem;
+  border: 1px solid rgba(245, 184, 0, 0.13);
+  border-radius: inherit;
+  content: "";
+}
+
+.copy { max-width: 22rem; }
+.message { color: var(--foreground); font-size: 1rem; font-weight: 600; line-height: 1.6; }
+.hint { margin-top: 0.625rem; color: var(--muted); font-size: 0.9375rem; line-height: 1.65; }
+
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Обратное вращение сохраняет логотипы ровными в наклонённой плоскости орбиты. */
+@keyframes sourceFace {
+  from { transform: translate(-50%, -50%) rotate(0deg) rotateX(-56deg) rotate(16deg); }
+  to { transform: translate(-50%, -50%) rotate(-360deg) rotateX(-56deg) rotate(16deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .traveler,
+  .satellite { animation: none; }
+}

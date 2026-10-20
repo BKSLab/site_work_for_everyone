@@ -9,6 +9,8 @@ import { SearchModal } from "./SearchModal";
 import { useSearchStore } from "@/stores/search";
 import { searchSchema } from "@/lib/schemas/search";
 import { zodFieldErrors } from "@/lib/utils/validation";
+import { Button } from "@/components/ui/Button";
+import styles from "./SearchForm.module.css";
 
 export function SearchForm() {
     const router = useRouter();
@@ -60,14 +62,14 @@ export function SearchForm() {
     }
 
     return (
-        <div className="rounded-lg border border-white/20 bg-surface bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_35%)] p-8">
+        <div>
             <form
                 ref={formRef}
                 role="search"
                 onSubmit={handleSubmit}
-                className="flex flex-col gap-4 md:flex-row md:items-end md:gap-3"
+                className={styles.form}
             >
-                <div className="flex-1">
+                <div className={styles.field}>
                     <RegionCombobox
                         regionCode={regionCode}
                         onRegionChange={(code) => {
@@ -79,7 +81,7 @@ export function SearchForm() {
                     />
                 </div>
 
-                <div className="flex-1">
+                <div className={styles.field}>
                     <LocationInput
                         value={location}
                         onChange={(val) => {
@@ -92,13 +94,18 @@ export function SearchForm() {
                 </div>
 
                 <div className="flex flex-col gap-1 md:gap-0">
-                    <button
+                    <Button
                         type="submit"
+                        variant="primary"
                         disabled={searchMutation.isPending}
-                        className="w-full rounded border border-accent/50 bg-white/10 px-6 py-2 text-lg font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:w-fit disabled:cursor-not-allowed disabled:opacity-60"
+                        className={styles.submit}
                     >
-                        Найти
-                    </button>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <circle cx="10.5" cy="10.5" r="6.5" />
+                            <path d="m16 16 4.5 4.5" />
+                        </svg>
+                        Найти вакансии
+                    </Button>
                     <span className="hidden md:block min-h-[1.25rem]" aria-hidden="true" />
                 </div>
             </form>

@@ -1,10 +1,11 @@
 "use client";
 
+import { useId } from "react";
+import Image from "next/image";
 import { Modal } from "@/components/ui/Modal";
-import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { ServiceError } from "@/components/ui/ServiceError";
-import { SourceBadge } from "@/components/ui/SourceBadge";
+import styles from "./SearchModal.module.css";
 
 interface SearchModalProps {
     isPending: boolean;
@@ -21,46 +22,47 @@ export function SearchModal({
     isOpen,
     onClose,
 }: SearchModalProps) {
+    const descriptionId = useId();
+
     return (
         <Modal
             isOpen={isOpen}
             onOpenChange={onClose}
             title={isError ? "Ошибка поиска" : "Поиск вакансий"}
+            containerClassName={styles.dialog}
+            aria-describedby={isPending || isSuccess ? descriptionId : undefined}
         >
             {(isPending || isSuccess) && (
-                <div className="flex flex-col items-center gap-6 text-center">
-
-                    {/* Спиннеры в стеклянном контейнере — чисто декоративные,
-                        статус загрузки уже передан заголовком и текстом модала */}
-                    <div
-                        aria-hidden="true"
-                        className="relative flex justify-center gap-5 rounded-2xl border border-white/10 bg-white/[0.04] px-8 py-6 backdrop-blur-sm"
-                    >
-                        {/* Фоновое свечение */}
-                        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(ellipse_at_center,rgba(245,184,0,0.09),transparent_70%)]" />
-                        {Array.from({ length: 5 }).map((_, i) => (
-                            <Spinner key={i} />
-                        ))}
-                    </div>
-
-                    {/* Источники */}
-                    <div
-                        aria-hidden="true"
-                        className="flex items-center gap-4"
-                    >
-                        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 backdrop-blur-sm">
-                            <SourceBadge source="hh.ru" />
+                <div className={styles.loading}>
+                    <div className={styles.scene} aria-hidden="true">
+                        <div className={styles.outerOrbit} />
+                        <div className={styles.orbitPlane}>
+                            <div className={styles.traveler}>
+                                <span className={styles.satellite}>
+                                    <Image src="/hh.ru.png" alt="" width={32} height={32} className={styles.hhLogo} />
+                                </span>
+                            </div>
+                            <div className={`${styles.traveler} ${styles.opposite}`}>
+                                <span className={`${styles.satellite} ${styles.russiaSatellite}`}>
+                                    <Image src="/trudvsem.ru.png" alt="" width={68} height={30} className={styles.russiaLogo} />
+                                </span>
+                            </div>
                         </div>
-                        <span className="text-xs text-muted/50">+</span>
-                        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 backdrop-blur-sm">
-                            <SourceBadge source="trudvsem.ru" />
+                        <div className={styles.core}>
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="10.5" cy="10.5" r="6.5" />
+                                <path d="m16 16 4.5 4.5" />
+                            </svg>
                         </div>
                     </div>
-
-                    <p className="max-w-xs text-sm leading-relaxed text-muted">
-                        Собираем вакансии из нескольких источников одновременно.
-                        Это может занять больше минуты — пожалуйста, подождите.
-                    </p>
+                    <div className={styles.copy} role="status" aria-atomic="true" id={descriptionId}>
+                        <p className={styles.message}>
+                            Собираем вакансии с hh.ru и «Работы России»
+                        </p>
+                        <p className={styles.hint}>
+                            Поиск может занять больше минуты. Пожалуйста, подождите.
+                        </p>
+                    </div>
                 </div>
             )}
 

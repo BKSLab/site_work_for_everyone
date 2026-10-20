@@ -4,6 +4,9 @@ import { useState } from "react";
 import { authApi } from "@/lib/api/auth";
 import { feedbackSchema } from "@/lib/schemas/auth";
 import { ApiRequestError } from "@/lib/api/client";
+import { Button } from "@/components/ui/Button";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import styles from "./FeedbackForm.module.css";
 
 export function FeedbackForm() {
     const [message, setMessage] = useState("");
@@ -65,34 +68,39 @@ export function FeedbackForm() {
     return (
         <section
             aria-labelledby="feedback-heading"
-            className="mx-auto max-w-xl w-full"
+            className={styles.panel}
         >
-            <h2
+            <SectionHeading
                 id="feedback-heading"
-                className="mb-4 text-base font-semibold text-foreground"
+                icon={
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="3" />
+                        <path d="m3 6 9 7 9-7" />
+                    </svg>
+                }
             >
-                Обратная связь
-            </h2>
-            <p className="mb-5 text-sm text-muted leading-relaxed">
+                Написать мне
+            </SectionHeading>
+            <p className={styles.description}>
                 Нашли ошибку, есть идея или просто хотите написать — я читаю каждое сообщение.
             </p>
 
             {successMsg ? (
-                <p role="status" className="rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">
+                <p role="status" className={styles.success}>
                     {successMsg}
                 </p>
             ) : (
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+                <form onSubmit={handleSubmit} className={styles.form} noValidate>
                     {serverError && (
-                        <p role="alert" className="rounded border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-400">
+                        <p role="alert" className={styles.error}>
                             {serverError}
                         </p>
                     )}
 
-                    <div className="flex flex-col gap-1">
+                    <div className={styles.field}>
                         <label
                             htmlFor="feedback-message"
-                            className="text-sm font-medium text-foreground"
+                            className={styles.label}
                         >
                             Сообщение
                             <span aria-hidden="true" className="ml-1 text-accent">*</span>
@@ -102,32 +110,32 @@ export function FeedbackForm() {
                             id="feedback-message"
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
-                            rows={4}
+                            rows={6}
                             maxLength={2000}
                             placeholder="Напишите ваше сообщение..."
                             aria-required="true"
                             aria-invalid={messageError ? true : undefined}
                             aria-describedby={messageError ? "feedback-message-error" : undefined}
-                            className="resize-y rounded border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            className={styles.input}
                         />
                         {messageError && (
                             <span
                                 id="feedback-message-error"
                                 role="alert"
-                                className="text-sm text-red-400"
+                                className={styles.fieldError}
                             >
                                 {messageError}
                             </span>
                         )}
                     </div>
 
-                    <div className="flex flex-col gap-1">
+                    <div className={styles.field}>
                         <label
                             htmlFor="feedback-email"
-                            className="text-sm font-medium text-foreground"
+                            className={styles.label}
                         >
                             Email для ответа{" "}
-                            <span className="text-muted font-normal">(необязательно)</span>
+                            <span className={styles.optional}>(необязательно)</span>
                         </label>
                         <input
                             id="feedback-email"
@@ -138,27 +146,31 @@ export function FeedbackForm() {
                             autoComplete="email"
                             aria-invalid={emailError ? true : undefined}
                             aria-describedby={emailError ? "feedback-email-error" : undefined}
-                            className="rounded border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            className={styles.input}
                         />
                         {emailError && (
                             <span
                                 id="feedback-email-error"
                                 role="alert"
-                                className="text-sm text-red-400"
+                                className={styles.fieldError}
                             >
                                 {emailError}
                             </span>
                         )}
                     </div>
 
-                    <button
+                    <Button
                         type="submit"
+                        variant="primary"
                         disabled={isPending}
                         aria-disabled={isPending}
-                        className="self-start rounded bg-accent px-5 py-2 text-sm font-semibold text-black hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={styles.submit}
                     >
-                        {isPending ? "Отправка..." : "Отправить"}
-                    </button>
+                        {isPending ? "Отправка..." : "Отправить сообщение"}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="m22 2-7 20-4-9-9-4L22 2ZM22 2 11 13" />
+                        </svg>
+                    </Button>
                 </form>
             )}
         </section>

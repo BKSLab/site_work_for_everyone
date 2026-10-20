@@ -53,15 +53,11 @@ export default async function BlogPage({
                         aria-hidden="true"
                         className="pointer-events-none absolute -top-8 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-accent/8 blur-3xl"
                     />
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-accent/70">
-                        Блог
-                    </p>
                     <FocusHeading className="text-4xl font-black leading-tight text-foreground sm:text-5xl">
-                        Советы и&nbsp;статьи для соискателей
+                        Блог
                     </FocusHeading>
                     <p className="mt-4 max-w-lg text-lg text-muted">
-                        Практические материалы о&nbsp;поиске работы, правах
-                        и&nbsp;карьере для людей с&nbsp;инвалидностью
+                        О&nbsp;трудоустройстве, трудовых правах и&nbsp;карьере
                     </p>
                 </div>
             </section>
