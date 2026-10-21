@@ -11,7 +11,7 @@ export default function Error({
 }) {
     return (
         <Container className="py-12">
-            <ServiceError onRetry={reset} />
+            <ServiceError onRetry={reset} headingLevel={1} />
         </Container>
     );
 }

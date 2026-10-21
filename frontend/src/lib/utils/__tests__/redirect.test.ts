@@ -27,4 +27,8 @@ describe("getSafeRedirect", () => {
     it("blocks URLs with protocol in path", () => {
         expect(getSafeRedirect("/foo://bar")).toBe("/");
     });
+
+    it.each(["/\\evil.com", "/\t/evil.com", "/\n/evil.com", "/\r/evil.com"])("blocks browser-normalized external navigation %j", (url) => {
+        expect(getSafeRedirect(url)).toBe("/");
+    });
 });

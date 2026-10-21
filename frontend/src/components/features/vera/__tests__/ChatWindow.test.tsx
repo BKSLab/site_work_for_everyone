@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAuthStore } from "@/stores/auth";
+import { veraMessageStartId } from "../message-navigation";
 
 const { chatMessageRenderMock, useVeraChatMock } = vi.hoisted(() => ({
     chatMessageRenderMock: vi.fn(),
@@ -16,12 +18,19 @@ vi.mock("@/hooks/useVeraChat", async (importOriginal) => ({
 
 vi.mock("../ChatMessage", () => ({
     ChatMessage: (props: {
-        message: { content: string };
+        message: { content: string; id: string };
         sessionId: string;
         waitingStage?: string;
     }) => {
         chatMessageRenderMock(props);
-        return <div>{props.message.content}</div>;
+        return (
+            <div
+                id={veraMessageStartId(props.sessionId, props.message.id)}
+                tabIndex={-1}
+            >
+                {props.message.content}
+            </div>
+        );
     },
 }));
 
@@ -29,7 +38,13 @@ import { ChatWindow } from "../ChatWindow";
 
 describe("ChatWindow accessibility", () => {
     beforeEach(() => {
+        window.sessionStorage.clear();
+        useAuthStore.setState({ user: null, isLoading: false });
         Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+            configurable: true,
+            value: vi.fn(),
+        });
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
             configurable: true,
             value: vi.fn(),
         });
@@ -660,6 +675,7 @@ describe("ChatWindow accessibility", () => {
         render(<ChatWindow />);
 
         const composer = screen.getByLabelText("Сообщение для Ассистента Веры");
+        composer.focus();
         fireEvent.change(composer, {
             target: { value: "Расскажите об отпуске." },
         });
@@ -927,12 +943,18 @@ describe("ChatWindow accessibility", () => {
             "vera-chat-history",
         );
 
+        const answer = document.getElementById(
+            veraMessageStartId("session-1", "message-2"),
+        );
+        vi.spyOn(history, "getBoundingClientRect").mockReturnValue({ top: 100, bottom: 600 } as DOMRect);
+        vi.spyOn(answer!, "getBoundingClientRect").mockReturnValue({ top: 420, bottom: 440 } as DOMRect);
         fireEvent.click(jumpButton);
-
+        expect(answer).toHaveFocus();
         expect(scrollToMock).toHaveBeenCalledWith({
-            top: 1_000,
+            top: 412,
             behavior: "smooth",
         });
+        expect(answer?.scrollIntoView).not.toHaveBeenCalled();
         expect(
             screen.queryByRole("button", { name: "К новому сообщению" }),
         ).not.toBeInTheDocument();

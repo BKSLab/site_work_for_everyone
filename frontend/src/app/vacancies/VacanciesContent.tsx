@@ -14,6 +14,7 @@ import { useAuthStore } from "@/stores/auth";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { ServiceError } from "@/components/ui/ServiceError";
+import { getSourceLabel } from "@/components/ui/SourceBadge";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -36,22 +37,28 @@ export function VacanciesContent() {
     const {
         data,
         isFetching,
+        isPlaceholderData,
         isError: isListError,
     } = useVacancies(location, page, pageSize, userId, keyword, source);
 
     useEffect(() => {
+        if (sessionStorage.getItem("returnFocusVacancyId")) return;
         h1Ref.current?.focus();
     }, [location, page, keyword, source]);
 
     useEffect(() => {
-        if (!data) return;
+        if (!data || isPlaceholderData || isFetching) return;
         const savedId = sessionStorage.getItem('returnFocusVacancyId');
         if (!savedId) return;
-        sessionStorage.removeItem('returnFocusVacancyId');
-        requestAnimationFrame(() => {
-            document.getElementById(`detail-link-${savedId}`)?.focus();
+        const frame = requestAnimationFrame(() => {
+            const target = document.getElementById(`detail-link-${savedId}`);
+            const active = document.activeElement;
+            if (!target || (active !== document.body && active !== h1Ref.current && active?.tagName !== "MAIN")) return;
+            target.focus();
+            if (document.activeElement === target) sessionStorage.removeItem("returnFocusVacancyId");
         });
-    }, [data]);
+        return () => cancelAnimationFrame(frame);
+    }, [data, isPlaceholderData, isFetching]);
 
     const activeFilterCount = (keyword ? 1 : 0) + (source ? 1 : 0);
 
@@ -88,7 +95,7 @@ export function VacanciesContent() {
     if (!location) {
         return (
             <Container className="py-12">
-                <h1 ref={h1Ref} tabIndex={-1} className="mb-4 text-2xl font-bold text-foreground focus:outline-none">Результаты поиска</h1>
+                <h1 ref={h1Ref} tabIndex={-1} className="mb-4 scroll-mt-28 text-2xl font-bold text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">Результаты поиска</h1>
                 <p className="text-sm text-muted">
                     Введите параметры поиска на{" "}
                     <Link
@@ -148,7 +155,7 @@ export function VacanciesContent() {
             <h1
                 ref={h1Ref}
                 tabIndex={-1}
-                className="mb-8 text-3xl font-bold text-foreground focus:outline-none"
+                className="mb-8 scroll-mt-28 text-3xl font-bold text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
             >
                 Результаты поиска
             </h1>
@@ -156,11 +163,17 @@ export function VacanciesContent() {
             <SearchResultsSummary
                 summary={summary}
                 actions={filterActions}
-                filteredTotal={data?.total}
+                filteredTotal={isPlaceholderData ? undefined : data?.total}
                 isFiltered={activeFilterCount > 0}
-                filteredCountHh={data?.vacancies_count_hh}
-                filteredCountTv={data?.vacancies_count_tv}
+                filteredCountHh={isPlaceholderData ? undefined : data?.vacancies_count_hh}
+                filteredCountTv={isPlaceholderData ? undefined : data?.vacancies_count_tv}
             />
+
+            <p role="status" aria-atomic="true" className="mb-4 text-sm text-muted">
+                {data && !isPlaceholderData && !isListError
+                    ? `Найдено вакансий: ${data.total}. ${location}.${keyword ? ` Ключевое слово: ${keyword}.` : ""}${source ? ` Источник: ${getSourceLabel(source)}.` : " Все источники."}${data.total > 0 ? ` Страница ${data.page}, вакансии ${(data.page - 1) * data.page_size + 1}–${(data.page - 1) * data.page_size + data.items.length}.` : " Попробуйте изменить параметры поиска."}`
+                    : isFetching && !data ? "Загружаем вакансии…" : ""}
+            </p>
 
             {isListError && !isFetching && (
                 <ServiceError />
@@ -168,15 +181,14 @@ export function VacanciesContent() {
 
             {/* Спиннер при первой загрузке (данных ещё нет) */}
             {isFetching && !data && (
-                <div className="flex items-center gap-3 py-8" role="status" aria-live="polite">
+                <div className="flex items-center gap-3 py-8" aria-hidden="true">
                     <Spinner />
-                    <p className="text-sm text-muted">Загружаем вакансии…</p>
                 </div>
             )}
 
             {/* Список — остаётся видимым при смене страницы/фильтров (keepPreviousData) */}
             {data && (
-                <div className={isFetching ? "opacity-50 transition-opacity duration-200" : "transition-opacity duration-200"}>
+                <div aria-busy={isFetching} className={isFetching ? "opacity-50 transition-opacity duration-200" : "transition-opacity duration-200"}>
                     <VacancyList
                         data={data}
                         currentPage={page}

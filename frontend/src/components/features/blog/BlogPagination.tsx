@@ -31,17 +31,22 @@ export function BlogPagination({ currentPage, totalPages, buildHref }: BlogPagin
     return (
         <nav aria-label="Страницы блога" className="flex flex-wrap items-center justify-center gap-1.5 py-8">
 
-            <Link
+            {currentPage === 1 ? (
+                <span aria-disabled="true" className={`${btnBase} ${btnDisabled}`}>
+                    <span className="sr-only">Предыдущая страница недоступна</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                </span>
+            ) : <Link
                 href={buildHref(currentPage - 1)}
-                aria-disabled={currentPage === 1}
-                tabIndex={currentPage === 1 ? -1 : undefined}
                 aria-label="Предыдущая страница"
-                className={`${btnBase} ${currentPage === 1 ? btnDisabled : btnIdle}`}
+                className={`${btnBase} ${btnIdle}`}
             >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M15 18l-6-6 6-6" />
                 </svg>
-            </Link>
+            </Link>}
 
             {pages.map((p, i) =>
                 p === "…" ? (
@@ -60,17 +65,22 @@ export function BlogPagination({ currentPage, totalPages, buildHref }: BlogPagin
                 )
             )}
 
-            <Link
+            {currentPage === totalPages ? (
+                <span aria-disabled="true" className={`${btnBase} ${btnDisabled}`}>
+                    <span className="sr-only">Следующая страница недоступна</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M9 18l6-6-6-6" />
+                    </svg>
+                </span>
+            ) : <Link
                 href={buildHref(currentPage + 1)}
-                aria-disabled={currentPage === totalPages}
-                tabIndex={currentPage === totalPages ? -1 : undefined}
                 aria-label="Следующая страница"
-                className={`${btnBase} ${currentPage === totalPages ? btnDisabled : btnIdle}`}
+                className={`${btnBase} ${btnIdle}`}
             >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M9 18l6-6-6-6" />
                 </svg>
-            </Link>
+            </Link>}
 
         </nav>
     );

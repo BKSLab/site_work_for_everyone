@@ -23,6 +23,8 @@ export function PasswordInput({
 }: PasswordInputProps) {
     const [showPassword, setShowPassword] = useState(false);
     const errorId = `${id}-error`;
+    const hintId = `${id}-hint`;
+    const isNewPassword = autoComplete === "new-password";
 
     return (
         <div className="flex flex-col gap-1">
@@ -46,8 +48,8 @@ export function PasswordInput({
                     placeholder={placeholder}
                     aria-required="true"
                     aria-invalid={error ? true : undefined}
-                    aria-describedby={error ? errorId : undefined}
-                    className="w-full rounded border border-border bg-surface px-3 py-2 pr-10 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    aria-describedby={[isNewPassword && hintId, error && errorId].filter(Boolean).join(" ") || undefined}
+                    className="w-full rounded border border-input bg-surface px-3 py-2 pr-10 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 />
                 <button
                     type="button"
@@ -85,8 +87,11 @@ export function PasswordInput({
                     </svg>
                 </button>
             </div>
+            {isNewPassword && (
+                <span id={hintId} className="text-sm text-muted">От 8 до 255 символов.</span>
+            )}
             {error && (
-                <span id={errorId} role="alert" className="text-sm text-red-400">
+                <span id={errorId} className="text-sm text-red-400">
                     {error}
                 </span>
             )}

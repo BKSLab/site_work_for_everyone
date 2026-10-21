@@ -25,7 +25,7 @@ export function useFavorites(userId: string, page: number = 1, pageSize: number 
         mutationFn: (vacancyId: string) =>
             favoritesApi.remove({ user_id: userId, vacancy_id: vacancyId }),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["favorites", userId] });
+            return queryClient.invalidateQueries({ queryKey: ["favorites", userId] });
         },
     });
 

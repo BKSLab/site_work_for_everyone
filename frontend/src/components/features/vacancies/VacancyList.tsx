@@ -1,6 +1,5 @@
 import { VacancyCard } from "./VacancyCard";
 import { Pagination } from "@/components/ui/Pagination";
-import { EmptyState } from "@/components/ui/EmptyState";
 import type { VacanciesList } from "@/types/vacancy";
 
 interface VacancyListProps {
@@ -14,7 +13,7 @@ export function VacancyList({ data, currentPage, onPageChange }: VacancyListProp
 
     if (data.items.length === 0) {
         return (
-            <EmptyState message="Вакансии не найдены. Попробуйте изменить параметры поиска." />
+            <p className="py-16 text-center text-muted">Вакансии не найдены. Попробуйте изменить параметры поиска.</p>
         );
     }
 

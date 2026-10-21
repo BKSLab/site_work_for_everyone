@@ -88,6 +88,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                     className="rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-center text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                     Подробнее
+                    <span className="sr-only">: {vacancy.vacancy_name}{vacancy.employer_name ? ` · ${vacancy.employer_name}` : ""}</span>
                 </Link>
                 <button
                     type="button"
@@ -104,6 +105,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                     className="rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-center text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                     {`Открыть на ${getSourceLabel(vacancy.vacancy_source)}`}
+                    <span className="sr-only">: {vacancy.vacancy_name}{vacancy.employer_name ? ` · ${vacancy.employer_name}` : ""}</span>
                     <span className="sr-only">, откроется в новом окне</span>
                 </a>
             </div>

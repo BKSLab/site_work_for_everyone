@@ -57,7 +57,7 @@ export function VacancyDetail({ vacancy, showAssistant = false }: VacancyDetailP
             <h1
                 ref={h1Ref}
                 id="vacancy-detail-title"
-                className="text-2xl font-bold text-foreground focus:outline-none"
+                className="scroll-mt-28 text-2xl font-bold text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
                 tabIndex={-1}
             >
                 {vacancy.vacancy_name}

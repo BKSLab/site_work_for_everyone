@@ -16,7 +16,6 @@ interface ContactChannel {
     href: string;
     name: string;
     detail: string;
-    ariaLabel: string;
     external?: boolean;
     logo?: { src: string; width: number; height: number; invert?: boolean };
 }
@@ -26,13 +25,11 @@ const CONTACT_CHANNELS: ContactChannel[] = [
         href: "tel:+79124646606",
         name: "Телефон",
         detail: "+7 (912) 464-66-06",
-        ariaLabel: "Позвонить Кириллу Барабанщикову",
     },
     {
         href: "https://vk.com/id30907580",
         name: "ВКонтакте",
         detail: "Написать напрямую",
-        ariaLabel: "Барабанщиков Кирилл ВКонтакте (открывается в новой вкладке)",
         external: true,
         logo: { src: "/vk-logo.png", width: 72, height: 12 },
     },
@@ -40,7 +37,6 @@ const CONTACT_CHANNELS: ContactChannel[] = [
         href: "https://dzen.ru/bks_daily",
         name: "Дзен",
         detail: "Мой блог",
-        ariaLabel: "Блог на Дзене (открывается в новой вкладке)",
         external: true,
         logo: { src: "/dzen-white.png", width: 72, height: 17 },
     },
@@ -48,7 +44,6 @@ const CONTACT_CHANNELS: ContactChannel[] = [
         href: "https://github.com/BKSLab",
         name: "GitHub",
         detail: "Мой профиль",
-        ariaLabel: "Профиль на GitHub (открывается в новой вкладке)",
         external: true,
         logo: { src: "/github-logo.png", width: 72, height: 16, invert: true },
     },
@@ -106,7 +101,6 @@ export default function ContactPage() {
                                         href={channel.href}
                                         target={channel.external ? "_blank" : undefined}
                                         rel={channel.external ? "noopener noreferrer" : undefined}
-                                        aria-label={channel.ariaLabel}
                                         className={styles.channel}
                                     >
                                         <span className={styles.channelIcon} aria-hidden="true">
@@ -127,6 +121,7 @@ export default function ContactPage() {
                                         <span className={styles.channelText}>
                                             <span className={styles.channelName}>{channel.name}</span>
                                             <span className={styles.channelDetail}>{channel.detail}</span>
+                                            {channel.external && <span className="sr-only"> (открывается в новой вкладке)</span>}
                                         </span>
                                     </a>
                                 </li>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,10 +11,13 @@ import {
     PasswordInput,
     AuthErrorMessage,
     SubmitButton,
+    EmailInput,
+    useFormErrorFocus,
 } from "@/components/features/auth";
 import { registerSchema } from "@/lib/schemas/auth";
 import { zodFieldErrors } from "@/lib/utils/validation";
 import { ApiRequestError } from "@/lib/api/client";
+import { authFlowUrl } from "@/lib/utils/auth-flow";
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -22,10 +25,12 @@ export default function RegisterPage() {
     const redirect = getSafeRedirect(searchParams.get("redirect"));
     const { isAuthenticated, isLoading: authLoading } = useAuth();
     const registerMutation = useRegister();
+    const submittingRef = useRef(false);
+    const focusInvalid = useFormErrorFocus();
 
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
-    const [email, setEmail] = useState("");
+    const [email, setEmail] = useState(searchParams.get("email") ?? "");
     const [password, setPassword] = useState("");
     const [firstNameError, setFirstNameError] = useState("");
     const [lastNameError, setLastNameError] = useState("");
@@ -35,17 +40,19 @@ export default function RegisterPage() {
     const [consent, setConsent] = useState(false);
     const [consentError, setConsentError] = useState("");
 
-    if (authLoading) return null;
-    if (isAuthenticated) {
-        router.replace("/");
-        return null;
-    }
+    useEffect(() => {
+        if (!authLoading && isAuthenticated) router.replace(redirect);
+    }, [authLoading, isAuthenticated, redirect, router]);
+
+    if (authLoading) return <AuthFormLayout title="Регистрация"><p role="status">Проверяем сессию…</p></AuthFormLayout>;
+    if (isAuthenticated) return null;
 
     function validate(): boolean {
         setFirstNameError("");
         setLastNameError("");
         setEmailError("");
         setPasswordError("");
+        setConsentError(consent ? "" : "Необходимо согласие на обработку персональных данных.");
 
         const result = registerSchema.safeParse({ first_name: firstName, last_name: lastName, email, password });
         if (!result.success) {
@@ -54,6 +61,17 @@ export default function RegisterPage() {
             if (errors.last_name) setLastNameError(errors.last_name);
             if (errors.email) setEmailError(errors.email);
             if (errors.password) setPasswordError(errors.password);
+            focusInvalid([
+                errors.first_name && "register-first-name",
+                errors.last_name && "register-last-name",
+                errors.email && "register-email",
+                errors.password && "register-password",
+                !consent && "register-consent",
+            ]);
+            return false;
+        }
+        if (!consent) {
+            focusInvalid(["register-consent"]);
             return false;
         }
         return true;
@@ -61,26 +79,20 @@ export default function RegisterPage() {
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        if (submittingRef.current || registerMutation.isPending) return;
         setServerError(null);
-        setConsentError("");
 
         if (!validate()) return;
 
-        if (!consent) {
-            setConsentError("Необходимо согласие на обработку персональных данных.");
-            return;
-        }
-
+        submittingRef.current = true;
         registerMutation.mutate(
             { first_name: firstName, last_name: lastName, email, password },
             {
                 onSuccess: () => {
-                    const verifyUrl = redirect !== "/"
-                        ? `/auth/verify-email?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(redirect)}`
-                        : `/auth/verify-email?email=${encodeURIComponent(email)}`;
-                    router.push(verifyUrl);
+                    router.push(authFlowUrl("/auth/verify-email", email, redirect));
                 },
                 onError: (error) => {
+                    submittingRef.current = false;
                     if (error instanceof ApiRequestError) {
                         setServerError(error.detail);
                     } else {
@@ -115,10 +127,10 @@ export default function RegisterPage() {
                         aria-required="true"
                         aria-invalid={firstNameError ? true : undefined}
                         aria-describedby={firstNameError ? "register-first-name-error" : undefined}
-                        className="rounded border border-border bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        className="rounded border border-input bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     />
                     {firstNameError && (
-                        <span id="register-first-name-error" role="alert" className="text-sm text-red-400">
+                        <span id="register-first-name-error" className="text-sm text-red-400">
                             {firstNameError}
                         </span>
                     )}
@@ -143,50 +155,16 @@ export default function RegisterPage() {
                         aria-required="true"
                         aria-invalid={lastNameError ? true : undefined}
                         aria-describedby={lastNameError ? "register-last-name-error" : undefined}
-                        className="rounded border border-border bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        className="rounded border border-input bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     />
                     {lastNameError && (
-                        <span id="register-last-name-error" role="alert" className="text-sm text-red-400">
+                        <span id="register-last-name-error" className="text-sm text-red-400">
                             {lastNameError}
                         </span>
                     )}
                 </div>
 
-                <div className="flex flex-col gap-1">
-                    <label
-                        htmlFor="register-email"
-                        className="text-sm font-medium text-foreground"
-                    >
-                        Email
-                        <span aria-hidden="true" className="ml-1 text-accent">
-                            *
-                        </span>
-                        <span className="sr-only"> (обязательное поле)</span>
-                    </label>
-                    <input
-                        id="register-email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        autoComplete="email"
-                        placeholder="your@email.com"
-                        aria-required="true"
-                        aria-invalid={emailError ? true : undefined}
-                        aria-describedby={
-                            emailError ? "register-email-error" : undefined
-                        }
-                        className="rounded border border-border bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                    />
-                    {emailError && (
-                        <span
-                            id="register-email-error"
-                            role="alert"
-                            className="text-sm text-red-400"
-                        >
-                            {emailError}
-                        </span>
-                    )}
-                </div>
+                <EmailInput id="register-email" value={email} onChange={setEmail} error={emailError} />
 
                 <PasswordInput
                     id="register-password"
@@ -231,7 +209,7 @@ export default function RegisterPage() {
                         Читать политику конфиденциальности (откроется в новой вкладке)
                     </a>
                     {consentError && (
-                        <span id="register-consent-error" role="alert" className="ml-7 text-sm text-red-400">
+                        <span id="register-consent-error" className="ml-7 text-sm text-red-400">
                             {consentError}
                         </span>
                     )}
@@ -245,7 +223,7 @@ export default function RegisterPage() {
             <div className="mt-4 text-sm text-muted">
                 Уже есть аккаунт?{" "}
                 <Link
-                    href={redirect !== "/" ? `/auth/login?redirect=${encodeURIComponent(redirect)}` : "/auth/login"}
+                    href={authFlowUrl("/auth/login", email, redirect)}
                     className="text-accent hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                     Войти

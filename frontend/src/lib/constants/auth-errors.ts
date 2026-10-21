@@ -55,7 +55,14 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
 
 const DEFAULT_AUTH_ERROR = "Произошла ошибка. Попробуйте позже.";
 
+/** Only explicit unverified-email reasons may start the verification flow. */
+export function isUnverifiedEmailError(detail: string): boolean {
+    return detail === "The email address has not been verified. Please confirm your email to proceed."
+        || detail === "User's email is not verified.";
+}
+
 export function getAuthErrorMessage(detail: string): string {
+    if (!detail) return DEFAULT_AUTH_ERROR;
     // Точное совпадение
     if (AUTH_ERROR_MESSAGES[detail]) {
         return AUTH_ERROR_MESSAGES[detail];

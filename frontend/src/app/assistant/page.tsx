@@ -53,7 +53,7 @@ export default function AssistantPage() {
                     </span>
 
                     <div className="flex flex-col gap-5">
-                        <h1 ref={h1Ref} tabIndex={-1} className="text-3xl font-bold text-foreground sm:text-4xl focus:outline-none">
+                        <h1 ref={h1Ref} tabIndex={-1} className="scroll-mt-28 text-3xl font-bold text-foreground sm:text-4xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
                             {greeting} <span className="text-accent">Я — Ассистент Вера</span>,<br className="hidden sm:block" /> ваш карьерный консультант
                         </h1>
                         <p className="max-w-xl text-lg leading-relaxed text-muted">

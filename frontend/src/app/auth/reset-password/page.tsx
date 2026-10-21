@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useResetPassword } from "@/hooks/useResetPassword";
 import {
     AuthFormLayout,
@@ -10,41 +10,42 @@ import {
     PasswordInput,
     AuthErrorMessage,
     SubmitButton,
+    EmailInput,
+    useFormErrorFocus,
 } from "@/components/features/auth";
 import { resetPasswordSchema } from "@/lib/schemas/auth";
 import { zodFieldErrors } from "@/lib/utils/validation";
 import { ApiRequestError } from "@/lib/api/client";
+import { authFlowUrl, emailContextError } from "@/lib/utils/auth-flow";
+import { getSafeRedirect } from "@/lib/utils/redirect";
 
 export default function ResetPasswordPage() {
-    const router = useRouter();
     const searchParams = useSearchParams();
-    const email = searchParams.get("email") ?? "";
+    const redirect = getSafeRedirect(searchParams.get("redirect"));
 
     const resetMutation = useResetPassword();
+    const submittingRef = useRef(false);
+    const successRef = useRef<HTMLParagraphElement>(null);
+    const formRef = useRef<HTMLFormElement>(null);
+    const focusSuccessRef = useRef(false);
+    const focusInvalid = useFormErrorFocus();
 
+    const [email, setEmail] = useState(searchParams.get("email") ?? "");
+    const [emailError, setEmailError] = useState(() => emailContextError(email));
     const [code, setCode] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [codeError, setCodeError] = useState("");
     const [passwordError, setPasswordError] = useState("");
     const [serverError, setServerError] = useState<string | null>(null);
-    const [success, setSuccess] = useState(false);
+    const [success, setSuccess] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!email) {
-            router.replace("/auth/forgot-password");
-        }
-    }, [email, router]);
-
-    useEffect(() => {
-        if (!success) return;
-        const timer = setTimeout(() => {
-            router.push("/auth/login");
-        }, 3000);
-        return () => clearTimeout(timer);
-    }, [success, router]);
+        if (success && focusSuccessRef.current) successRef.current?.focus();
+    }, [success]);
 
     function validate(): boolean {
         setCodeError("");
+        setEmailError("");
         setPasswordError("");
 
         const result = resetPasswordSchema.safeParse({
@@ -54,8 +55,14 @@ export default function ResetPasswordPage() {
         });
         if (!result.success) {
             const errors = zodFieldErrors(result.error);
+            if (errors.email) setEmailError(errors.email);
             if (errors.code) setCodeError(errors.code);
             if (errors.new_password) setPasswordError(errors.new_password);
+            focusInvalid([
+                errors.email && "reset-email",
+                errors.code && "reset-code",
+                errors.new_password && "reset-new-password",
+            ]);
             return false;
         }
         return true;
@@ -63,17 +70,23 @@ export default function ResetPasswordPage() {
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        if (submittingRef.current || resetMutation.isPending) return;
         setServerError(null);
 
         if (!validate()) return;
 
+        submittingRef.current = true;
+        const submitFocus = document.activeElement;
         resetMutation.mutate(
             { email, code, new_password: newPassword },
             {
                 onSuccess: () => {
-                    setSuccess(true);
+                    const active = document.activeElement;
+                    focusSuccessRef.current = active === submitFocus || active === document.body || !!formRef.current?.contains(active);
+                    setSuccess(email);
                 },
                 onError: (error) => {
+                    submittingRef.current = false;
                     if (error instanceof ApiRequestError) {
                         setServerError(error.detail);
                     } else {
@@ -84,20 +97,19 @@ export default function ResetPasswordPage() {
         );
     }
 
-    if (!email) return null;
-
     if (success) {
         return (
             <AuthFormLayout title="Сброс пароля">
                 <div className="flex flex-col gap-4">
                     <p
-                        aria-live="polite"
-                        className="text-sm text-green-400"
+                        ref={successRef}
+                        tabIndex={-1}
+                        className="scroll-mt-28 rounded text-sm text-green-400 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
                     >
-                        Пароль успешно изменён. Перенаправляем на вход...
+                        Пароль успешно изменён. Теперь вы можете войти с новым паролем.
                     </p>
                     <Link
-                        href="/auth/login"
+                        href={authFlowUrl("/auth/login", success, redirect)}
                         className="text-sm text-accent hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     >
                         Перейти к входу
@@ -112,24 +124,16 @@ export default function ResetPasswordPage() {
             title="Сброс пароля"
             description="Введите код из письма и новый пароль"
         >
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+            <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
                 <AuthErrorMessage error={serverError} />
 
-                <div className="flex flex-col gap-1">
-                    <label
-                        htmlFor="reset-email"
-                        className="text-sm font-medium text-foreground"
-                    >
-                        Email
-                    </label>
-                    <input
-                        id="reset-email"
-                        type="email"
-                        value={email}
-                        readOnly
-                        className="rounded border border-border bg-surface px-3 py-2 text-muted"
-                    />
-                </div>
+                <EmailInput id="reset-email" value={email} onChange={setEmail} error={emailError} />
+                <Link
+                    href={authFlowUrl("/auth/forgot-password", email, redirect)}
+                    className="text-sm text-accent hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                    Получить код для указанного email
+                </Link>
 
                 <OtpCodeInput
                     id="reset-code"

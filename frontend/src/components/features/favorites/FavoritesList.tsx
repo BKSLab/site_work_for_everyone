@@ -54,7 +54,7 @@ export function FavoritesList({
         });
     }
 
-    if (items.length === 0) {
+    if (total === 0) {
         return (
             <div
                 role="status"
@@ -79,7 +79,7 @@ export function FavoritesList({
                 </div>
 
                 <div className="max-w-sm">
-                    <h2 className="text-xl font-bold text-foreground">
+                    <h2 id="favorites-empty-heading" tabIndex={-1} className="scroll-mt-28 text-xl font-bold text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
                         Список избранного пуст
                     </h2>
                     <p className="mt-2 text-sm text-muted">
@@ -162,26 +162,29 @@ export function FavoritesList({
                                     <Link
                                         href={`/favorites/${vacancy.vacancy_id}`}
                                         id={`detail-link-${vacancy.vacancy_id}`}
-                                        onClick={() => sessionStorage.setItem('returnFocusVacancyId', vacancy.vacancy_id)}
+                                        onClick={() => sessionStorage.setItem(`favoriteReturnFocus:${userId}`, vacancy.vacancy_id)}
                                         onMouseEnter={() => handleDetailHover(vacancy.vacancy_id)}
                                         onFocus={() => handleDetailHover(vacancy.vacancy_id)}
                                         className={btnClass()}
                                     >
                                         Подробнее
+                                        <span className="sr-only">: {vacancy.vacancy_name}{vacancy.employer_name ? ` · ${vacancy.employer_name}` : ""}</span>
                                     </Link>
                                     <Link
                                         href={`/assistant/start?vacancy_id=${vacancy.vacancy_id}`}
                                         className={btnClass()}
                                     >
                                         Карьерный ассистент
+                                        <span className="sr-only">: {vacancy.vacancy_name}{vacancy.employer_name ? ` · ${vacancy.employer_name}` : ""}</span>
                                     </Link>
                                     <Button
-                                        onClick={() => onRemove(vacancy.vacancy_id)}
-                                        disabled={removingId === vacancy.vacancy_id}
+                                        onClick={() => { if (!removingId) onRemove(vacancy.vacancy_id); }}
+                                        aria-disabled={removingId !== null}
                                     >
                                         {removingId === vacancy.vacancy_id
                                             ? "Удаление…"
                                             : "Удалить из избранного"}
+                                        <span className="sr-only">: {vacancy.vacancy_name}</span>
                                     </Button>
                                     {vacancy.vacancy_url && (
                                         <a
@@ -191,6 +194,7 @@ export function FavoritesList({
                                             className={btnClass()}
                                         >
                                             {`Открыть на ${getSourceLabel(vacancy.vacancy_source)}`}
+                                            <span className="sr-only">: {vacancy.vacancy_name}{vacancy.employer_name ? ` · ${vacancy.employer_name}` : ""}</span>
                                             <span className="sr-only">, откроется в новом окне</span>
                                         </a>
                                     )}

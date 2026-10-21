@@ -153,11 +153,13 @@ describe("ChatMessage accessibility", () => {
             />,
         );
 
-        expect(screen.getByText("Ассистент Вера")).toHaveAttribute(
-            "aria-hidden",
-            "true",
-        );
-        expect(screen.getByText("Ассистент Вера:")).toHaveClass("sr-only");
+        const start = screen.getByRole("heading", {
+            level: 2,
+            name: "Ассистент Вера",
+        });
+        expect(start).toHaveAttribute("tabindex", "-1");
+        expect(start.id).toContain("session-1");
+        expect(screen.queryByText("Ассистент Вера:")).not.toBeInTheDocument();
     });
 
     it.each([

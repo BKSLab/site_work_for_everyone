@@ -1,4 +1,5 @@
 import { Container } from "@/components/layout/Container";
+import { FocusHeading } from "@/components/ui/FocusHeading";
 
 interface AuthFormLayoutProps {
     title: string;
@@ -15,12 +16,9 @@ export function AuthFormLayout({
         <Container className="py-12">
             <div className="mx-auto max-w-md">
                 <div className="rounded-lg border border-border bg-surface p-6">
-                    <h1
-                        className="text-2xl font-bold text-foreground"
-                        tabIndex={-1}
-                    >
+                    <FocusHeading className="rounded text-2xl font-bold text-foreground">
                         {title}
-                    </h1>
+                    </FocusHeading>
                     {description && (
                         <p className="mt-2 text-sm text-muted">
                             {description}

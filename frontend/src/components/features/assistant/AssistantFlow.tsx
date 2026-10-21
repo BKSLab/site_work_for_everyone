@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useId } from "react";
 import { useSearchParams } from "next/navigation";
-import Image from "next/image";
 import DOMPurify from "isomorphic-dompurify";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
 import { useFavorites } from "@/hooks/useFavorites";
 import { assistantApi } from "@/lib/api/assistant";
 import { ApiRequestError } from "@/lib/api/client";
+import { copyToClipboard } from "@/lib/utils/clipboard";
+import { cn } from "@/lib/utils/cn";
 import { SourceBadge } from "@/components/ui/SourceBadge";
 import { Button } from "@/components/ui/Button";
 import { ServiceError } from "@/components/ui/ServiceError";
@@ -16,10 +17,12 @@ import { AssistantResultSkeleton } from "./AssistantResultSkeleton";
 import { AssistantQuestionnaireSkeleton } from "./AssistantQuestionnaireSkeleton";
 import type { Vacancy } from "@/types/vacancy";
 import type { Question, QuestionAnswer } from "@/types/assistant";
+import styles from "./AssistantFlow.module.css";
 
 type Feature = "cover_letter" | "resume_tips";
 type Mode = "basic" | "individual";
 type StepId = "vacancy" | "feature" | "mode" | "questionnaire" | "result";
+const EMPTY_FAVORITES: Vacancy[] = [];
 
 // ─── Описания функций ────────────────────────────────────────────────────────
 
@@ -111,71 +114,30 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
     const currentIdx = steps.indexOf(currentStep);
 
     return (
-        <nav aria-label="Шаги мастера">
-            <ol className="flex items-center justify-center">
-
-                {/* Аватар Ассистента Веры */}
-                <li className="flex items-center" aria-hidden="true">
-                    <div className="flex flex-col items-center gap-2">
-                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-accent/40 shadow-[0_0_20px_rgba(245,184,0,0.25)]">
-                            <Image
-                                src="/logo_ai_assistant.png"
-                                alt=""
-                                width={56}
-                                height={56}
-                                className="rounded-full"
-                            />
-                        </span>
-                        <span className="hidden text-xs font-semibold uppercase tracking-wider text-accent sm:block">
-                            Ассистент Вера
-                        </span>
-                    </div>
-                    {/* Линия от аватара к первому шагу */}
-                    <div className="mx-3 mb-6 h-px w-10 bg-accent/40 sm:w-16" />
-                </li>
-
+        <nav aria-label="Шаги мастера" className={styles.stepper}>
+            <div aria-hidden="true" className={styles.progressCaption}>
+                <span>{LABEL[currentStep]}</span>
+                <span>Шаг {currentIdx + 1} из {steps.length}</span>
+            </div>
+            <ol className={styles.steps} style={{ "--step-count": steps.length } as React.CSSProperties}>
                 {steps.map((step, i) => {
                     const isCompleted = i < currentIdx;
                     const isCurrent   = i === currentIdx;
                     return (
-                        <li key={step} className="flex items-center">
-                            <div className="flex flex-col items-center gap-2">
-                                <span
-                                    aria-current={isCurrent ? "step" : undefined}
-                                    className={[
-                                        "flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold transition-all",
-                                        isCompleted
-                                            ? "bg-accent text-background"
-                                            : isCurrent
-                                              ? "border-2 border-accent text-accent shadow-[0_0_16px_rgba(245,184,0,0.3)]"
-                                              : "border border-white/20 text-muted",
-                                    ].join(" ")}
-                                >
-                                    <span className="sr-only">
-                                        {`Шаг ${i + 1} из ${steps.length}: ${LABEL[step]}${isCompleted ? " (выполнен)" : isCurrent ? " (текущий)" : ""}`}
-                                    </span>
-                                    {isCompleted ? (
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                            <polyline points="20 6 9 17 4 12" />
-                                        </svg>
-                                    ) : <span aria-hidden="true">{i + 1}</span>}
-                                </span>
-                                <span className={[
-                                    "hidden text-xs font-medium uppercase tracking-wider sm:block",
-                                    isCurrent ? "text-accent" : isCompleted ? "text-foreground" : "text-muted",
-                                ].join(" ")}>
-                                    {LABEL[step]}
-                                </span>
-                            </div>
-                            {i < steps.length - 1 && (
-                                <div
-                                    aria-hidden="true"
-                                    className={[
-                                        "mx-3 mb-6 h-px w-10 transition-colors sm:w-16",
-                                        isCompleted ? "bg-accent/40" : "bg-white/15",
-                                    ].join(" ")}
-                                />
-                            )}
+                        <li key={step} className={styles.step}
+                            aria-current={isCurrent ? "step" : undefined}
+                            data-state={isCurrent ? "current" : isCompleted ? "completed" : "upcoming"}>
+                            <span className="sr-only">
+                                {`Шаг ${i + 1} из ${steps.length}: ${LABEL[step]}${isCompleted ? " (выполнен)" : isCurrent ? " (текущий)" : ""}`}
+                            </span>
+                            <span aria-hidden="true" className={styles.stepNumber}>
+                                {isCompleted ? (
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                ) : i + 1}
+                            </span>
+                            <span aria-hidden="true" className={styles.stepLabel}>{LABEL[step]}</span>
                         </li>
                     );
                 })}
@@ -188,12 +150,12 @@ function Stepper({ currentStep, mode }: { currentStep: StepId; mode: Mode | null
 
 function SelectedVacancyBar({ vacancy }: { vacancy: Vacancy }) {
     return (
-        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur-sm">
+        <div className={styles.selectedVacancy}>
             <SourceBadge source={vacancy.vacancy_source} />
             <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">{vacancy.vacancy_name}</p>
+                <p className={styles.selectedTitle}>{vacancy.vacancy_name}</p>
                 {vacancy.employer_name && (
-                    <p className="truncate text-xs text-muted">{vacancy.employer_name}</p>
+                    <p className={styles.selectedEmployer}>{vacancy.employer_name}</p>
                 )}
             </div>
         </div>
@@ -204,12 +166,12 @@ function SelectedVacancyBar({ vacancy }: { vacancy: Vacancy }) {
 
 function StepCard({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) {
     return (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] bg-[radial-gradient(ellipse_at_top_left,rgba(245,184,0,0.06),transparent_60%)] backdrop-blur-sm">
-            <div aria-hidden="true" className="h-px rounded-t-2xl bg-gradient-to-r from-transparent via-accent to-transparent" />
-            <div className="flex flex-col gap-6 p-6">
+        <div className={styles.card}>
+            <div aria-hidden="true" className={styles.cardAccent} />
+            <div className={styles.cardBody}>
                 {children}
                 {onBack && (
-                    <Button onClick={onBack} className="self-start">
+                    <Button onClick={onBack} className={cn(styles.action, styles.backAction)}>
                         ← Назад
                     </Button>
                 )}
@@ -230,17 +192,20 @@ function VacancySelect({
     onChange: (id: string) => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [focusedIdx, setFocusedIdx] = useState(0);
+    const [focusedIdx, setFocusedIdx] = useState(-1);
+    const listboxId = useId();
     const containerRef = useRef<HTMLDivElement>(null);
     const listboxRef = useRef<HTMLUListElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const selected = options.find((v) => v.vacancy_id === value);
+    const activeIndex = isOpen && focusedIdx >= 0 && focusedIdx < options.length ? focusedIdx : -1;
 
     // Закрытие по клику вне
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
             if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
                 setIsOpen(false);
+                setFocusedIdx(-1);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
@@ -252,18 +217,30 @@ function VacancySelect({
         if (isOpen) listboxRef.current?.focus();
     }, [isOpen]);
 
+    useEffect(() => {
+        const list = listboxRef.current;
+        const option = list?.children[activeIndex] as HTMLElement | undefined;
+        if (!list || !option) return;
+        const bounds = list.getBoundingClientRect();
+        const optionBounds = option.getBoundingClientRect();
+        if (optionBounds.top < bounds.top) list.scrollTop -= bounds.top - optionBounds.top;
+        else if (optionBounds.bottom > bounds.bottom) list.scrollTop += optionBounds.bottom - bounds.bottom;
+    }, [activeIndex, options.length]);
+
     function openList() {
         const idx = options.findIndex((v) => v.vacancy_id === value);
-        setFocusedIdx(idx >= 0 ? idx : 0);
+        setFocusedIdx(idx >= 0 ? idx : options.length ? 0 : -1);
         setIsOpen(true);
     }
 
     function closeList() {
         setIsOpen(false);
+        setFocusedIdx(-1);
         buttonRef.current?.focus();
     }
 
     function selectOption(idx: number) {
+        if (!options[idx]) return;
         onChange(options[idx].vacancy_id);
         closeList();
     }
@@ -280,38 +257,47 @@ function VacancySelect({
         switch (e.key) {
             case "ArrowDown":
                 e.preventDefault();
-                setFocusedIdx((i) => Math.min(i + 1, options.length - 1));
+                setFocusedIdx(Math.min(activeIndex + 1, options.length - 1));
                 break;
             case "ArrowUp":
                 e.preventDefault();
-                setFocusedIdx((i) => Math.max(i - 1, 0));
+                setFocusedIdx(options.length ? Math.max(activeIndex - 1, 0) : -1);
                 break;
             case "Enter":
             case " ":
                 e.preventDefault();
-                selectOption(focusedIdx);
+                if (activeIndex >= 0) selectOption(activeIndex);
                 break;
             case "Escape":
-            case "Tab":
                 e.preventDefault();
                 closeList();
+                break;
+            // Native Tab moves outside this widget. Closing in onBlur keeps the
+            // focused listbox present until the browser has chosen its target.
+            case "Tab":
                 break;
         }
     }
 
-    const optionId = (idx: number) => `vac-opt-${idx}`;
+    const optionId = (idx: number) => `${listboxId}-option-${idx}`;
 
     return (
-        <div ref={containerRef} className="relative">
+        <div ref={containerRef} className="relative" onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+                setIsOpen(false);
+                setFocusedIdx(-1);
+            }
+        }}>
             <button
                 ref={buttonRef}
                 type="button"
+                tabIndex={isOpen ? -1 : 0}
                 onClick={() => (isOpen ? closeList() : openList())}
                 onKeyDown={handleButtonKeyDown}
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
-                aria-controls={isOpen ? "vacancy-listbox" : undefined}
-                className="flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm backdrop-blur-sm transition-colors hover:border-white/25 focus-visible:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
+                aria-controls={isOpen ? listboxId : undefined}
+                className={styles.selectTrigger}
             >
                 <span className={selected ? "text-foreground" : "text-muted"}>
                     {selected
@@ -332,13 +318,13 @@ function VacancySelect({
             {isOpen && (
                 <ul
                     ref={listboxRef}
-                    id="vacancy-listbox"
+                    id={listboxId}
                     role="listbox"
                     tabIndex={-1}
                     aria-label="Вакансии из избранного"
-                    aria-activedescendant={optionId(focusedIdx)}
+                    aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
                     onKeyDown={handleListKeyDown}
-                    className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-white/15 bg-surface shadow-xl focus:outline-none"
+                    className={styles.vacancyList}
                 >
                     {options.map((v, idx) => (
                         <li
@@ -346,13 +332,13 @@ function VacancySelect({
                             id={optionId(idx)}
                             role="option"
                             aria-selected={v.vacancy_id === value}
+                            data-active={idx === activeIndex ? "true" : undefined}
+                            onMouseMove={() => setFocusedIdx(idx)}
                             onMouseDown={(e) => {
                                 e.preventDefault();
                                 selectOption(idx);
                             }}
-                            className={`cursor-pointer px-4 py-3 text-sm transition-colors ${
-                                idx === focusedIdx ? "bg-surface-hover" : "hover:bg-surface-hover"
-                            } ${v.vacancy_id === value ? "text-accent" : "text-foreground"}`}
+                            className={styles.vacancyOption}
                         >
                             {/* Один текстовый узел — скринридер читает как единую строку */}
                             {v.employer_name ? `${v.vacancy_name} · ${v.employer_name}` : v.vacancy_name}
@@ -374,6 +360,10 @@ export function AssistantFlow() {
     const vacancyIdParam = searchParams.get("vacancy_id");
 
     const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+    const stepRef = useRef<HTMLDivElement>(null);
+    const loadingRef = useRef(false);
+    const focusNextStep = useRef(true);
+    const previousStep = useRef<StepId>("vacancy");
 
     const [step, setStep] = useState<StepId>("vacancy");
     const [selectedVacancy, setSelectedVacancy] = useState<Vacancy | null>(null);
@@ -385,9 +375,10 @@ export function AssistantFlow() {
     const [resultHtml, setResultHtml] = useState<string>("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
+    const [copyStatus, setCopyStatus] = useState("");
 
     function restart() {
+        if (loadingRef.current) return;
         setStep("vacancy");
         setSelectedVacancy(null);
         setFeature(null);
@@ -398,50 +389,29 @@ export function AssistantFlow() {
         setResultHtml("");
         setIsLoading(false);
         setError(null);
-        setCopied(false);
+        setCopyStatus("");
     }
 
-    function handleCopy() {
+    async function handleCopy() {
+        if (loadingRef.current) return;
         const div = document.createElement("div");
         div.innerHTML = resultHtml;
         const plainText = (div.textContent || div.innerText || "").trim();
 
-        const markCopied = () => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        };
-
-        // navigator.clipboard доступен только в HTTPS / localhost
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(plainText).then(markCopied).catch(() => {
-                copyViaExecCommand(plainText, markCopied);
-            });
-        } else {
-            copyViaExecCommand(plainText, markCopied);
-        }
-    }
-
-    function copyViaExecCommand(text: string, onSuccess: () => void) {
-        const textarea = document.createElement("textarea");
-        textarea.value = text;
-        textarea.style.cssText = "position:fixed;opacity:0;pointer-events:none";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        try {
-            document.execCommand("copy");
-            onSuccess();
-        } finally {
-            document.body.removeChild(textarea);
-        }
+        setCopyStatus("");
+        const succeeded = await copyToClipboard(plainText);
+        setCopyStatus(succeeded ? "Скопировано." : "Не удалось скопировать. Выделите текст результата и скопируйте его вручную.");
     }
 
     async function handleModeSelect(selectedMode: Mode) {
-        if (!selectedVacancy || !feature) return;
+        if (!selectedVacancy || !feature || loadingRef.current) return;
 
-        setMode(selectedMode);
+        loadingRef.current = true;
+        // A retry from the result must keep its "Заполнить анкету" button mounted.
+        if (step !== "result") setMode(selectedMode);
         setIsLoading(true);
         setError(null);
+        setCopyStatus("");
 
         try {
             if (selectedMode === "basic") {
@@ -450,6 +420,8 @@ export function AssistantFlow() {
                         ? await assistantApi.getCoverLetter(selectedVacancy.vacancy_id, user!.email)
                         : await assistantApi.getResumeTips(selectedVacancy.vacancy_id, user!.email);
                 setResultHtml(data.result);
+                setMode(selectedMode);
+                focusNextStep.current = stepRef.current?.contains(document.activeElement) === true;
                 setStep("result");
             } else {
                 const data =
@@ -457,7 +429,9 @@ export function AssistantFlow() {
                         ? await assistantApi.getCoverLetterQuestionnaire(selectedVacancy.vacancy_id, user!.email)
                         : await assistantApi.getResumeTipsQuestionnaire(selectedVacancy.vacancy_id, user!.email);
                 setQuestions(data.questions);
+                setMode(selectedMode);
                 setAnswers(data.questions.map((q) => ({ id: q.id, text: q.text, answer: "" })));
+                focusNextStep.current = stepRef.current?.contains(document.activeElement) === true;
                 setStep("questionnaire");
             }
         } catch (err) {
@@ -467,12 +441,13 @@ export function AssistantFlow() {
                     : "Произошла ошибка. Попробуйте снова.";
             setError(detail);
         } finally {
+            loadingRef.current = false;
             setIsLoading(false);
         }
     }
 
     async function handleSubmitAnswers() {
-        if (!selectedVacancy || !feature) return;
+        if (!selectedVacancy || !feature || loadingRef.current) return;
 
         setSubmitted(true);
         const unanswered = questions.filter(
@@ -480,9 +455,14 @@ export function AssistantFlow() {
         );
         if (unanswered.length > 0) {
             setError(`Заполните обязательные поля: ${unanswered.map((q) => `вопрос ${questions.indexOf(q) + 1}`).join(", ")}`);
+            const initiator = document.activeElement;
+            requestAnimationFrame(() => {
+                if (document.activeElement === initiator) document.getElementById(`answer-${unanswered[0].id}`)?.focus();
+            });
             return;
         }
 
+        loadingRef.current = true;
         setIsLoading(true);
         setError(null);
 
@@ -500,6 +480,7 @@ export function AssistantFlow() {
                           answers,
                       );
             setResultHtml(data.result);
+            focusNextStep.current = stepRef.current?.contains(document.activeElement) === true;
             setStep("result");
         } catch (err) {
             const detail =
@@ -508,49 +489,21 @@ export function AssistantFlow() {
                     : "Произошла ошибка. Попробуйте снова.";
             setError(detail);
         } finally {
+            loadingRef.current = false;
             setIsLoading(false);
         }
     }
 
-    function handleFeatureKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-        const btns = Array.from(
-            e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')
-        );
-        const idx = btns.findIndex((b) => b === document.activeElement);
-        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-            e.preventDefault();
-            const next = (idx + 1) % btns.length;
-            btns[next].focus();
-            setFeature(FEATURES[next].id);
-        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-            e.preventDefault();
-            const prev = (idx - 1 + btns.length) % btns.length;
-            btns[prev].focus();
-            setFeature(FEATURES[prev].id);
-        }
-    }
-
-    function handleModeKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-        const btns = Array.from(
-            e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')
-        );
-        const idx = btns.findIndex((b) => b === document.activeElement);
-        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-            e.preventDefault();
-            btns[(idx + 1) % btns.length].focus();
-        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-            e.preventDefault();
-            btns[(idx - 1 + btns.length) % btns.length].focus();
-        }
-    }
-
     useEffect(() => {
-        stepHeadingRef.current?.focus();
+        if (previousStep.current === step) return;
+        previousStep.current = step;
+        if (focusNextStep.current) stepHeadingRef.current?.focus();
+        focusNextStep.current = true;
     }, [step]);
 
     // Вычисляем favorites и регистрируем useEffect до любых ранних return'ов —
     // React требует одинакового порядка вызовов хуков на каждом рендере.
-    const favorites = favQuery.data?.items ?? [];
+    const favorites = favQuery.data?.items ?? EMPTY_FAVORITES;
 
     // Если пришли из избранного с vacancy_id — предзаполняем вакансию (без пропуска шага)
     useEffect(() => {
@@ -561,14 +514,14 @@ export function AssistantFlow() {
     }, [vacancyIdParam, favQuery.isLoading, favorites, selectedVacancy, step]);
 
     if (isAuthLoading) {
-        return <p role="status" aria-live="polite" className="text-sm text-muted">Загрузка…</p>;
+        return <p role="status" aria-live="polite" className={cn(styles.flow, "text-sm text-muted")}>Загрузка…</p>;
     }
 
     if (!user) {
         return (
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-sm">
-                <div aria-hidden="true" className="h-px bg-gradient-to-r from-transparent via-accent to-transparent" />
-                <div className="flex flex-col items-center gap-6 px-6 py-10 text-center">
+            <div className={cn(styles.flow, styles.card)}>
+                <div aria-hidden="true" className={styles.cardAccent} />
+                <div className={styles.authContent}>
                     <div className="flex h-14 w-14 items-center justify-center rounded-full border border-accent/30 bg-accent/[0.08] shadow-[0_0_24px_rgba(245,184,0,0.15)]">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-accent">
                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -584,16 +537,16 @@ export function AssistantFlow() {
                             получить сопроводительное письмо или рекомендации по резюме под конкретную вакансию.
                         </p>
                     </div>
-                    <div className="flex flex-wrap justify-center gap-3">
+                    <div className={styles.actions}>
                         <Link
                             href="/auth/login?redirect=/assistant/start"
-                            className="rounded-xl border border-accent/50 bg-accent/[0.08] px-5 py-2.5 text-sm font-semibold text-accent transition-all hover:border-accent hover:bg-accent/[0.14] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            className={styles.action}
                         >
                             Войти
                         </Link>
                         <Link
                             href="/auth/register"
-                            className="rounded-xl border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-foreground transition-all hover:border-white/25 hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            className={cn(styles.action, styles.secondaryAction)}
                         >
                             Зарегистрироваться
                         </Link>
@@ -606,18 +559,19 @@ export function AssistantFlow() {
     // ── Шаг 1: Вакансия ──────────────────────────────────────────────────────
     if (step === "vacancy") {
         return (
-            <div className="flex flex-col gap-8">
+            <div ref={stepRef} className={styles.flow}>
                 <Stepper currentStep="vacancy" mode={mode} />
                 <StepCard>
                     <div>
-                        <h2 ref={stepHeadingRef} tabIndex={-1} className="text-lg font-bold text-foreground focus:outline-none">Выберите вакансию</h2>
-                        <p className="mt-1 text-sm text-muted">Ассистент работает с вакансиями из вашего избранного</p>
+                        <h2 ref={stepHeadingRef} tabIndex={-1} className={styles.heading}>Выберите вакансию</h2>
+                        <p className={styles.description}>Ассистент работает с вакансиями из вашего избранного</p>
                     </div>
 
                     {favQuery.isLoading && (
-                        <div className="flex flex-col gap-3" role="status" aria-label="Загружаем избранные вакансии" aria-live="polite">
+                        <div className="flex flex-col gap-3" role="status">
+                            <p className="text-sm text-muted">Загружаем избранные вакансии…</p>
                             {[0, 1, 2].map((i) => (
-                                <div key={i} className="animate-pulse flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                                <div key={i} aria-hidden="true" className="animate-pulse motion-reduce:animate-none flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
                                     <div className="h-5 w-10 rounded bg-white/10" />
                                     <div className="flex flex-1 flex-col gap-1.5">
                                         <div className="h-3.5 w-3/5 rounded bg-white/10" />
@@ -628,14 +582,18 @@ export function AssistantFlow() {
                         </div>
                     )}
 
-                    {!favQuery.isLoading && favorites.length === 0 && (
+                    {favQuery.isError && !favQuery.isLoading && (
+                        <ServiceError title="Не удалось загрузить избранные вакансии" onRetry={() => { void favQuery.refetch(); }} />
+                    )}
+
+                    {!favQuery.isLoading && !favQuery.isError && favorites.length === 0 && (
                         <div className="flex flex-col items-center gap-4 py-6 text-center">
                             <p className="text-sm text-muted">
                                 В избранном пока нет вакансий. Найдите подходящие и добавьте их.
                             </p>
                             <Link
                                 href="/"
-                                className="rounded border border-accent/50 bg-white/10 px-4 py-2 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                className={styles.action}
                             >
                                 Перейти к поиску
                             </Link>
@@ -653,19 +611,9 @@ export function AssistantFlow() {
                                 }}
                             />
 
-                            {selectedVacancy && (
-                                <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                                    <SourceBadge source={selectedVacancy.vacancy_source} />
-                                    <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold text-foreground">{selectedVacancy.vacancy_name}</p>
-                                        {selectedVacancy.employer_name && (
-                                            <p className="truncate text-xs text-muted">{selectedVacancy.employer_name}</p>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                            {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
 
-                            <Button onClick={() => setStep("feature")} disabled={!selectedVacancy} className="self-start">
+                            <Button onClick={() => setStep("feature")} disabled={!selectedVacancy} className={cn(styles.action, styles.backAction)}>
                                 Продолжить →
                             </Button>
                         </div>
@@ -678,45 +626,35 @@ export function AssistantFlow() {
     // ── Шаг 2: Задача ────────────────────────────────────────────────────────
     if (step === "feature") {
         return (
-            <div className="flex flex-col gap-8">
+            <div ref={stepRef} className={styles.flow}>
                 <Stepper currentStep="feature" mode={mode} />
                 {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
                 <StepCard onBack={() => setStep("vacancy")}>
                     <div>
-                        <h2 ref={stepHeadingRef} tabIndex={-1} id="feature-group-label" className="text-lg font-bold text-foreground focus:outline-none">Что подготовить?</h2>
-                        <p className="mt-1 text-sm text-muted">Выберите задачу для Ассистента Веры</p>
+                        <h2 ref={stepHeadingRef} tabIndex={-1} id="feature-group-label" className={styles.heading}>Что подготовить?</h2>
+                        <p className={styles.description}>Выберите задачу для Ассистента Веры</p>
                     </div>
                     <div
-                        role="radiogroup"
+                        role="group"
                         aria-labelledby="feature-group-label"
-                        className="grid gap-3 sm:grid-cols-2"
-                        onKeyDown={handleFeatureKeyDown}
+                        className={styles.choices}
                     >
-                        {FEATURES.map((f, idx) => {
+                        {FEATURES.map((f) => {
                             const isSelected = feature === f.id;
-                            const isTabTarget = feature ? isSelected : idx === 0;
                             return (
                                 <button
                                     key={f.id}
                                     type="button"
-                                    role="radio"
-                                    aria-checked={isSelected}
-                                    tabIndex={isTabTarget ? 0 : -1}
                                     onClick={() => { setFeature(f.id); setStep("mode"); }}
                                     aria-labelledby={`feature-title-${f.id}`}
                                     aria-describedby={`feature-desc-${f.id}`}
-                                    className={[
-                                        "flex flex-col gap-3 rounded-xl border p-5 text-left transition-colors duration-150",
-                                        "focus-visible:border-accent focus-visible:bg-accent/[0.12] focus-visible:shadow-[0_0_0_3px_rgba(245,184,0,0.3)]",
-                                        isSelected
-                                            ? "border-accent/50 bg-accent/[0.08] shadow-[0_0_16px_rgba(245,184,0,0.1)]"
-                                            : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]",
-                                    ].join(" ")}
+                                    className={styles.choice}
+                                    data-selected={isSelected ? "true" : undefined}
                                 >
-                                    <span aria-hidden="true" className={isSelected ? "text-accent" : "text-muted"}>{f.icon}</span>
+                                    <span aria-hidden="true" className={styles.choiceIcon}>{f.icon}</span>
                                     <div className="flex flex-col gap-1">
-                                        <span id={`feature-title-${f.id}`} className="text-sm font-semibold text-foreground">{f.title}</span>
-                                        <span id={`feature-desc-${f.id}`} className="text-xs leading-relaxed text-muted">{f.description}</span>
+                                        <span id={`feature-title-${f.id}`} className={styles.choiceTitle}>{f.title}</span>
+                                        <span id={`feature-desc-${f.id}`} className={styles.choiceDescription}>{f.description}</span>
                                     </div>
                                 </button>
                             );
@@ -730,60 +668,53 @@ export function AssistantFlow() {
     // ── Шаг 3: Режим ─────────────────────────────────────────────────────────
     if (step === "mode") {
         return (
-            <div className="flex flex-col gap-8">
+            <div ref={stepRef} className={styles.flow}>
                 <Stepper currentStep="mode" mode={mode} />
                 {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
                 <StepCard onBack={isLoading ? undefined : () => { setError(null); setFeature(null); setStep("feature"); }}>
                     <div>
-                        <h2 ref={stepHeadingRef} tabIndex={-1} className="text-lg font-bold text-foreground focus:outline-none">Выберите режим</h2>
-                        <p className="mt-1 text-sm text-muted">Базовый — быстро, индивидуальный — точнее</p>
+                        <h2 ref={stepHeadingRef} tabIndex={-1} className={styles.heading}>Выберите режим</h2>
+                        <p className={styles.description}>Базовый — быстро, индивидуальный — точнее</p>
                     </div>
 
-                    {isLoading ? (
+                    <div
+                        className={styles.choices}
+                    >
+                        {MODES.map((m) => (
+                            <button
+                                key={m.id}
+                                type="button"
+                                aria-disabled={isLoading}
+                                onClick={() => handleModeSelect(m.id)}
+                                aria-labelledby={`mode-title-${m.id} mode-badge-${m.id}`}
+                                aria-describedby={`mode-desc-${m.id}`}
+                                className={styles.choice}
+                            >
+                                <div className={styles.modeHeading}>
+                                    <span aria-hidden="true" className={styles.choiceIcon}>{m.icon}</span>
+                                    <span id={`mode-badge-${m.id}`} className={styles.modeBadge}>
+                                        {m.badge}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span id={`mode-title-${m.id}`} className={styles.choiceTitle}>{m.title}</span>
+                                    <span id={`mode-desc-${m.id}`} className={styles.choiceDescription}>{m.description}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    {isLoading && (
                         <div className="py-2">
                             {mode === "individual"
                                 ? <AssistantQuestionnaireSkeleton />
                                 : <AssistantResultSkeleton />
                             }
                         </div>
-                    ) : (
-                        <>
-                            <div
-                                role="radiogroup"
-                                aria-label="Режим генерации"
-                                className="grid gap-3 sm:grid-cols-2"
-                                onKeyDown={handleModeKeyDown}
-                            >
-                                {MODES.map((m, idx) => (
-                                    <button
-                                        key={m.id}
-                                        type="button"
-                                        role="radio"
-                                        aria-checked={mode === m.id}
-                                        tabIndex={mode ? (mode === m.id ? 0 : -1) : (idx === 0 ? 0 : -1)}
-                                        onClick={() => handleModeSelect(m.id)}
-                                        aria-labelledby={`mode-title-${m.id} mode-badge-${m.id}`}
-                                        aria-describedby={`mode-desc-${m.id}`}
-                                        className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-5 text-left transition-colors duration-150 hover:border-white/20 hover:bg-white/[0.06] focus-visible:border-accent focus-visible:bg-accent/[0.12] focus-visible:shadow-[0_0_0_3px_rgba(245,184,0,0.3)]"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span aria-hidden="true" className="text-muted">{m.icon}</span>
-                                            <span id={`mode-badge-${m.id}`} className="rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-widest text-muted">
-                                                {m.badge}
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span id={`mode-title-${m.id}`} className="text-sm font-semibold text-foreground">{m.title}</span>
-                                            <span id={`mode-desc-${m.id}`} className="text-xs leading-relaxed text-muted">{m.description}</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
+                    )}
 
-                            {error && (
-                                <ServiceError />
-                            )}
-                        </>
+                    {error && (
+                        <ServiceError title={error} />
                     )}
                 </StepCard>
             </div>
@@ -793,34 +724,39 @@ export function AssistantFlow() {
     // ── Шаг 4: Анкета ────────────────────────────────────────────────────────
     if (step === "questionnaire") {
         return (
-            <div className="flex flex-col gap-8">
+            <div ref={stepRef} className={styles.flow}>
                 <Stepper currentStep="questionnaire" mode={mode} />
                 {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
                 <StepCard>
                     <div>
-                        <h2 ref={stepHeadingRef} tabIndex={-1} className="text-lg font-bold text-foreground focus:outline-none">Персональная анкета</h2>
-                        <p className="mt-1 text-sm text-muted">
+                        <h2 ref={stepHeadingRef} tabIndex={-1} className={styles.heading}>Персональная анкета</h2>
+                        <p className={styles.description}>
                             Ответьте на вопросы — Ассистент Вера учтёт их при генерации
                         </p>
                     </div>
 
-                    <div className="flex flex-col gap-4">
+                    <div className={styles.questions}>
                         {questions.map((q, i) => (
-                            <div key={q.id} className="flex flex-col gap-2">
-                                <label
-                                    htmlFor={`answer-${q.id}`}
-                                    className="text-xs font-medium uppercase tracking-[0.12em] text-muted"
-                                >
-                                    Вопрос {i + 1}
-                                    {q.required && (
-                                        <span className="ml-1 text-accent" aria-label="обязателен">*</span>
-                                    )}
-                                </label>
-                                <p className="text-sm text-foreground">{q.text}</p>
+                            <div key={q.id} className={styles.question}>
+                                <div className={styles.questionHeader}>
+                                    <label
+                                        htmlFor={`answer-${q.id}`}
+                                        id={`question-label-${q.id}`}
+                                        className={styles.questionLabel}
+                                    >
+                                        Вопрос {i + 1}
+                                    </label>
+                                    <span aria-hidden="true" className={styles.questionRequirement}>
+                                        {q.required ? "Обязательный" : "Необязательный"}
+                                    </span>
+                                </div>
+                                <p id={`question-text-${q.id}`} className={styles.questionText}>{q.text}</p>
                                 <textarea
                                     id={`answer-${q.id}`}
+                                    aria-labelledby={`question-label-${q.id} question-text-${q.id}`}
                                     value={answers.find((a) => a.id === q.id)?.answer ?? ""}
                                     onChange={(e) => {
+                                        setError(null);
                                         setAnswers((prev) =>
                                             prev.map((a) =>
                                                 a.id === q.id ? { ...a, answer: e.target.value } : a,
@@ -830,35 +766,35 @@ export function AssistantFlow() {
                                     rows={3}
                                     required={q.required}
                                     aria-required={q.required}
+                                    aria-invalid={submitted && q.required && !answers.find((a) => a.id === q.id)?.answer.trim() ? true : undefined}
+                                    aria-describedby={submitted && q.required && !answers.find((a) => a.id === q.id)?.answer.trim() ? `answer-error-${q.id}` : undefined}
                                     placeholder={q.required ? "Обязательное поле…" : "Ваш ответ…"}
-                                    className={[
-                                        "resize-none rounded-xl border bg-white/[0.06] px-4 py-3 text-sm text-foreground placeholder:text-muted/50 backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2",
-                                        submitted && q.required && !answers.find((a) => a.id === q.id)?.answer.trim()
-                                            ? "border-red-500/60 focus-visible:border-red-400/60 focus-visible:ring-red-400/20"
-                                            : "border-white/15 focus-visible:border-accent/50 focus-visible:ring-accent/20",
-                                    ].join(" ")}
+                                    className={styles.answer}
                                 />
+                                {submitted && q.required && !answers.find((a) => a.id === q.id)?.answer.trim() && (
+                                    <p id={`answer-error-${q.id}`} className={styles.fieldError}>Ответьте на этот вопрос.</p>
+                                )}
                             </div>
                         ))}
                     </div>
 
                     {/* Свёрнутые детали вакансии */}
                     {selectedVacancy && (
-                        <details className="group rounded-xl border border-white/10 bg-white/[0.03]">
-                            <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 text-sm font-semibold text-foreground hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-                                <span className="truncate">Вакансия: {selectedVacancy.vacancy_name}</span>
+                        <details className={styles.details}>
+                            <summary className={styles.detailsSummary}>
+                                <span className={styles.detailsTitle}>Вакансия: {selectedVacancy.vacancy_name}</span>
                                 <svg
                                     width="14" height="14" viewBox="0 0 24 24" fill="none"
                                     stroke="currentColor" strokeWidth="2.5"
                                     strokeLinecap="round" strokeLinejoin="round"
                                     aria-hidden="true"
-                                    className="ml-2 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+                                    className={styles.detailsArrow}
                                 >
                                     <path d="M6 9l6 6 6-6" />
                                 </svg>
                             </summary>
-                            <div className="border-t border-white/10 px-5 py-4">
-                                <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2">
+                            <div className={styles.detailsBody}>
+                                <dl className={styles.vacancyDetails}>
                                     {[
                                         { label: "Источник:", value: selectedVacancy.vacancy_source },
                                         { label: "Заработная плата:", value: selectedVacancy.salary },
@@ -874,21 +810,21 @@ export function AssistantFlow() {
                                         { label: "Социальная защита:", value: selectedVacancy.social_protected },
                                     ].filter(r => r.value).map(({ label, value }) => (
                                         <React.Fragment key={label}>
-                                            <dt className="text-sm text-muted">{label}</dt>
-                                            <dd className="text-sm font-semibold text-foreground">{value}</dd>
+                                            <dt className={styles.detailLabel}>{label}</dt>
+                                            <dd className={styles.detailValue}>{value}</dd>
                                         </React.Fragment>
                                     ))}
                                 </dl>
                                 {selectedVacancy.requirements && (
                                     <div className="mt-4">
                                         <p className="mb-1 text-sm font-semibold text-foreground">Требования</p>
-                                        <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/80">{selectedVacancy.requirements}</p>
+                                        <p className={styles.vacancyText}>{selectedVacancy.requirements}</p>
                                     </div>
                                 )}
                                 {selectedVacancy.description && (
                                     <div className="mt-4">
                                         <p className="mb-1 text-sm font-semibold text-foreground">Описание</p>
-                                        <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/80">{selectedVacancy.description}</p>
+                                        <p className={styles.vacancyText}>{selectedVacancy.description}</p>
                                     </div>
                                 )}
                             </div>
@@ -896,21 +832,18 @@ export function AssistantFlow() {
                     )}
 
                     {error && (
-                        <p role="alert" className="text-sm text-red-400">{error}</p>
+                        <p role="alert" className={styles.fieldError}>{error}</p>
                     )}
 
-                    {isLoading ? (
-                        <AssistantResultSkeleton />
-                    ) : (
-                        <div className="flex flex-wrap gap-3">
-                            <Button onClick={() => { setError(null); setStep("mode"); }}>
-                                ← Назад
-                            </Button>
-                            <Button onClick={handleSubmitAnswers}>
-                                Получить результат →
-                            </Button>
-                        </div>
-                    )}
+                    <div className={styles.actions}>
+                        <Button className={styles.action} aria-disabled={isLoading} onClick={() => { if (loadingRef.current) return; setError(null); setStep("mode"); }}>
+                            ← Назад
+                        </Button>
+                        <Button className={styles.action} aria-disabled={isLoading} onClick={handleSubmitAnswers}>
+                            Получить результат →
+                        </Button>
+                    </div>
+                    {isLoading && <AssistantResultSkeleton />}
                 </StepCard>
             </div>
         );
@@ -922,14 +855,14 @@ export function AssistantFlow() {
             feature === "cover_letter" ? "Сопроводительное письмо" : "Рекомендации по резюме";
 
         return (
-            <div className="flex flex-col gap-8">
+            <div ref={stepRef} className={styles.flow}>
                 <Stepper currentStep="result" mode={mode} />
                 {selectedVacancy && <SelectedVacancyBar vacancy={selectedVacancy} />}
                 <StepCard>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <h2 ref={stepHeadingRef} tabIndex={-1} className="text-lg font-bold text-foreground focus:outline-none">{featureLabel}</h2>
-                            <p className="mt-1 text-sm text-muted">
+                            <h2 ref={stepHeadingRef} tabIndex={-1} className={styles.heading}>{featureLabel}</h2>
+                            <p className={styles.description}>
                                 {selectedVacancy?.vacancy_name}
                                 {mode === "basic" ? " · Базовый режим" : " · Индивидуальный режим"}
                             </p>
@@ -937,33 +870,29 @@ export function AssistantFlow() {
                     </div>
 
                     {/* Результат — HTML от бэкенда (контент от нашего LLM, не пользователя) */}
-                    {isLoading ? (
-                        <AssistantQuestionnaireSkeleton />
-                    ) : (
                     <div
                         // eslint-disable-next-line react/no-danger
                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(resultHtml) }}
-                        className="rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm leading-relaxed text-foreground [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:font-semibold [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5"
+                        className={styles.resultBody}
                     />
-                    )}
 
                     {/* Свёрнутые детали вакансии */}
-                    {!isLoading && selectedVacancy && (
-                        <details className="group rounded-xl border border-white/10 bg-white/[0.03]">
-                            <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 text-sm font-semibold text-foreground hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-                                <span className="truncate">Вакансия: {selectedVacancy.vacancy_name}</span>
+                    {selectedVacancy && (
+                        <details className={styles.details}>
+                            <summary className={styles.detailsSummary}>
+                                <span className={styles.detailsTitle}>Вакансия: {selectedVacancy.vacancy_name}</span>
                                 <svg
                                     width="14" height="14" viewBox="0 0 24 24" fill="none"
                                     stroke="currentColor" strokeWidth="2.5"
                                     strokeLinecap="round" strokeLinejoin="round"
                                     aria-hidden="true"
-                                    className="ml-2 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+                                    className={styles.detailsArrow}
                                 >
                                     <path d="M6 9l6 6 6-6" />
                                 </svg>
                             </summary>
-                            <div className="border-t border-white/10 px-5 py-4">
-                                <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2">
+                            <div className={styles.detailsBody}>
+                                <dl className={styles.vacancyDetails}>
                                     {[
                                         { label: "Источник:", value: selectedVacancy.vacancy_source },
                                         { label: "Заработная плата:", value: selectedVacancy.salary },
@@ -979,66 +908,59 @@ export function AssistantFlow() {
                                         { label: "Социальная защита:", value: selectedVacancy.social_protected },
                                     ].filter(r => r.value).map(({ label, value }) => (
                                         <React.Fragment key={label}>
-                                            <dt className="text-sm text-muted">{label}</dt>
-                                            <dd className="text-sm font-semibold text-foreground">{value}</dd>
+                                            <dt className={styles.detailLabel}>{label}</dt>
+                                            <dd className={styles.detailValue}>{value}</dd>
                                         </React.Fragment>
                                     ))}
                                 </dl>
                                 {selectedVacancy.requirements && (
                                     <div className="mt-4">
                                         <p className="mb-1 text-sm font-semibold text-foreground">Требования</p>
-                                        <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/80">{selectedVacancy.requirements}</p>
+                                        <p className={styles.vacancyText}>{selectedVacancy.requirements}</p>
                                     </div>
                                 )}
                                 {selectedVacancy.description && (
                                     <div className="mt-4">
                                         <p className="mb-1 text-sm font-semibold text-foreground">Описание</p>
-                                        <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/80">{selectedVacancy.description}</p>
+                                        <p className={styles.vacancyText}>{selectedVacancy.description}</p>
                                     </div>
                                 )}
                             </div>
                         </details>
                     )}
 
-                    {!isLoading && <div
+                    <div
                         aria-hidden="true"
                         className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"
-                    />}
+                    />
 
-                    {!isLoading && <div className="flex flex-wrap gap-3 sm:flex-nowrap">
-                        <Button onClick={() => setStep(mode === "individual" ? "questionnaire" : "mode")}>
+                    {error && <p role="alert" className={styles.fieldError}>{error}</p>}
+                    <p role="status" aria-atomic="true" className="text-sm text-muted">{copyStatus}</p>
+
+                    <div className={styles.actions}>
+                        <Button className={styles.action} aria-disabled={isLoading} onClick={() => { if (loadingRef.current) return; setStep(mode === "individual" ? "questionnaire" : "mode"); }}>
                             ← Назад
                         </Button>
-                        <Button onClick={handleCopy}>
-                            {copied ? (
-                                <>
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mr-1.5 inline">
-                                        <polyline points="20 6 9 17 4 12" />
-                                    </svg>
-                                    Скопировано
-                                </>
-                            ) : (
-                                <>
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mr-1.5 inline">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                    </svg>
-                                    Скопировать
-                                </>
-                            )}
+                        <Button className={styles.action} aria-disabled={isLoading} onClick={handleCopy}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mr-1.5 inline">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                            Скопировать
                         </Button>
                         {mode === "basic" && (
-                            <Button onClick={() => handleModeSelect("individual")}>
+                            <Button className={styles.action} aria-disabled={isLoading} onClick={() => handleModeSelect("individual")}>
                                 Заполнить анкету →
                             </Button>
                         )}
-                        <Button onClick={() => { setStep("feature"); setCopied(false); }}>
+                        <Button className={styles.action} aria-disabled={isLoading} onClick={() => { if (loadingRef.current) return; setStep("feature"); setCopyStatus(""); }}>
                             Другая задача
                         </Button>
-                        <Button onClick={restart}>
+                        <Button className={styles.action} aria-disabled={isLoading} onClick={restart}>
                             Начать заново
                         </Button>
-                    </div>}
+                    </div>
+                    {isLoading && <AssistantQuestionnaireSkeleton />}
                 </StepCard>
             </div>
         );

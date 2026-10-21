@@ -65,6 +65,13 @@ export function getLatestPosts(count: number): BlogPost[] {
     return getAllPosts().slice(0, count);
 }
 
+export function getRelatedPosts(post: Pick<BlogPost, "slug" | "tag">, count = 3): BlogPost[] {
+    if (!post.tag) return [];
+    return getAllPosts()
+        .filter((candidate) => candidate.slug !== post.slug && candidate.tag === post.tag)
+        .slice(0, count);
+}
+
 export const POSTS_PER_PAGE = 9;
 
 export function getPagedPosts(

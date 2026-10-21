@@ -1,0 +1,82 @@
+.skeleton,
+.preview {
+  display: grid;
+  min-width: 0;
+  gap: 1.25rem;
+}
+
+.status {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.bone {
+  max-width: 100%;
+  min-width: 0;
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.heading,
+.question {
+  display: grid;
+  min-width: 0;
+  gap: 0.625rem;
+}
+
+.title { width: 60%; height: 1.5rem; }
+.subtitle { width: 80%; height: 0.875rem; }
+
+.questions {
+  display: grid;
+  min-width: 0;
+  gap: 1.5rem;
+}
+
+.questionLabel { width: 4.5rem; height: 0.75rem; }
+.questionText { height: 0.875rem; }
+
+.answer {
+  min-height: 7rem;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 0.875rem;
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
+}
+
+.result {
+  display: grid;
+  min-width: 0;
+  gap: 0.875rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 1.25rem;
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(245, 184, 0, 0.18), rgba(255, 255, 255, 0.06), transparent);
+}
+
+.actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.button {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid rgba(245, 184, 0, 0.2);
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, rgba(245, 184, 0, 0.055), rgba(255, 255, 255, 0.025));
+}
+
+@media (min-width: 480px) {
+  .title { width: 40%; }
+  .subtitle { width: 60%; }
+  .button { width: 10rem; }
+}

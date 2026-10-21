@@ -33,7 +33,7 @@ export function LocationInput({ value, onChange, error }: LocationInputProps) {
                     aria-required="true"
                     aria-invalid={error ? true : undefined}
                     aria-describedby={error ? errorId : undefined}
-                    className="flex-1 w-full rounded border border-white/20 bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="flex-1 w-full rounded border border-input bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 />
             </div>
             <span

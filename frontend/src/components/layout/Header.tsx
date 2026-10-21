@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Suspense } from "react";
@@ -11,7 +11,7 @@ import { useLogout } from "@/hooks/useLogout";
 import { cn } from "@/lib/utils/cn";
 import styles from "./SiteChrome.module.css";
 
-function LoginLink() {
+function LoginLink({ onNavigate }: { onNavigate?: () => void }) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const params = searchParams.toString();
@@ -24,6 +24,7 @@ function LoginLink() {
     return (
         <Link
             href={href}
+            onClick={onNavigate}
             className={cn("rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", styles.accountButton)}
         >
             Войти
@@ -45,6 +46,15 @@ export function Header() {
     const { user, isAuthenticated, isLoading } = useAuthStore();
     const logoutMutation = useLogout();
     const [menuOpen, setMenuOpen] = useState(false);
+
+    useEffect(() => {
+        const desktop = window.matchMedia("(min-width: 768px)");
+        function handleBreakpoint(event: MediaQueryListEvent) {
+            if (event.matches) setMenuOpen(false);
+        }
+        desktop.addEventListener("change", handleBreakpoint);
+        return () => desktop.removeEventListener("change", handleBreakpoint);
+    }, []);
 
     function handleLogout() {
         logoutMutation.mutate(undefined, {
@@ -110,7 +120,7 @@ export function Header() {
 
                 {/* Десктопная навигация */}
                 <nav aria-label="Основная навигация" className="hidden md:block">
-                    <ul className="flex items-center gap-6">
+                    <ul className="flex items-center gap-2 lg:gap-6">
                         {NAV_LINKS.map(({ href, label }) => (
                             <li key={href}>
                                 <Link
@@ -125,17 +135,17 @@ export function Header() {
                         <li>
                             <Link
                                 href="/assistant"
-                                className={`flex items-center gap-2 ${linkClass(pathname.startsWith("/assistant"))}`}
+                                className={cn("text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", styles.navLink, styles.assistantLink)}
                                 aria-label="Ассистент Вера"
                                 aria-current={pathname.startsWith("/assistant") ? "page" : undefined}
                             >
-                                <span className="flex shrink-0 items-center justify-center rounded-full ring-1 ring-white/25 shadow-[0_0_8px_rgba(245,184,0,0.15)]">
+                                <span className={styles.assistantAvatar}>
                                     <Image
                                         src="/logo_ai_assistant.png"
                                         alt=""
                                         aria-hidden="true"
-                                        width={24}
-                                        height={24}
+                                        width={28}
+                                        height={28}
                                         className="rounded-full"
                                     />
                                 </span>
@@ -226,20 +236,20 @@ export function Header() {
                                 <Link
                                     href="/assistant"
                                     onClick={closeMenu}
-                                    className={`${styles.mobileLink} flex items-center gap-2.5 px-5 py-3.5 text-sm transition-colors hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${pathname.startsWith("/assistant") ? "text-accent font-semibold" : "text-muted hover:text-foreground"}`}
+                                    className={cn("mx-4 my-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", styles.assistantLink)}
                                     aria-current={pathname.startsWith("/assistant") ? "page" : undefined}
                                 >
-                                    <span className="flex shrink-0 items-center justify-center rounded-full ring-1 ring-white/25">
+                                    <span className={styles.assistantAvatar}>
                                         <Image
                                             src="/logo_ai_assistant.png"
                                             alt=""
                                             aria-hidden="true"
-                                            width={22}
-                                            height={22}
+                                            width={28}
+                                            height={28}
                                             className="rounded-full"
                                         />
                                     </span>
-                                    Ассистент Вера
+                                    <span>Ассистент Вера</span>
                                 </Link>
                             </li>
                             {!isLoading && (
@@ -261,12 +271,13 @@ export function Header() {
                                                 <Link
                                                     href="/auth/login"
                                                     className={cn("inline-block rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20", styles.accountButton)}
+                                                    onClick={closeMenu}
                                                 >
                                                     Войти
                                                 </Link>
                                             }
                                         >
-                                            <LoginLink />
+                                            <LoginLink onNavigate={closeMenu} />
                                         </Suspense>
                                     )}
                                 </li>

@@ -9,6 +9,7 @@ import {
 import { MessageCopyButton } from "./MessageCopyButton";
 import { MessageFeedbackControls } from "./MessageFeedbackControls";
 import { SimplifyAnswerButton } from "./SimplifyAnswerButton";
+import { veraMessageStartId } from "./message-navigation";
 
 interface ChatMessageProps {
     message: VeraChatMessage;
@@ -18,6 +19,7 @@ interface ChatMessageProps {
     canSimplify?: boolean;
     isSimplifyDisabled?: boolean;
     onSimplify?: () => void;
+    onReturnToInput?: () => void;
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -27,6 +29,7 @@ export const ChatMessage = memo(function ChatMessage({
     canSimplify = false,
     isSimplifyDisabled = false,
     onSimplify,
+    onReturnToInput,
 }: ChatMessageProps) {
     const isUser = message.role === "user";
     const isPreparing = !isUser && message.streaming && !message.content;
@@ -61,8 +64,10 @@ export const ChatMessage = memo(function ChatMessage({
     return (
         <div
             role="listitem"
+            id={isUser ? veraMessageStartId(sessionId, message.id) : undefined}
+            tabIndex={isUser ? -1 : undefined}
             className={cn(
-                "flex items-start gap-2.5",
+                "flex items-start gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                 isUser ? "justify-end" : "justify-start",
             )}
         >
@@ -94,16 +99,27 @@ export const ChatMessage = memo(function ChatMessage({
                 )}
             >
                 {!isUser && (
-                    <span
-                        aria-hidden="true"
-                        className="mb-1 block text-xs font-semibold text-accent"
+                    <h2
+                        id={veraMessageStartId(sessionId, message.id)}
+                        tabIndex={-1}
+                        className="mb-1 rounded text-xs font-semibold text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     >
                         Ассистент Вера
-                    </span>
+                    </h2>
                 )}
-                <span className="sr-only">
-                    {isUser ? "Вы: " : "Ассистент Вера: "}
-                </span>
+                {!isUser && onReturnToInput && (
+                    <a
+                        href="#vera-chat-input"
+                        onClick={(event) => {
+                            event.preventDefault();
+                            onReturnToInput();
+                        }}
+                        className="mb-2 block w-fit rounded text-xs text-muted underline underline-offset-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    >
+                        К вводу сообщения
+                    </a>
+                )}
+                {isUser && <span className="sr-only">Вы: </span>}
                 {isPreparing ? (
                     <span className="flex items-center gap-2 text-muted">
                         <span
@@ -138,7 +154,7 @@ export const ChatMessage = memo(function ChatMessage({
                 {message.streaming && !isPreparing && (
                     <span
                         aria-hidden="true"
-                        className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent align-middle"
+                        className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent align-middle motion-reduce:animate-none"
                     />
                 )}
                 {!isUser &&

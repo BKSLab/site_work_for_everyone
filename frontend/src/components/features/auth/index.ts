@@ -3,3 +3,5 @@ export { PasswordInput } from "./PasswordInput";
 export { OtpCodeInput } from "./OtpCodeInput";
 export { AuthErrorMessage } from "./AuthErrorMessage";
 export { SubmitButton } from "./SubmitButton";
+export { EmailInput } from "./EmailInput";
+export { useFormErrorFocus } from "./useFormErrorFocus";

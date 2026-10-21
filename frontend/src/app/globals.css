@@ -9,6 +9,7 @@
   --surface: #1A1A1A;
   --surface-hover: #252525;
   --border: #2D2D2D;
+  --input-border: #777777;
   --muted: #999999;
 }
 
@@ -21,12 +22,28 @@
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-border: var(--border);
+  --color-input: var(--input-border);
   --color-muted: var(--muted);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Общий фокус для интерактивных элементов, включая ссылки в статьях.
+   Utilities и локальные стили могут перенести рамку на оболочку контрола. */
+@layer base {
+  :where(a[href], button, input, select, textarea, summary, [tabindex], [contenteditable="true"]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Заголовки получают программный фокус для ориентации после перехода.
+   Обводка остаётся у интерактивных элементов, а не у текстовых заголовков. */
+:is(h1, h2, h3, h4, h5, h6)[tabindex="-1"]:focus {
+  outline: none;
 }
 
 /* На мобильном маршрут чата работает как приложение, а не как длинная
@@ -124,6 +141,17 @@ body {
     transform: scale(1);
     background-color: var(--accent);
     box-shadow: 0 0 8px var(--accent), 0 0 16px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+}
+
+.braille-spinner-dot {
+  animation: braille-dot 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .braille-spinner-dot {
+    animation: none;
+    background-color: var(--accent);
   }
 }
 

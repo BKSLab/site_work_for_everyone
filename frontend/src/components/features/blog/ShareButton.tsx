@@ -1,40 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { copyToClipboard } from "@/lib/utils/clipboard";
+import { cn } from "@/lib/utils/cn";
 
 interface ShareButtonProps {
     title: string;
     text: string;
+    className?: string;
 }
 
-async function copyToClipboard(text: string): Promise<boolean> {
-    // Современный способ — требует HTTPS
-    if (navigator.clipboard) {
-        try {
-            await navigator.clipboard.writeText(text);
-            return true;
-        } catch {
-            // падаем на execCommand
-        }
-    }
-    // Старый способ — работает и на HTTP
-    const el = document.createElement("textarea");
-    el.value = text;
-    el.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
-    document.body.appendChild(el);
-    el.focus();
-    el.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(el);
-    return ok;
-}
-
-export function ShareButton({ title, text }: ShareButtonProps) {
+export function ShareButton({ title, text, className }: ShareButtonProps) {
     const [copied, setCopied] = useState(false);
+    const [message, setMessage] = useState("");
+    const pendingRef = useRef(false);
+    const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => () => {
+        if (resetTimer.current) clearTimeout(resetTimer.current);
+    }, []);
 
     async function handleShare() {
+        if (pendingRef.current) return;
+        pendingRef.current = true;
+        setMessage("");
+        setCopied(false);
+        if (resetTimer.current) clearTimeout(resetTimer.current);
         const url = window.location.href;
-
+        try {
         // Web Share API — нативный диалог на мобиле и современном десктопе
         if (typeof navigator.share === "function") {
             try {
@@ -50,17 +43,22 @@ export function ShareButton({ title, text }: ShareButtonProps) {
         // Fallback: копируем ссылку в буфер обмена
         // navigator.clipboard требует HTTPS; execCommand работает и на HTTP
         const copied = await copyToClipboard(url);
+        setCopied(copied);
+        setMessage(copied ? "Ссылка скопирована" : "Не удалось скопировать ссылку. Скопируйте адрес из адресной строки.");
         if (copied) {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2500);
+            resetTimer.current = setTimeout(() => setCopied(false), 2500);
+        }
+        } finally {
+            pendingRef.current = false;
         }
     }
 
     return (
+        <div className="flex flex-col items-start gap-2">
         <button
             type="button"
             onClick={handleShare}
-            className="inline-flex items-center gap-2 rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
+            className={cn("inline-flex items-center gap-2 rounded border border-accent/50 bg-white/10 px-3 py-1.5 text-sm font-semibold text-accent hover:border-accent hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60", className)}
         >
             {copied ? (
                 <>
@@ -82,5 +80,7 @@ export function ShareButton({ title, text }: ShareButtonProps) {
                 </>
             )}
         </button>
+        <p role="status" aria-atomic="true" className={message === "Ссылка скопирована" ? "sr-only" : "text-sm text-red-400"}>{message}</p>
+        </div>
     );
 }

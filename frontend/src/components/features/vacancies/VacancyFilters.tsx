@@ -74,7 +74,7 @@ export function VacancyFilters({
                         value={keyword}
                         onChange={(e) => setKeyword(e.target.value)}
                         placeholder="Поиск по названию и описанию"
-                        className="rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2.5 text-sm text-foreground placeholder:text-muted/60 backdrop-blur-sm transition-colors focus-visible:border-accent/50 focus-visible:bg-white/[0.09] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
+                        className="rounded-lg border border-input bg-white/[0.06] px-3 py-2.5 text-sm text-foreground placeholder:text-muted backdrop-blur-sm transition-colors focus-visible:border-accent focus-visible:bg-white/[0.09] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     />
                 </div>
 
@@ -90,7 +90,7 @@ export function VacancyFilters({
                                 <label
                                     key={value || "all"}
                                     className={[
-                                        "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-2.5 transition-all duration-150",
+                                        "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-2.5 transition-all duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent",
                                         isSelected
                                             ? "border-accent/50 bg-accent/[0.08] shadow-[0_0_12px_rgba(245,184,0,0.08)]"
                                             : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]",
@@ -144,7 +144,7 @@ export function VacancyFilters({
                             id="filter-page-size"
                             value={pageSize}
                             onChange={(e) => setPageSize(Number(e.target.value))}
-                            className="w-full appearance-none rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2.5 pr-9 text-sm text-foreground backdrop-blur-sm transition-colors focus-visible:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
+                            className="w-full appearance-none rounded-lg border border-input bg-white/[0.06] px-3 py-2.5 pr-9 text-sm text-foreground backdrop-blur-sm transition-colors focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
                             {PAGE_SIZE_OPTIONS.map((n) => (
                                 <option key={n} value={n} className="bg-surface">

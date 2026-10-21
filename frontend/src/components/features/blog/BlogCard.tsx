@@ -22,10 +22,10 @@ export function BlogCard({ post }: { post: BlogPost }) {
     return (
         <Link
             href={`/blog/${post.slug}`}
-            className="group flex flex-col overflow-hidden rounded-2xl border border-white/[0.13] bg-gradient-to-br from-white/[0.09] to-white/[0.04] transition-all duration-300 hover:border-white/[0.24] hover:from-white/[0.12] hover:to-white/[0.07] hover:shadow-[0_8px_36px_rgba(0,0,0,0.4)]"
+            className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.13] bg-gradient-to-br from-white/[0.09] to-white/[0.04] transition-all duration-300 hover:border-white/[0.24] hover:from-white/[0.12] hover:to-white/[0.07] hover:shadow-[0_8px_36px_rgba(0,0,0,0.4)]"
         >
             {/* ── Декоративная шапка ─────────────────────────────────── */}
-            <div className="relative h-[72px] overflow-hidden bg-white/[0.03]">
+            <div className="relative h-[72px] shrink-0 overflow-hidden bg-white/[0.03]">
 
                 {/* Тонкий глянцевый блик сверху */}
                 <div
@@ -66,18 +66,18 @@ export function BlogCard({ post }: { post: BlogPost }) {
                 <h2 className="text-[15px] font-bold leading-snug text-foreground transition-colors duration-200 group-hover:text-accent">
                     {post.title}
                 </h2>
-                <p className="flex-1 text-[13px] leading-relaxed text-muted line-clamp-3">
+                <p className="text-[13px] leading-relaxed text-muted line-clamp-3">
                     {post.excerpt}
                 </p>
 
                 {/* Футер */}
-                <div className="flex items-center justify-between border-t border-white/[0.08] pt-3">
-                    <time dateTime={post.date} className="text-[11px] text-white/35">
+                <div className="mt-auto flex items-center justify-between border-t border-white/[0.08] pt-3">
+                    <time dateTime={post.date} className="text-[11px] text-muted">
                         {formatDate(post.date)}
                     </time>
                     <span
                         aria-hidden="true"
-                        className="text-xs text-accent/50 transition-all duration-200 group-hover:translate-x-1 group-hover:text-accent"
+                        className="text-xs text-accent transition-all duration-200 group-hover:translate-x-1"
                     >
                         Читать →
                     </span>

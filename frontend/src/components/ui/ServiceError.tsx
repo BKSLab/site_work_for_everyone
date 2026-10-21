@@ -6,9 +6,11 @@ interface ServiceErrorProps {
     title?: string;
     /** Callback для кнопки «Попробовать снова» (передаётся из Error Boundary) */
     onRetry?: () => void;
+    headingLevel?: 1 | 2;
 }
 
-export function ServiceError({ title = "Сервис временно недоступен", onRetry }: ServiceErrorProps) {
+export function ServiceError({ title = "Сервис временно недоступен", onRetry, headingLevel = 2 }: ServiceErrorProps) {
+    const Heading = headingLevel === 1 ? "h1" : "h2";
     return (
         <div
             role="alert"
@@ -31,7 +33,7 @@ export function ServiceError({ title = "Сервис временно недос
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
-                <p className="text-sm font-semibold text-foreground">{title}</p>
+                <Heading className="text-sm font-semibold text-foreground">{title}</Heading>
             </div>
             <p className="text-sm text-muted">
                 Что-то пошло не так. Пожалуйста, попробуйте позже или свяжитесь с нами.

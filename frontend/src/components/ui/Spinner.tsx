@@ -32,9 +32,8 @@ export function Spinner({ className }: SpinnerProps) {
                 {BRAILLE_DELAYS.map((delay, i) => (
                     <div
                         key={i}
-                        className="h-3 w-3 rounded-full"
+                        className="braille-spinner-dot h-3 w-3 rounded-full"
                         style={{
-                            animation: `braille-dot 1.5s ease-in-out infinite`,
                             animationDelay: `${delay}s`,
                         }}
                     />

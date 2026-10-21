@@ -94,7 +94,7 @@ export default async function BlogPage({
                 {posts.length > 0 ? (
                     <ul
                         role="list"
-                        className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+                        className="grid auto-rows-fr gap-6 sm:grid-cols-2 lg:grid-cols-3"
                     >
                         {posts.map((post) => (
                             <li key={post.slug}>

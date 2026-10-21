@@ -83,7 +83,7 @@ export function SearchResultsSummary({ summary, actions, filteredTotal, isFilter
                         {showFiltered && (
                             <p
                                 aria-hidden="true"
-                                className="border-b border-white/10 px-5 py-1 text-center text-[9px] font-medium uppercase tracking-widest text-muted/60"
+                                className="border-b border-white/10 px-5 py-1 text-center text-[9px] font-medium uppercase tracking-widest text-muted"
                             >
                                 по фильтру / всего
                             </p>

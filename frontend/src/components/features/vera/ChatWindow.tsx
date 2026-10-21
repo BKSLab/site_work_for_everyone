@@ -20,8 +20,11 @@ import {
     useVeraChat,
 } from "@/hooks/useVeraChat";
 import { VERA_MESSAGE_MAX_LENGTH } from "@/lib/schemas/vera";
+import { useAuthStore } from "@/stores/auth";
 import { ChatMessage } from "./ChatMessage";
 import { VeraFeedbackModal } from "./VeraFeedbackModal";
+import { veraHistoryStartId, veraMessageStartId } from "./message-navigation";
+import { useVeraDraft } from "./useVeraDraft";
 
 const SUGGESTED_QUESTIONS = [
     "Какие квоты действуют при трудоустройстве?",
@@ -32,6 +35,31 @@ const SUGGESTED_QUESTIONS = [
 
 const SCROLL_BOTTOM_THRESHOLD_PX = 80;
 const MOBILE_COUNTER_VISIBLE_FROM = Math.floor(VERA_MESSAGE_MAX_LENGTH * 0.8);
+const HISTORY_FOCUS_PADDING_PX = 8;
+
+function scrollHistoryTarget(
+    list: HTMLDivElement,
+    target: HTMLElement,
+    alignment: "start" | "nearest",
+    behavior: ScrollBehavior = "auto",
+) {
+    const bounds = list.getBoundingClientRect();
+    const targetBounds = target.getBoundingClientRect();
+    let delta: number;
+    if (
+        alignment === "start" ||
+        targetBounds.top < bounds.top + HISTORY_FOCUS_PADDING_PX
+    ) {
+        delta = targetBounds.top - bounds.top - HISTORY_FOCUS_PADDING_PX;
+    } else if (targetBounds.bottom > bounds.bottom - HISTORY_FOCUS_PADDING_PX) {
+        delta = targetBounds.bottom - bounds.bottom + HISTORY_FOCUS_PADDING_PX;
+    } else {
+        return;
+    }
+    // scrollIntoView also scrolls overflow-hidden ancestors of the chat,
+    // which can move its header underneath the sticky site navigation.
+    list.scrollTo({ top: Math.max(0, list.scrollTop + delta), behavior });
+}
 
 const ChatMessageList = memo(function ChatMessageList({
     messages,
@@ -40,6 +68,7 @@ const ChatMessageList = memo(function ChatMessageList({
     simplifiableMessageId = null,
     isSimplifyDisabled = false,
     onSimplify,
+    onReturnToInput,
 }: {
     messages: VeraChatMessage[];
     sessionId: string;
@@ -51,6 +80,7 @@ const ChatMessageList = memo(function ChatMessageList({
     simplifiableMessageId?: string | null;
     isSimplifyDisabled?: boolean;
     onSimplify?: () => void;
+    onReturnToInput?: () => void;
 }) {
     if (messages.length === 0) return null;
 
@@ -80,6 +110,7 @@ const ChatMessageList = memo(function ChatMessageList({
                     canSimplify={message.id === simplifiableMessageId}
                     isSimplifyDisabled={isSimplifyDisabled}
                     onSimplify={onSimplify}
+                    onReturnToInput={onReturnToInput}
                 />
             ))}
         </div>
@@ -87,6 +118,7 @@ const ChatMessageList = memo(function ChatMessageList({
 });
 
 export function ChatWindow() {
+    const feedbackOwner = useAuthStore((state) => state.user?.email ?? null);
     const {
         sessionId,
         messages,
@@ -113,22 +145,71 @@ export function ChatWindow() {
         olderPreviousHistorySessionId = null,
         loadOlderPreviousHistory = () => undefined,
     } = useVeraChat();
-    const [input, setInput] = useState("");
+    const { input, setInput, isDraftReady, draftStorageError } = useVeraDraft(
+        sessionId,
+        isHistoryLoading,
+    );
     const [showAllSuggestedQuestions, setShowAllSuggestedQuestions] =
         useState(false);
     const [isNearHistoryBottom, setIsNearHistoryBottom] = useState(true);
+    const headingRef = useRef<HTMLHeadingElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const composerRef = useRef<HTMLFormElement>(null);
+    const lastFocusedElementRef = useRef<Element | null>(null);
+    const simplifyTriggerRef = useRef<Element | null>(null);
     const pendingHistoryAnchorRef = useRef<{
         kind: "current" | "previous";
         sessionId?: string;
         firstMessageId: string | null;
         scrollHeight: number;
+        trigger: Element | null;
     } | null>(null);
     const shouldAutoScrollRef = useRef(true);
+    const isReadingAnswerStartRef = useRef(false);
     const hasVisibleMessages =
         messages.length > 0 ||
         previousSessionGroups.some((group) => group.messages.length > 0);
+    const allMessageGroups = [
+        ...previousSessionGroups,
+        { sessionId, messages },
+    ];
+    const latestAssistant = allMessageGroups
+        .flatMap((group) =>
+            group.messages
+                .filter((message) => message.role === "assistant")
+                .map((message) => ({ message, sessionId: group.sessionId })),
+        )
+        .at(-1);
+
+    const returnToInput = useCallback(() => inputRef.current?.focus(), []);
+
+    useEffect(() => {
+        const active = document.activeElement;
+        if (active === document.body || active?.tagName === "MAIN") {
+            headingRef.current?.focus({ preventScroll: true });
+        }
+    }, []);
+
+    useEffect(() => {
+        const rememberFocus = (event: FocusEvent) => {
+            lastFocusedElementRef.current = event.target as Element;
+        };
+        document.addEventListener("focusin", rememberFocus);
+        return () => document.removeEventListener("focusin", rememberFocus);
+    }, []);
+
+    useEffect(() => {
+        const trigger = simplifyTriggerRef.current;
+        if (!trigger || trigger.isConnected) return;
+        if (
+            lastFocusedElementRef.current === trigger &&
+            document.activeElement === document.body
+        ) {
+            returnToInput();
+        }
+        simplifyTriggerRef.current = null;
+    }, [messages, returnToInput]);
 
     useEffect(() => {
         const list = listRef.current;
@@ -153,6 +234,22 @@ export function ChatWindow() {
 
             if (didPrepend) {
                 list.scrollTop += list.scrollHeight - anchor.scrollHeight;
+                if (
+                    anchor.trigger &&
+                    !anchor.trigger.isConnected &&
+                    lastFocusedElementRef.current === anchor.trigger &&
+                    document.activeElement === document.body &&
+                    firstMessageId
+                ) {
+                    const target = document.getElementById(
+                        veraMessageStartId(
+                            anchor.sessionId ?? sessionId,
+                            firstMessageId,
+                        ),
+                    );
+                    target?.focus({ preventScroll: true });
+                    if (target) scrollHistoryTarget(list, target, "nearest");
+                }
                 pendingHistoryAnchorRef.current = null;
                 return;
             }
@@ -166,6 +263,19 @@ export function ChatWindow() {
                 // marker будущего prepend или попасть в его высоту.
                 anchor.scrollHeight = list.scrollHeight;
                 return;
+            }
+
+            if (
+                anchor.trigger &&
+                !anchor.trigger.isConnected &&
+                lastFocusedElementRef.current === anchor.trigger &&
+                document.activeElement === document.body
+            ) {
+                const target = document.getElementById(
+                    veraHistoryStartId(anchor.sessionId ?? sessionId),
+                );
+                target?.focus({ preventScroll: true });
+                if (target) scrollHistoryTarget(list, target, "nearest");
             }
 
             pendingHistoryAnchorRef.current = null;
@@ -186,6 +296,8 @@ export function ChatWindow() {
         olderPreviousHistorySessionId,
         previousSessionGroups,
         status,
+        sessionId,
+        hasOlderHistory,
     ]);
 
     function handleHistoryScroll() {
@@ -195,20 +307,51 @@ export function ChatWindow() {
         const isNearBottom =
             list.scrollHeight - list.scrollTop - list.clientHeight <=
             SCROLL_BOTTOM_THRESHOLD_PX;
-        shouldAutoScrollRef.current = isNearBottom;
+        if (!isReadingAnswerStartRef.current) {
+            shouldAutoScrollRef.current = isNearBottom;
+        }
         setIsNearHistoryBottom(isNearBottom);
+    }
+
+    function handleHistoryScrollIntent() {
+        isReadingAnswerStartRef.current = false;
+        handleHistoryScroll();
+    }
+
+    function handleHistoryScrollKey(event: KeyboardEvent<HTMLDivElement>) {
+        if (event.defaultPrevented || event.nativeEvent.isComposing) return;
+        const target = event.target as HTMLElement;
+        if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+        const isScrollKey = ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(event.key);
+        const isScrollSpace = event.key === " " && !target.closest("button, a");
+        if (isScrollKey || isScrollSpace) handleHistoryScrollIntent();
     }
 
     function handleJumpToLatest() {
         const list = listRef.current;
-        if (!list) return;
-
-        shouldAutoScrollRef.current = true;
+        if (!latestAssistant || !list) return;
+        const target = document.getElementById(
+            veraMessageStartId(
+                latestAssistant.sessionId,
+                latestAssistant.message.id,
+            ),
+        );
+        if (!target) return;
+        // Explicit reading starts at the answer's beginning. Following the
+        // bottom on the next token would immediately lose that position.
+        isReadingAnswerStartRef.current = true;
+        shouldAutoScrollRef.current = false;
+        target.focus({ preventScroll: true });
         setIsNearHistoryBottom(true);
-        list.scrollTo({
-            top: list.scrollHeight,
-            behavior: "smooth",
-        });
+        scrollHistoryTarget(
+            list,
+            target,
+            "start",
+            window.matchMedia?.("(prefers-reduced-motion: reduce)")
+                .matches
+                ? "auto"
+                : "smooth",
+        );
     }
 
     function handleLoadOlderHistory() {
@@ -217,6 +360,7 @@ export function ChatWindow() {
                 kind: "current",
                 firstMessageId: messages[0]?.id ?? null,
                 scrollHeight: listRef.current.scrollHeight,
+                trigger: document.activeElement,
             };
         }
         void loadOlderHistory();
@@ -232,6 +376,7 @@ export function ChatWindow() {
                 sessionId: group.sessionId,
                 firstMessageId: group.messages[0]?.id ?? null,
                 scrollHeight: listRef.current.scrollHeight,
+                trigger: document.activeElement,
             };
         }
         void loadOlderPreviousHistory(group.sessionId);
@@ -271,6 +416,7 @@ export function ChatWindow() {
         if (blocksSubmission || isHistoryLoading || !sessionId) return;
         /* Черновик в поле ввода не трогаем: пользователь мог начать писать
            свой вопрос, и кнопка не должна его затирать или отправлять. */
+        simplifyTriggerRef.current = document.activeElement;
         void sendMessage(SIMPLIFY_ANSWER_REQUEST, {
             waitingVariant: "simplify",
         });
@@ -279,14 +425,28 @@ export function ChatWindow() {
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
         const text = input.trim();
-        if (!text || blocksSubmission || isHistoryLoading || !sessionId) {
+        if (
+            !text ||
+            blocksSubmission ||
+            isHistoryLoading ||
+            !sessionId ||
+            !isDraftReady
+        ) {
             return;
         }
         setInput("");
         const result = await sendMessage(text);
         if (result?.restoreDraft) {
             setInput((current) => current || text);
-            inputRef.current?.focus();
+            if (
+                composerRef.current?.contains(document.activeElement) ||
+                (document.activeElement === document.body &&
+                    composerRef.current?.contains(
+                        lastFocusedElementRef.current,
+                    ))
+            ) {
+                inputRef.current?.focus();
+            }
         }
     }
 
@@ -327,7 +487,11 @@ export function ChatWindow() {
                         />
                     </span>
                     <div className="min-w-0 flex-1">
-                        <h1 className="text-sm font-bold text-foreground sm:text-base">
+                        <h1
+                            ref={headingRef}
+                            tabIndex={-1}
+                            className="scroll-mt-28 rounded text-sm font-bold text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent sm:text-base"
+                        >
                             Ассистент Вера
                         </h1>
                         <p className="truncate text-[11px] text-muted sm:text-sm">
@@ -363,6 +527,12 @@ export function ChatWindow() {
                             isBusy || isStartingNewDialog || isHistoryLoading
                         }
                         onScroll={handleHistoryScroll}
+                        onWheel={handleHistoryScrollIntent}
+                        onTouchMove={handleHistoryScrollIntent}
+                        onPointerDown={(event) => {
+                            if (event.target === event.currentTarget) handleHistoryScrollIntent();
+                        }}
+                        onKeyDown={handleHistoryScrollKey}
                         className="vera-chat-scrollbar flex h-full min-h-0 w-full flex-col gap-3 overflow-y-auto overscroll-y-contain p-3 sm:gap-4 sm:p-6"
                     >
                         {previousSessionGroups.map((group) => (
@@ -389,9 +559,20 @@ export function ChatWindow() {
                                         </Button>
                                     </div>
                                 )}
+                                {group.historyCursor == null && (
+                                    <p
+                                        id={veraHistoryStartId(group.sessionId)}
+                                        tabIndex={-1}
+                                        className="rounded text-center text-xs text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                    >
+                                        Вся история завершённого диалога
+                                        загружена
+                                    </p>
+                                )}
                                 <ChatMessageList
                                     messages={group.messages}
                                     sessionId={group.sessionId}
+                                    onReturnToInput={returnToInput}
                                 />
                                 <div
                                     role="separator"
@@ -426,6 +607,17 @@ export function ChatWindow() {
                                 </Button>
                             </div>
                         )}
+                        {!hasOlderHistory &&
+                            !isHistoryLoading &&
+                            messages.length > 0 && (
+                                <p
+                                    id={veraHistoryStartId(sessionId)}
+                                    tabIndex={-1}
+                                    className="rounded text-center text-xs text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                >
+                                    Вся история диалога загружена
+                                </p>
+                            )}
                         {isHistoryLoading && messages.length === 0 && (
                             <div className="m-auto flex items-center gap-2 text-sm text-muted">
                                 <span
@@ -499,6 +691,7 @@ export function ChatWindow() {
                             simplifiableMessageId={simplifiableMessageId}
                             isSimplifyDisabled={isSimplifyDisabled}
                             onSimplify={handleSimplify}
+                            onReturnToInput={returnToInput}
                         />
                         {(error || historyError) && (
                             <div className="space-y-2 pt-1">
@@ -517,28 +710,44 @@ export function ChatWindow() {
                             </div>
                         )}
                     </div>
-                    {!isNearHistoryBottom && hasVisibleMessages && (
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            aria-controls="vera-chat-history"
-                            onClick={handleJumpToLatest}
-                            className="absolute bottom-3 right-3 shadow-lg"
-                        >
-                            К новому сообщению
-                        </Button>
-                    )}
+                    {!isNearHistoryBottom &&
+                        hasVisibleMessages &&
+                        latestAssistant && (
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                aria-controls="vera-chat-history"
+                                onClick={handleJumpToLatest}
+                                className="absolute bottom-3 right-3 shadow-lg"
+                            >
+                                К новому сообщению
+                            </Button>
+                        )}
                 </div>
 
                 <form
+                    ref={composerRef}
                     aria-label="Отправка сообщения Ассистенту Вере"
                     onSubmit={handleSubmit}
                     className="vera-chat-composer min-w-0 shrink-0 border-t border-border bg-background/45 p-2 sm:p-4"
                 >
+                    {latestAssistant && (
+                        <button
+                            type="button"
+                            onClick={handleJumpToLatest}
+                            aria-controls={veraMessageStartId(
+                                latestAssistant.sessionId,
+                                latestAssistant.message.id,
+                            )}
+                            className="mb-2 rounded px-1 text-xs text-muted underline underline-offset-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                            Перейти к последнему ответу
+                        </button>
+                    )}
                     <label htmlFor="vera-chat-input" className="sr-only">
                         Сообщение для Ассистента Веры
                     </label>
-                    <div className="flex min-w-0 items-end gap-2 rounded-2xl border border-border bg-surface-hover/45 p-1.5 pl-3 focus-within:border-accent/60 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent sm:p-2 sm:pl-4">
+                    <div className="flex min-w-0 items-end gap-2 rounded-2xl border border-input bg-surface-hover/45 p-1.5 pl-3 focus-within:border-accent focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent sm:p-2 sm:pl-4">
                         {/* Счётчик символов намеренно не входит в
                             `aria-describedby`: его текст меняется на каждое
                             нажатие, а скринридер при изменении описания
@@ -555,7 +764,8 @@ export function ChatWindow() {
                             disabled={
                                 isHistoryLoading ||
                                 isStartingNewDialog ||
-                                hasPendingNewDialog
+                                hasPendingNewDialog ||
+                                !isDraftReady
                             }
                             maxLength={VERA_MESSAGE_MAX_LENGTH}
                             rows={1}
@@ -572,6 +782,7 @@ export function ChatWindow() {
                             disabled={
                                 blocksSubmission ||
                                 isHistoryLoading ||
+                                !isDraftReady ||
                                 !sessionId ||
                                 !input.trim()
                             }
@@ -594,11 +805,13 @@ export function ChatWindow() {
                     </div>
                     <div className="flex items-start justify-between gap-2 px-1 pt-1.5 text-[11px] leading-relaxed text-muted sm:gap-3 sm:px-2 sm:pt-2 sm:text-xs">
                         <p id="vera-chat-input-hint" className="break-words">
+                            <span className="block">
+                                Enter — отправить, Shift+Enter — новая строка.
+                            </span>
                             <span className="block sm:hidden">
                                 Вера может ошибаться — проверяйте важное.
                             </span>
                             <span className="hidden sm:block">
-                                Enter — отправить, Shift+Enter — новая строка.
                                 Ассистент Вера может ошибаться — проверяйте
                                 важную информацию.
                             </span>
@@ -616,11 +829,22 @@ export function ChatWindow() {
                             {`${input.length} / ${VERA_MESSAGE_MAX_LENGTH}`}
                         </span>
                     </div>
+                    {draftStorageError && (
+                        <p role="status" className="mt-1 text-xs text-muted">
+                            Не удалось сохранить черновик в браузере. Перед
+                            обновлением страницы скопируйте неотправленный
+                            вопрос.
+                        </p>
+                    )}
                 </form>
             </section>
 
             <div className="flex justify-end max-sm:h-0">
-                <VeraFeedbackModal sessionId={sessionId} compactOnMobile />
+                <VeraFeedbackModal
+                    key={JSON.stringify([feedbackOwner, sessionId])}
+                    sessionId={sessionId}
+                    compactOnMobile
+                />
             </div>
         </div>
     );

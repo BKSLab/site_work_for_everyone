@@ -12,7 +12,7 @@ export function FocusHeading({ children, className, id }: FocusHeadingProps) {
     const ref = useRef<HTMLHeadingElement>(null);
     useEffect(() => { ref.current?.focus(); }, []);
     return (
-        <h1 ref={ref} id={id} tabIndex={-1} className={`${className ?? ""} focus:outline-none`}>
+        <h1 ref={ref} id={id} tabIndex={-1} className={`${className ?? ""} scroll-mt-28 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent`}>
             {children}
         </h1>
     );

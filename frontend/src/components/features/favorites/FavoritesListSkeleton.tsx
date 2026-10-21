@@ -1,5 +1,5 @@
 function Bone({ className }: { className?: string }) {
-    return <div className={`animate-pulse rounded bg-white/10 ${className ?? ""}`} />;
+    return <div className={`animate-pulse motion-reduce:animate-none rounded bg-white/10 ${className ?? ""}`} />;
 }
 
 function FavoritesCardSkeleton() {
@@ -40,13 +40,16 @@ function FavoritesCardSkeleton() {
 
 export function FavoritesListSkeleton({ count = 3 }: { count?: number }) {
     return (
-        <div className="flex flex-col gap-6" aria-busy="true" aria-label="Загрузка избранных вакансий">
-            <Bone className="h-5 w-40" />
-            <ul role="list" className="flex flex-col gap-4">
-                {Array.from({ length: count }).map((_, i) => (
-                    <FavoritesCardSkeleton key={i} />
-                ))}
-            </ul>
+        <div>
+            <p role="status" className="mb-4 text-sm text-muted">Загружаем избранное…</p>
+            <div aria-hidden="true" className="flex flex-col gap-6">
+                <Bone className="h-5 w-40" />
+                <ul role="list" className="flex flex-col gap-4">
+                    {Array.from({ length: count }).map((_, i) => (
+                        <FavoritesCardSkeleton key={i} />
+                    ))}
+                </ul>
+            </div>
         </div>
     );
 }

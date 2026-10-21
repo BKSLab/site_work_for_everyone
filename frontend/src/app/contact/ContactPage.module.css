@@ -49,7 +49,7 @@
 }
 
 .channel:hover { border-color: rgba(245, 184, 0, 0.4); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25); }
-.channel:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.channel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .channelIcon {
   display: grid;

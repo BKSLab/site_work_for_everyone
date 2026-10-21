@@ -1,0 +1,70 @@
+.related {
+  width: 100%;
+  max-width: 48rem;
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.heading { color: var(--foreground); font-size: 1.125rem; font-weight: 700; line-height: 1.4; }
+.topic { margin-top: 0.375rem; color: var(--muted); font-size: 0.8125rem; line-height: 1.6; }
+.list { display: grid; gap: 0.75rem; margin-top: 1rem; }
+
+.card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #1c1c1a, #131313);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.card:hover { border-color: rgba(245, 184, 0, 0.35); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22); }
+.thumbnail {
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 0.625rem;
+  background: radial-gradient(ellipse at 25% 20%, #514226, #191813 65%, #111);
+  color: var(--accent);
+}
+
+.image { width: 100%; height: 100%; object-fit: cover; }
+.body { display: grid; min-width: 0; gap: 0.375rem; }
+.date { color: var(--muted); font-size: 0.6875rem; line-height: 1.5; }
+.title { color: var(--foreground); font-size: 0.875rem; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+.card:hover .title { color: var(--accent); }
+
+.allPosts {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  border-radius: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.allPosts span { color: var(--accent); }
+.allPosts:hover { color: var(--foreground); }
+.card:focus-visible,
+.allPosts:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 640px) and (max-width: 1099px) {
+  .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1100px) {
+  .related { max-width: none; padding-top: 3.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+}

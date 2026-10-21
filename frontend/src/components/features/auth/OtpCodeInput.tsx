@@ -23,11 +23,13 @@ export function OtpCodeInput({ id, value, onChange, error }: OtpCodeInputProps) 
                 </span>
                 <span className="sr-only"> (обязательное поле)</span>
             </label>
-            <span id={hintId} className="sr-only">6-значный код из письма</span>
+            <span id={hintId} className="text-sm text-muted">6 символов: цифры и латинские буквы.</span>
             <input
                 id={id}
                 type="text"
-                inputMode="numeric"
+                inputMode="text"
+                autoCapitalize="none"
+                spellCheck={false}
                 autoComplete="one-time-code"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
@@ -35,10 +37,10 @@ export function OtpCodeInput({ id, value, onChange, error }: OtpCodeInputProps) 
                 aria-required="true"
                 aria-invalid={error ? true : undefined}
                 aria-describedby={[hintId, error ? errorId : ""].filter(Boolean).join(" ")}
-                className="rounded border border-border bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="rounded border border-input bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
             {error && (
-                <span id={errorId} role="alert" className="text-sm text-red-400">
+                <span id={errorId} className="text-sm text-red-400">
                     {error}
                 </span>
             )}

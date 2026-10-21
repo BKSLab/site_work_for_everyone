@@ -52,6 +52,7 @@ interface RatingFieldsetProps {
     options: ReadonlyArray<{ value: number; label: string }>;
     value: number | undefined;
     onChange: (value: number) => void;
+    disabled?: boolean;
 }
 
 function RatingFieldset({
@@ -60,9 +61,10 @@ function RatingFieldset({
     options,
     value,
     onChange,
+    disabled,
 }: RatingFieldsetProps) {
     return (
-        <fieldset>
+        <fieldset disabled={disabled}>
             <legend className="mb-3 text-sm font-semibold leading-relaxed text-foreground">
                 {legend}
             </legend>
@@ -112,6 +114,7 @@ export function VeraFeedbackModal({
     const [errorMessage, setErrorMessage] = useState("");
     const emailInputRef = useRef<HTMLInputElement>(null);
     const submissionIdRef = useRef<string | null>(null);
+    const pendingRef = useRef(false);
 
     function resetForm() {
         setAudience(undefined);
@@ -126,13 +129,15 @@ export function VeraFeedbackModal({
     }
 
     function handleOpenChange(open: boolean) {
-        if (isPending) return;
         setIsOpen(open);
-        if (!open) resetForm();
+        // Closing hides the dialog, not the in-flight operation. Reopening
+        // shows the same submission and its eventual result.
+        if (!open && (!submissionIdRef.current || successMessage)) resetForm();
     }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (pendingRef.current || successMessage) return;
         setErrorMessage("");
         setSuccessMessage("");
 
@@ -150,6 +155,7 @@ export function VeraFeedbackModal({
         }
 
         setEmailError("");
+        pendingRef.current = true;
         setIsPending(true);
 
         try {
@@ -173,6 +179,7 @@ export function VeraFeedbackModal({
                     : "Не удалось отправить отзыв. Попробуйте позже.",
             );
         } finally {
+            pendingRef.current = false;
             setIsPending(false);
         }
     }
@@ -251,14 +258,19 @@ export function VeraFeedbackModal({
                         : "max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto"
                 }
             >
+                <p
+                    role="status"
+                    aria-atomic="true"
+                    className={
+                        successMessage
+                            ? "mb-5 leading-relaxed text-foreground"
+                            : "sr-only"
+                    }
+                >
+                    {successMessage}
+                </p>
                 {successMessage ? (
                     <div className="space-y-5">
-                        <p
-                            role="status"
-                            className="leading-relaxed text-foreground"
-                        >
-                            {SUCCESS_MESSAGE}
-                        </p>
                         <Button
                             variant="primary"
                             onClick={() => handleOpenChange(false)}
@@ -296,7 +308,7 @@ export function VeraFeedbackModal({
                                 </p>
                             )}
 
-                            <fieldset>
+                            <fieldset disabled={isPending}>
                                 <legend className="mb-3 text-sm font-semibold leading-relaxed text-foreground">
                                     Кем вы являетесь?
                                 </legend>
@@ -330,6 +342,7 @@ export function VeraFeedbackModal({
                                 options={USEFULNESS_OPTIONS}
                                 value={usefulness}
                                 onChange={setUsefulness}
+                                disabled={isPending}
                             />
 
                             <RatingFieldset
@@ -338,6 +351,7 @@ export function VeraFeedbackModal({
                                 options={TRUST_OPTIONS}
                                 value={trust}
                                 onChange={setTrust}
+                                disabled={isPending}
                             />
 
                             <section className="space-y-2">
@@ -357,6 +371,7 @@ export function VeraFeedbackModal({
                                         setComment(event.target.value)
                                     }
                                     rows={4}
+                                    disabled={isPending}
                                     className="w-full resize-y rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                                 />
                             </section>
@@ -381,6 +396,7 @@ export function VeraFeedbackModal({
                                     id="vera-feedback-email"
                                     name="vera-feedback-email"
                                     type="email"
+                                    disabled={isPending}
                                     autoComplete="email"
                                     value={contactEmail}
                                     onChange={(event) => {
@@ -410,7 +426,6 @@ export function VeraFeedbackModal({
                                 <Button
                                     variant="secondary"
                                     onClick={() => handleOpenChange(false)}
-                                    disabled={isPending}
                                     className="w-full sm:w-auto"
                                 >
                                     Отмена
@@ -418,8 +433,8 @@ export function VeraFeedbackModal({
                                 <Button
                                     type="submit"
                                     variant="primary"
-                                    disabled={isPending}
-                                    className="w-full sm:w-auto"
+                                    aria-disabled={isPending}
+                                    className="w-full aria-disabled:cursor-wait aria-disabled:opacity-60 sm:w-auto"
                                 >
                                     {isPending
                                         ? "Отправка…"

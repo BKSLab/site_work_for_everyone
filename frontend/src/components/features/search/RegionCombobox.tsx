@@ -27,6 +27,7 @@ export function RegionCombobox({
     const [prevRegionCode, setPrevRegionCode] = useState(regionCode);
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLUListElement>(null);
 
     // Сбрасываем ввод если regionCode сброшен снаружи (derived state pattern)
     if (regionCode !== prevRegionCode) {
@@ -44,6 +45,26 @@ export function RegionCombobox({
                   )
                   .slice(0, 10)
             : regions;
+    const hasList = isOpen && filtered.length > 0;
+    const validActiveIndex = hasList && activeIndex >= 0 && activeIndex < filtered.length
+        ? activeIndex
+        : -1;
+
+    function closeList() {
+        setIsOpen(false);
+        setActiveIndex(-1);
+    }
+
+    // Scroll only this popup: scrollIntoView can also move the page behind it.
+    useEffect(() => {
+        const list = listRef.current;
+        const option = list?.children[validActiveIndex] as HTMLElement | undefined;
+        if (!list || !option) return;
+        const bounds = list.getBoundingClientRect();
+        const optionBounds = option.getBoundingClientRect();
+        if (optionBounds.top < bounds.top) list.scrollTop -= bounds.top - optionBounds.top;
+        else if (optionBounds.bottom > bounds.bottom) list.scrollTop += optionBounds.bottom - bounds.bottom;
+    }, [validActiveIndex, inputValue, filtered.length]);
 
     function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
         setInputValue(e.target.value);
@@ -57,8 +78,7 @@ export function RegionCombobox({
     function handleSelect(region: Region) {
         setInputValue(region.name);
         onRegionChange(region.region_code, region.name);
-        setIsOpen(false);
-        setActiveIndex(-1);
+        closeList();
     }
 
     function handleKeyDown(e: React.KeyboardEvent) {
@@ -67,18 +87,18 @@ export function RegionCombobox({
             if (!isOpen) {
                 // Открываем список и сразу фокусируемся на первом элементе
                 setIsOpen(true);
-                setActiveIndex(0);
+                setActiveIndex(filtered.length ? 0 : -1);
             } else {
-                setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+                setActiveIndex(Math.min(validActiveIndex + 1, filtered.length - 1));
             }
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            setActiveIndex((i) => Math.max(i - 1, -1));
-        } else if (e.key === "Enter" && activeIndex >= 0) {
+            setActiveIndex(Math.max(validActiveIndex - 1, -1));
+        } else if (e.key === "Enter" && validActiveIndex >= 0) {
             e.preventDefault();
-            if (filtered[activeIndex]) handleSelect(filtered[activeIndex]);
+            handleSelect(filtered[validActiveIndex]);
         } else if (e.key === "Escape") {
-            setIsOpen(false);
+            closeList();
         }
     }
 
@@ -90,6 +110,7 @@ export function RegionCombobox({
                 !containerRef.current.contains(e.target as Node)
             ) {
                 setIsOpen(false);
+                setActiveIndex(-1);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
@@ -98,7 +119,10 @@ export function RegionCombobox({
     }, []);
 
     return (
-        <div className="flex flex-col gap-1" ref={containerRef}>
+        <div className="flex flex-col gap-1" ref={containerRef}
+            onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) closeList();
+            }}>
             <div className="flex flex-col gap-1">
                 <label
                     htmlFor={id}
@@ -125,23 +149,24 @@ export function RegionCombobox({
                         aria-required="true"
                         aria-invalid={error ? true : undefined}
                         aria-describedby={error ? errorId : undefined}
-                        aria-expanded={isOpen && filtered.length > 0}
-                        aria-controls={isOpen ? listId : undefined}
+                        aria-expanded={hasList}
+                        aria-controls={hasList ? listId : undefined}
                         aria-autocomplete="list"
                         aria-activedescendant={
-                            activeIndex >= 0
-                                ? `${listId}-${activeIndex}`
+                            validActiveIndex >= 0
+                                ? `${listId}-${validActiveIndex}`
                                 : undefined
                         }
                         disabled={isLoading}
-                        className="w-full rounded border border-white/20 bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+                        className="w-full rounded border border-input bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
                     />
-                    {isOpen && filtered.length > 0 && (
+                    {hasList && (
                         <ul
+                            ref={listRef}
                             id={listId}
                             role="listbox"
                             aria-label="Регионы"
-                            className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded border border-white/20 bg-surface shadow-lg"
+                            className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded border border-white/20 bg-surface p-1 shadow-lg"
                         >
                             {filtered.map((region, index) => (
                                 <li
@@ -149,13 +174,14 @@ export function RegionCombobox({
                                     id={`${listId}-${index}`}
                                     role="option"
                                     aria-selected={region.region_code === regionCode}
+                                    onMouseMove={() => setActiveIndex(index)}
                                     onMouseDown={(e) => {
                                         e.preventDefault();
                                         handleSelect(region);
                                     }}
-                                    className={`cursor-pointer px-3 py-2 text-sm text-foreground hover:bg-surface-hover ${
-                                        index === activeIndex
-                                            ? "bg-surface-hover"
+                                    className={`cursor-pointer rounded-md px-3 py-2 text-sm text-foreground ${
+                                        index === validActiveIndex
+                                            ? "bg-accent/10 outline-2 -outline-offset-2 outline-accent"
                                             : ""
                                     } ${region.region_code === regionCode ? "text-accent" : ""}`}
                                 >
