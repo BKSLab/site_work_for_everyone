@@ -26,10 +26,38 @@
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
-            @page { margin: 18mm 14mm; }
-            .section { break-inside: avoid; }
-            .matrix-grid { break-inside: avoid; }
-            tr { break-inside: avoid; }
+            @page { size: A4; margin: 18mm 14mm; }
+
+            body { padding: 0; }
+            .header, .footer, .matrix-wrap {
+                break-inside: avoid-page;
+                page-break-inside: avoid;
+            }
+
+            /* Секции могут продолжаться на новой странице без отрыва заголовка. */
+            .section {
+                break-inside: auto;
+                margin-bottom: 36px;
+                padding-top: 12px;
+            }
+            .section-header, h2, h3 {
+                break-inside: avoid-page;
+                break-after: avoid-page;
+                page-break-inside: avoid;
+                page-break-after: avoid;
+            }
+            p { orphans: 3; widows: 3; }
+
+            /* Таблицы переносятся только между строками, шапка повторяется. */
+            .table-wrap {
+                overflow: visible;
+                break-inside: auto;
+            }
+            thead { display: table-header-group; }
+            tr, th, td {
+                break-inside: avoid-page;
+                page-break-inside: avoid;
+            }
         }
 
         body {
@@ -295,14 +323,14 @@
     <header class="header">
         <div class="logo-platform-wrap">
             <span class="logo-platform-img-wrap">
-                <img src="frontend/public/logo.png" alt="" class="logo-platform-img">
+                <img src="../frontend/public/logo.png" alt="" class="logo-platform-img">
             </span>
             <span class="logo-platform-name">Работа для всех</span>
             <span class="logo-platform-braille">⠗⠁⠃⠕⠞⠁⠀⠙⠇⠫⠀⠺⠎⠑⠓</span>
         </div>
         <div class="tag">Матрица стейкхолдеров</div>
         <div class="header-title-row">
-            <img src="frontend/public/logo_ai_assistant.png" alt="Вера" class="logo-vera">
+            <img src="../frontend/public/logo_ai_assistant.png" alt="Вера" class="logo-vera">
             <div>
                 <h1>Агент <span>Вера</span></h1>
                 <p class="subtitle">Классификация участников проекта по власти и интересу (модель Mendelow)</p>

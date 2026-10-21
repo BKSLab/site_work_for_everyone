@@ -64,7 +64,7 @@ services:
       - "443:443"
     environment:
       # host:port агента «Вера» (vera_agent_service) — только через env var,
-      # без общей docker-сети (docs/VERA_AGENT_INTEGRATION_PLAN.md)
+      # без общей docker-сети (см. PROJECT_MEMORY.md)
       - AGENT_SSE_UPSTREAM=${AGENT_SSE_UPSTREAM}
     volumes:
       # Шаблон, не готовый конфиг: официальный entrypoint nginx:alpine сам

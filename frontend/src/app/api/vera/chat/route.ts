@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Пробрасываем access_token cookie как Bearer — user_id для агента
     // определяется backend'ом из верифицированного JWT, не из тела запроса
-    // (см. AGENT_VERA_ARCHITECTURE.md — user_id влияет на доступные тулы)
+    // Контракт владения и транспорта описан в PROJECT_MEMORY.md.
     const owner = await getVeraLifecycleOwnerHeaders(
         requestId,
         sessionId,

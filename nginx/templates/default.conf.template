@@ -89,7 +89,7 @@ server {
     }
 
     # SSE-стрим ответа агента «Вера» — напрямую на vera_agent_service, минуя
-    # Next.js/backend (docs/VERA_AGENT_INTEGRATION_PLAN.md). Адрес — host:port
+    # Next.js/backend (см. PROJECT_MEMORY.md). Адрес — host:port
     # из env var AGENT_SSE_UPSTREAM, без общей docker-сети с vera_agent_service.
     location /vera/sse/ {
         proxy_pass http://${AGENT_SSE_UPSTREAM}/sse/;
