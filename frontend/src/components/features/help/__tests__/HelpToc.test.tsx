@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HelpToc } from "../HelpToc";
@@ -42,6 +42,25 @@ it("focuses a deeply linked heading and marks its exact subsection", async () =>
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "instant" });
     expect(screen.getByRole("link", { name: "Карточка вакансии" })).toHaveAttribute("aria-current", "location");
     expect(screen.getByRole("link", { name: "Начало работы с сайтом" })).not.toHaveAttribute("aria-current");
+});
+
+it("nests career tasks and focuses their fourth-level headings", async () => {
+    window.history.replaceState(null, "", "/help#vera-letter");
+    positions = { "section-start": -3000, "vera-career": -1000, "vera-letter": 112 };
+    render(<>
+        <h1 id="help-heading" tabIndex={-1}>Справка</h1>
+        <HelpToc />
+        <h2 id="section-start" tabIndex={-1}>Начало работы</h2>
+        <h3 id="vera-career" tabIndex={-1}>Карьерный консультант</h3>
+        <h4 id="vera-letter" tabIndex={-1}>Сопроводительное письмо</h4>
+    </>);
+
+    const careerItem = screen.getByRole("link", { name: "Карьерный консультант" }).closest("li")!;
+    const letterLink = within(careerItem).getByRole("link", { name: "Сопроводительное письмо" });
+    expect(within(careerItem).getByRole("link", { name: "Рекомендации по резюме" })).toBeInTheDocument();
+    expect(within(careerItem).queryByRole("link", { name: "Консультация по правам" })).not.toBeInTheDocument();
+    await waitFor(() => expect(document.getElementById("vera-letter")).toHaveFocus());
+    expect(letterLink).toHaveAttribute("aria-current", "location");
 });
 
 it("updates the current section after a large scroll without moving focus", async () => {

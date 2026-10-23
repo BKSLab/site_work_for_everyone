@@ -55,10 +55,16 @@ it("indexes exact subsections from article prose without including navigation or
             <ol><li><p>Запросите код.</p></li></ol><p><a href="#contents">К оглавлению</a></p>
             <figure><button>Увеличить</button><figcaption>Форма восстановления.</figcaption></figure>
             <h2 id="favorites">Избранное</h2><p>Сохранённые вакансии.</p>
+            <h3 id="vera-career">Карьерный консультант</h3><p>Выберите задачу.</p>
+            <h4 id="vera-letter">Сопроводительное письмо</h4><p>Подготовьте письмо под вакансию.</p>
+            <h4 id="vera-resume">Рекомендации по резюме</h4><p>Улучшите резюме под вакансию.</p>
         </article>`;
     const index = buildHelpSearchIndex(document);
-    expect(index).toHaveLength(3);
+    expect(index).toHaveLength(6);
     expect(index.find((entry) => entry.id === "section-register")?.paragraphs).toEqual(["Создайте аккаунт."]);
     expect(index.find((entry) => entry.id === "account-recovery")?.paragraphs).toEqual(["Запросите код.", "Форма восстановления."]);
+    expect(index.find((entry) => entry.id === "vera-career")?.paragraphs).toEqual(["Выберите задачу."]);
+    expect(searchHelp(index, "сопроводительное письмо")[0]?.id).toBe("vera-letter");
+    expect(searchHelp(index, "резюме")[0]?.id).toBe("vera-resume");
     expect(JSON.stringify(index)).not.toMatch(/Посторонняя|Результаты поиска|К оглавлению|Увеличить/);
 });

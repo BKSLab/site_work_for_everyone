@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { HELP_SECTIONS, HELP_TARGETS } from "./help-sections";
+import { useEffect, useState, type ReactNode } from "react";
+import { HELP_SECTIONS, HELP_TARGETS, type HelpSection } from "./help-sections";
 
 export function HelpToc() {
     const [activeId, setActiveId] = useState(HELP_TARGETS[0].id);
@@ -87,6 +87,19 @@ export function HelpToc() {
         );
     }
 
+    function item({ id, label, children }: HelpSection): ReactNode {
+        return (
+            <li key={id}>
+                {link(id, label)}
+                {children && (
+                    <ul className="ml-3 mt-1 space-y-1">
+                        {children.map(item)}
+                    </ul>
+                )}
+            </li>
+        );
+    }
+
     return (
         <nav
             aria-label="Оглавление справки"
@@ -111,18 +124,7 @@ export function HelpToc() {
                 id="help-toc-list"
                 className={`vera-chat-scrollbar ${expanded ? "block" : "hidden"} space-y-1 text-sm lg:block lg:max-h-[calc(100dvh-9rem)] lg:overflow-y-auto lg:pr-3`}
             >
-                {HELP_SECTIONS.map(({ id, label, children }) => (
-                    <li key={id}>
-                        {link(id, label)}
-                        {children && (
-                            <ul className="ml-3 mt-1 space-y-1">
-                                {children.map((child) => (
-                                    <li key={child.id}>{link(child.id, child.label)}</li>
-                                ))}
-                            </ul>
-                        )}
-                    </li>
-                ))}
+                {HELP_SECTIONS.map(item)}
             </ul>
         </nav>
     );

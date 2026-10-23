@@ -56,10 +56,10 @@ export function buildHelpSearchIndex(root: ParentNode): HelpSearchEntry[] {
     const targets = new Set(HELP_TARGETS.map(({ id }) => id));
     const entries: HelpSearchEntry[] = [];
     let current: HelpSearchEntry | undefined;
-    for (const element of article.querySelectorAll<HTMLElement>("h2[id], h3[id], p, li, dt, dd, figcaption")) {
+    for (const element of article.querySelectorAll<HTMLElement>("h2[id], h3[id], h4[id], p, li, dt, dd, figcaption")) {
         const text = element.textContent?.replace(/\s+/gu, " ").trim();
         if (!text) continue;
-        if (element.matches("h2, h3")) {
+        if (element.matches("h2, h3, h4")) {
             current = targets.has(element.id) ? { id: element.id, title: text, paragraphs: [] } : undefined;
             if (current) entries.push(current);
         } else if (current && text !== "К оглавлению" && !element.parentElement?.closest("li, dd")) {

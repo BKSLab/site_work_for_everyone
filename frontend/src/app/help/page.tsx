@@ -354,6 +354,40 @@ export default function HelpPage() {
                                 >
                                     Поиск вакансий
                                 </h2>
+                                <h3
+                                    id="section-sources"
+                                    tabIndex={-1}
+                                    className="mt-8 mb-3 scroll-mt-28 text-lg font-semibold text-foreground"
+                                >
+                                    Откуда берутся вакансии
+                                </h3>
+                                <p className="mb-3">
+                                    Сайт объединяет вакансии с hh.ru и trudvsem.ru — портала
+                                    «Работа России». Поиск доступен бесплатно.
+                                </p>
+                                <p>
+                                    Поиск выполняется сразу по двум источникам. Результаты отображаются
+                                    в одном списке; у каждой вакансии указан источник. Сервис ориентирован
+                                    на поиск работы для людей с инвалидностью.
+                                </p>
+                                <p className="mt-3">
+                                    Условия и актуальность объявления зависят от источника и работодателя.
+                                    Перед откликом откройте исходную вакансию: там можно проверить детали,
+                                    контакты и способ отклика. Если какой-то информации нет в карточке,
+                                    уточните её у работодателя.
+                                </p>
+                                <p className="mt-3">
+                                    <Link href="/" className={tocLinkClass}>Начать поиск по двум источникам</Link>.
+                                    Как открыть исходное объявление, описано в разделе
+                                    <a href="#vacancy-card" className={tocLinkClass}> «Карточка вакансии»</a>.
+                                </p>
+                                <h3
+                                    id="vacancy-search"
+                                    tabIndex={-1}
+                                    className="mt-8 mb-3 scroll-mt-28 text-lg font-semibold text-foreground"
+                                >
+                                    Как начать поиск
+                                </h3>
                                 <p className="mb-3">
                                     Откройте <Link href="/" className={tocLinkClass}>форму поиска на главной странице</Link>.
                                     Поиск объединит вакансии с hh.ru и «Работы России» по выбранному месту.
@@ -624,13 +658,13 @@ export default function HelpPage() {
                                     height={623}
                                 />
 
-                                <h3
+                                <h4
                                     id="vera-letter"
                                     tabIndex={-1}
-                                    className="mt-8 mb-3 scroll-mt-28 text-lg font-semibold text-foreground"
+                                    className="mt-8 mb-3 scroll-mt-28 text-base font-semibold text-foreground"
                                 >
                                     Сопроводительное письмо
-                                </h3>
+                                </h4>
                                 <p className="mb-3">
                                     Для письма нужна вакансия, предварительно сохранённая в
                                     <Link href="/favorites" className={tocLinkClass}> избранном</Link>.
@@ -700,13 +734,13 @@ export default function HelpPage() {
                                 <p>
                                     <Link href="/assistant/start" className={tocLinkClass}>Подготовить сопроводительное письмо с Верой</Link>
                                 </p>
-                                <h3
+                                <h4
                                     id="vera-resume"
                                     tabIndex={-1}
-                                    className="mt-8 mb-3 scroll-mt-28 text-lg font-semibold text-foreground"
+                                    className="mt-8 mb-3 scroll-mt-28 text-base font-semibold text-foreground"
                                 >
                                     Рекомендации по резюме
-                                </h3>
+                                </h4>
                                 <p className="mb-3">
                                     Для рекомендаций нужна вакансия из
                                     <Link href="/favorites" className={tocLinkClass}> избранного</Link>.
@@ -905,37 +939,6 @@ export default function HelpPage() {
                                 />
                                 <p>
                                     <Link href="/blog" className={tocLinkClass}>Открыть все материалы блога</Link>
-                                </p>
-                                {backToContents}
-                            </section>
-
-                            <section aria-labelledby="section-sources">
-                                <h2
-                                    id="section-sources"
-                                    tabIndex={-1}
-                                    className="scroll-mt-28 mb-4 text-2xl font-bold text-foreground"
-                                >
-                                    Откуда берутся вакансии
-                                </h2>
-                                <p className="mb-3">
-                                    Сайт объединяет вакансии с hh.ru и trudvsem.ru — портала
-                                    «Работа России». Поиск доступен бесплатно.
-                                </p>
-                                <p>
-                                    Поиск выполняется сразу по двум источникам. Результаты отображаются
-                                    в одном списке; у каждой вакансии указан источник. Сервис ориентирован
-                                    на поиск работы для людей с инвалидностью.
-                                </p>
-                                <p className="mt-3">
-                                    Условия и актуальность объявления зависят от источника и работодателя.
-                                    Перед откликом откройте исходную вакансию: там можно проверить детали,
-                                    контакты и способ отклика. Если какой-то информации нет в карточке,
-                                    уточните её у работодателя.
-                                </p>
-                                <p className="mt-3">
-                                    <Link href="/" className={tocLinkClass}>Начать поиск по двум источникам</Link>.
-                                    Как открыть исходное объявление, описано в разделе
-                                    <a href="#vacancy-card" className={tocLinkClass}> «Карточка вакансии»</a>.
                                 </p>
                                 {backToContents}
                             </section>
