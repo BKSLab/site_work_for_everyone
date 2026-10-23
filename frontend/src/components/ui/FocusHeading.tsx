@@ -6,11 +6,14 @@ interface FocusHeadingProps {
     children: React.ReactNode;
     className?: string;
     id?: string;
+    focusOnMount?: boolean;
 }
 
-export function FocusHeading({ children, className, id }: FocusHeadingProps) {
+export function FocusHeading({ children, className, id, focusOnMount = true }: FocusHeadingProps) {
     const ref = useRef<HTMLHeadingElement>(null);
-    useEffect(() => { ref.current?.focus(); }, []);
+    useEffect(() => {
+        if (focusOnMount) ref.current?.focus({ preventScroll: true });
+    }, [focusOnMount]);
     return (
         <h1 ref={ref} id={id} tabIndex={-1} className={`${className ?? ""} scroll-mt-28 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent`}>
             {children}

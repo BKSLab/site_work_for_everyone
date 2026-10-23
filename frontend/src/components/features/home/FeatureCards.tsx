@@ -20,6 +20,7 @@ const FEATURES: Feature[] = [
         id: "sources",
         title: "Два источника",
         description: "Находите вакансии с hh.ru и Работы России",
+        href: "/help#section-sources",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="9" cy="12" r="6" />
@@ -31,6 +32,7 @@ const FEATURES: Feature[] = [
         id: "search",
         title: "Поиск и фильтры",
         description: "Фильтруйте по региону, словам и источнику",
+        href: "/help#section-vacancies",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="8" />
@@ -42,6 +44,7 @@ const FEATURES: Feature[] = [
         id: "details",
         title: "Карточка вакансии",
         description: "Изучайте условия, зарплату и контакты",
+        href: "/help#vacancy-card",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -55,7 +58,7 @@ const FEATURES: Feature[] = [
         id: "favorites",
         title: "Избранное",
         description: "Сохраняйте вакансии, чтобы вернуться позже",
-        href: "/favorites",
+        href: "/help#favorites",
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
@@ -66,7 +69,7 @@ const FEATURES: Feature[] = [
         id: "letter",
         title: "Сопроводительное письмо",
         description: "Получайте письмо под выбранную вакансию",
-        href: "/assistant",
+        href: "/help#vera-letter",
         ai: true,
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -79,7 +82,7 @@ const FEATURES: Feature[] = [
         id: "resume",
         title: "Советы по резюме",
         description: "Улучшайте резюме под требования вакансии",
-        href: "/assistant",
+        href: "/help#vera-resume",
         ai: true,
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -92,7 +95,7 @@ const FEATURES: Feature[] = [
         id: "rights",
         title: "Консультация по правам",
         description: "Узнавайте о трудовых правах без регистрации",
-        href: "/assistant/chat",
+        href: "/help#vera-rights",
         ai: true,
         icon: (
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

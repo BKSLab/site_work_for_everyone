@@ -14,6 +14,12 @@ export function Footer() {
                         Обратная связь
                     </Link>
                     <Link
+                        href="/help"
+                        className={cn("text-sm text-muted hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", styles.footerLink)}
+                    >
+                        Справка
+                    </Link>
+                    <Link
                         href="/privacy"
                         className={cn("text-sm text-muted hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", styles.footerLink)}
                     >
